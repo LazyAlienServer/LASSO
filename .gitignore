@@ -1,0 +1,6 @@
+SAS-Test/
+__MACOSX/
+.idea/
+build/
+hs_err_pid*
+replay_pid*
