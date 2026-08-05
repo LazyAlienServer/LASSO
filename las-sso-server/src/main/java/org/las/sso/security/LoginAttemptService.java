@@ -77,7 +77,7 @@ public class LoginAttemptService {
                             :requestId, jsonb_build_object('failedAttempts', :failures))
                     """).param("id", uuidGenerator.generate()).param("now", now)
                     .param("userId", state.userId())
-                    .param("severity", state.admin() ? "HIGH" : "WARN")
+                    .param("severity", state.admin() ? "HIGH" : "WARNING")
                     .param("requestId", uuidGenerator.generate()).param("failures", failures).update();
         }
     }

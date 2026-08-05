@@ -772,6 +772,49 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .admin-credential-status { min-height: 14px; margin: 0 0 10px; color: var(--ink-soft); font-size: 9px; text-align: center; }
 .admin-credential-status[data-state="success"] { color: var(--success); }
 .admin-credential-status[data-state="error"] { color: var(--danger); }
+.audit-kind-tabs { display: flex; gap: 4px; }
+.admin-workspace.audit-workspace { grid-template-columns: minmax(0, 1fr); }
+.audit-panel { display: flex; flex-direction: column; overflow: hidden; }
+.audit-panel .audit-filter { flex: 0 0 auto; }
+.audit-panel .audit-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+.audit-panel .admin-empty { flex: 1 1 auto; min-height: 0; }
+.audit-panel .admin-pagination { flex: 0 0 auto; }
+.audit-kind-tabs a { padding: 6px 10px; border: 1px solid var(--line-soft); border-radius: 6px; color: var(--ink-soft); font-size: 9px; font-weight: 700; }
+.audit-kind-tabs a.active { color: white; background: var(--purple); border-color: var(--purple); }
+.audit-filter { display: flex; flex-wrap: wrap; align-items: end; gap: 7px; }
+.audit-filter label { flex: 1 1 170px; min-width: 150px; }
+.audit-filter label > span { margin-bottom: 4px; display: block; color: var(--ink-soft); font-size: 9px; }
+.audit-filter input, .audit-filter select { width: 100%; height: 35px; padding: 6px 9px; border: 1px solid var(--line); border-radius: 6px; background: white; font: inherit; font-size: 10px; }
+.audit-filter input[type="datetime-local"] { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+.audit-filter button { height: 35px; padding: 6px 14px; border: 0; border-radius: 6px; color: white; background: var(--purple); cursor: pointer; font-size: 10px; }
+.audit-panel .audit-filter button { width: auto; height: 35px; }
+.audit-quick-ranges { display: flex; align-items: end; gap: 4px; }
+.audit-quick-ranges button { height: 35px; padding: 6px 9px; border: 1px solid var(--line); border-radius: 6px; background: white; color: var(--purple); font-size: 9px; font-weight: 700; cursor: pointer; }
+.audit-item-head small { margin-left: 6px; color: var(--ink-soft); font-size: 9px; min-width: 0; }
+.audit-item-head small.unregistered { color: var(--danger); }
+.audit-list { margin-top: 9px; display: grid; gap: 5px; }
+.audit-item { padding: 10px 11px; background: var(--surface-soft); border: 1px solid var(--line-soft); border-radius: 7px; }
+.audit-item-head { display: flex; align-items: center; gap: 8px; }
+.audit-item-head strong { flex: 0 0 auto; font-size: 11px; overflow-wrap: anywhere; }
+.audit-item-head small { flex: 1 1 auto; min-width: 0; color: var(--ink-soft); font-size: 9px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.audit-item-head small.unregistered { color: var(--danger); }
+.audit-item-head time, .audit-item-head .severity-badge { flex: 0 0 auto; }
+.audit-item-head time { color: var(--ink-soft); font: 600 9px/1.2 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.severity-badge { padding: 3px 7px; border-radius: 5px; font-weight: 800; letter-spacing: .04em; }
+.severity-badge.high { color: var(--danger); background: var(--danger-bg); }
+.severity-badge.warning { color: #8a6116; background: #f8efd6; }
+.severity-badge.info { color: var(--purple); background: var(--purple-pale); }
+.audit-item-meta { margin: 8px 0 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px 12px; }
+.audit-item-meta > div { min-width: 0; }
+.audit-item-meta dt { color: var(--ink-soft); font: 700 8px/1.2 ui-monospace, monospace; letter-spacing: .08em; }
+.audit-item-meta dd { margin: 2px 0 0; font-size: 9px; overflow-wrap: anywhere; }
+.audit-item-reason { margin: 8px 0 0; padding: 7px 9px; color: var(--ink-soft); background: white; border: 1px solid var(--line-soft); border-radius: 5px; font-size: 9px; line-height: 1.5; overflow-wrap: anywhere; }
+@media (max-width: 900px) {
+  .audit-item-meta { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 480px) {
+  .audit-item-meta { grid-template-columns: 1fr; }
+}
 
 @media (max-width: 900px) {
   .passport-account-page { grid-template-rows: 60px minmax(0, 1fr); }

@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>审计 · LazyAlienServer 通行证</title>
+  <link rel="stylesheet" href="/assets/passport.css">
+  <script src="/assets/admin-audit.js" defer></script>
+</head>
+<body class="passport-account-page admin-page">
+  <a class="skip-link" href="#admin-content">跳到审计</a>
+  <div th:replace="~{fragments/account-navigation :: header(${username})}"></div>
+
+  <main id="admin-content" class="admin-layout">
+    <header class="admin-heading">
+      <div>
+        <p>LAS PASSPORT / ADMIN</p>
+        <h1>审计</h1>
+      </div>
+      <nav aria-label="管理区域">
+        <a href="/admin/users">用户</a>
+        <a class="active" href="/admin/audit">审计</a>
+        <a href="/account">返回个人中心</a>
+      </nav>
+    </header>
+
+    <section class="admin-workspace audit-workspace">
+      <article class="passport-panel admin-list-panel audit-panel" aria-labelledby="audit-list-title">
+        <div class="admin-panel-title">
+          <div><p>ADMIN LOG</p><h2 id="audit-list-title">审计与安全事件</h2></div>
+          <nav class="audit-kind-tabs" aria-label="事件类型">
+            <a th:classappend="${kind == 'audit'} ? ' active'" th:href="@{/admin/audit(kind=audit)}">管理员操作</a>
+            <a th:classappend="${kind == 'security'} ? ' active'" th:href="@{/admin/audit(kind=security)}">安全事件</a>
+          </nav>
+        </div>
+
+        <form id="audit-filter-form" class="admin-search audit-filter" method="get" action="/admin/audit">
+          <input type="hidden" name="kind" th:value="${kind}">
+          <input id="filter-from" type="hidden" name="from" th:value="${from}">
+          <input id="filter-to" type="hidden" name="to" th:value="${to}">
+          <th:block th:if="${kind == 'audit'}">
+            <label><span>操作</span><select name="action">
+              <option value="" th:selected="${action == ''}">全部操作</option>
+              <option th:each="entry : ${auditActions}" th:value="${entry.key}"
+                      th:selected="${action == entry.key}"
+                      th:text="${entry.value}">说明</option>
+            </select></label>
+            <label><span>目标 ID</span><input name="targetId" th:value="${targetId}" placeholder="UUID" autocomplete="off"></label>
+          </th:block>
+          <th:block th:if="${kind == 'security'}">
+            <label><span>类型</span><select name="type">
+              <option value="" th:selected="${type == ''}">全部类型</option>
+              <option th:each="entry : ${securityEvents}" th:value="${entry.key}"
+                      th:selected="${type == entry.key}"
+                      th:text="${entry.value}">说明</option>
+            </select></label>
+            <label><span>级别</span><select name="severity">
+              <option value="" th:selected="${severity == ''}">全部</option>
+              <option value="INFO" th:selected="${severity == 'INFO'}">INFO</option>
+              <option value="WARNING" th:selected="${severity == 'WARNING'}">WARNING</option>
+              <option value="HIGH" th:selected="${severity == 'HIGH'}">HIGH</option>
+              <option value="CRITICAL" th:selected="${severity == 'CRITICAL'}">CRITICAL</option>
+            </select></label>
+            <label><span>用户 ID</span><input name="userId" th:value="${userId}" placeholder="UUID" autocomplete="off"></label>
+          </th:block>
+          <label><span>起始时间</span><input id="filter-from-local" type="datetime-local"></label>
+          <label><span>结束时间</span><input id="filter-to-local" type="datetime-local"></label>
+          <button type="submit">筛选</button>
+          <div class="audit-quick-ranges" role="group" aria-label="快捷时间范围">
+            <button type="button" data-quick-range="3600000">最近 1 小时</button>
+            <button type="button" data-quick-range="86400000">最近 24 小时</button>
+            <button type="button" data-quick-range="604800000">最近 7 天</button>
+          </div>
+        </form>
+
+        <div class="admin-empty" th:if="${#lists.isEmpty(events.items)}">没有符合条件的记录</div>
+        <div class="audit-list" th:unless="${#lists.isEmpty(events.items)}">
+          <article class="audit-item" th:each="event : ${events.items}" th:if="${kind == 'audit'}"
+                   th:with="label=${auditActions[event.action]}">
+            <div class="audit-item-head">
+              <strong th:text="${event.action}">ADMIN_USER_FREEZE</strong>
+              <small th:if="${label != null}" th:text="${label}">说明</small>
+              <small class="unregistered" th:if="${label == null}">未登记类型</small>
+              <time class="audit-time" th:datetime="${event.occurredAt}" th:text="${event.occurredAt}">2026-08-05T12:00:00Z</time>
+            </div>
+            <dl class="audit-item-meta">
+              <div><dt>操作者</dt><dd th:text="${event.actorUsername != null ? event.actorUsername : event.actorUserId}">admin</dd></div>
+              <div><dt>目标</dt><dd th:text="${event.targetType + ' ' + event.targetId}">USER 019f…</dd></div>
+              <div><dt>结果</dt><dd th:text="${event.result}">SUCCESS</dd></div>
+              <div th:if="${event.ipPrefix != null}"><dt>来源</dt><dd th:text="${event.ipPrefix}">0a000001</dd></div>
+              <div><dt>请求</dt><dd th:text="${event.requestId}">UUID</dd></div>
+            </dl>
+            <dl class="audit-item-meta" th:if="${!#maps.isEmpty(event.details)}">
+              <div th:each="entry : ${event.details}"><dt th:text="${entry.key}">previousStatus</dt><dd th:text="${entry.value}">ACTIVE</dd></div>
+            </dl>
+            <p class="audit-item-reason" th:if="${event.reason != null}" th:text="${event.reason}">操作原因</p>
+          </article>
+
+          <article class="audit-item" th:each="event : ${events.items}" th:if="${kind == 'security'}"
+                   th:with="label=${securityEvents[event.eventType]}">
+            <div class="audit-item-head">
+              <strong th:text="${event.eventType}">PASSWORD_RECOVERED</strong>
+              <small th:if="${label != null}" th:text="${label}">说明</small>
+              <small class="unregistered" th:if="${label == null}">未登记类型</small>
+              <span class="severity-badge" th:classappend="${event.severity == 'CRITICAL' or event.severity == 'HIGH'} ? ' high' : (${event.severity == 'WARNING'} ? ' warning' : ' info')"
+                    th:text="${event.severity}">HIGH</span>
+            </div>
+            <dl class="audit-item-meta">
+              <div><dt>时间</dt><dd><time class="audit-time" th:datetime="${event.occurredAt}" th:text="${event.occurredAt}">2026-08-05T12:00:00Z</time></dd></div>
+              <div><dt>用户</dt><dd th:text="${event.username != null ? event.username : event.userId}">user</dd></div>
+              <div th:if="${event.clientId != null}"><dt>客户端</dt><dd th:text="${event.clientId}">client</dd></div>
+              <div th:if="${event.ipPrefix != null}"><dt>来源</dt><dd th:text="${event.ipPrefix}">0a000001</dd></div>
+              <div><dt>请求</dt><dd th:text="${event.requestId}">UUID</dd></div>
+            </dl>
+          </article>
+        </div>
+
+        <div class="admin-pagination">
+          <a th:if="${events.nextCursor != null}"
+             th:href="@{/admin/audit(kind=${kind},action=${action},type=${type},severity=${severity},targetId=${targetId},userId=${userId},from=${from},to=${to},cursor=${events.nextCursor})}">下一页 →</a>
+        </div>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

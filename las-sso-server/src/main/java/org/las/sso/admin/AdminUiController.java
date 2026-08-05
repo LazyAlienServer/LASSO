@@ -15,9 +15,13 @@ public class AdminUiController {
     private static final int PAGE_SIZE = 8;
 
     private final AdminUserManagementService users;
+    private final AdminAuditQueryService auditEvents;
 
-    public AdminUiController(AdminUserManagementService users) {
+    public AdminUiController(
+            AdminUserManagementService users,
+            AdminAuditQueryService auditEvents) {
         this.users = users;
+        this.auditEvents = auditEvents;
     }
 
     @GetMapping("/admin/users")
@@ -42,6 +46,43 @@ public class AdminUiController {
         model.addAttribute("nextCursor", page.nextCursor());
         model.addAttribute("selectedUser", selectedId == null ? null : users.user(selectedId));
         return "admin-users";
+    }
+
+    @GetMapping("/admin/audit")
+    String audit(
+            Authentication authentication,
+            @RequestParam(defaultValue = "audit") String kind,
+            @RequestParam(required = false) String action,
+            @RequestParam(required = false) String type,
+            @RequestParam(required = false) String severity,
+            @RequestParam(required = false) String targetId,
+            @RequestParam(required = false) String userId,
+            @RequestParam(required = false) String from,
+            @RequestParam(required = false) String to,
+            @RequestParam(required = false) String cursor,
+            @RequestParam(defaultValue = "50") int limit,
+            Model model) {
+        LasUserPrincipal principal = principal(authentication);
+        boolean securityKind = "security".equals(kind);
+        model.addAttribute("username", principal.loginUsername());
+        model.addAttribute("kind", securityKind ? "security" : "audit");
+        model.addAttribute("action", action == null ? "" : action);
+        model.addAttribute("type", type == null ? "" : type);
+        model.addAttribute("severity", severity == null ? "" : severity);
+        model.addAttribute("targetId", targetId == null ? "" : targetId);
+        model.addAttribute("userId", userId == null ? "" : userId);
+        model.addAttribute("from", from == null ? "" : from);
+        model.addAttribute("to", to == null ? "" : to);
+        if (securityKind) {
+            model.addAttribute("events", auditEvents.securityEvents(
+                    type, severity, userId, from, to, cursor, limit));
+        } else {
+            model.addAttribute("events", auditEvents.auditEvents(
+                    action, targetId, from, to, cursor, limit));
+        }
+        model.addAttribute("auditActions", AuditLabels.auditActions());
+        model.addAttribute("securityEvents", AuditLabels.securityEvents());
+        return "admin-audit";
     }
 
     private static LasUserPrincipal principal(Authentication authentication) {
