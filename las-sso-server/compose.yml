@@ -1,0 +1,21 @@
+name: las-sso-local
+
+services:
+  postgres:
+    image: postgres:18.4-alpine
+    environment:
+      POSTGRES_DB: las_sso
+      POSTGRES_USER: las_sso
+      POSTGRES_PASSWORD: local-only-change-me
+    ports:
+      - "127.0.0.1:54329:5432"
+    volumes:
+      - las-sso-postgres18:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U las_sso -d las_sso"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  las-sso-postgres18:

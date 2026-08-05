@@ -1,0 +1,19 @@
+spring:
+  main:
+    banner-mode: off
+
+las:
+  sso:
+    issuer: http://127.0.0.1:9000
+    signing-key:
+      key-id: las-test-ephemeral
+    recovery:
+      pepper: test-only-recovery-pepper
+    transient-security:
+      key-pepper: test-only-transient-security-pepper
+      captcha-hmac-secret: test-only-captcha-hmac-secret
+    login-risk:
+      captcha-ip-failures: 2
+      block-ip-failures: 3
+      jitter-min: PT0S
+      jitter-max: PT0S

@@ -1,0 +1,22 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://127.0.0.1:54329/las_sso
+    username: las_sso
+    password: local-only-change-me
+server:
+  servlet:
+    session:
+      cookie:
+        name: las_sso_local
+        secure: false
+
+las:
+  sso:
+    issuer: http://127.0.0.1:9000
+    signing-key:
+      key-id: las-local-ephemeral
+    recovery:
+      pepper: local-only-recovery-pepper-change-me
+    transient-security:
+      key-pepper: local-only-transient-security-pepper-change-me
+      captcha-hmac-secret: local-only-captcha-hmac-secret-change-me

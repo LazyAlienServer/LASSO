@@ -1,0 +1,290 @@
+package org.las.sso.account;
+
+import java.security.SecureRandom;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.util.Base64;
+import java.util.UUID;
+
+import org.las.sso.identity.UuidV7Generator;
+import org.las.sso.logout.BackChannelLogoutOutbox;
+import org.las.sso.security.AltchaChallengeService;
+import org.las.sso.security.PostgresRateLimiter;
+import org.las.sso.security.RateLimitExceededException;
+import org.las.sso.security.TransientSecurityKeyHasher;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+@Service
+public class PasswordRecoveryService {
+
+    public static final Duration SESSION_LIFETIME = Duration.ofMinutes(10);
+
+    private static final Duration ATTEMPT_WINDOW = Duration.ofMinutes(15);
+    private static final int USER_ATTEMPT_LIMIT = 5;
+    private static final int IP_ATTEMPT_LIMIT = 20;
+    private static final int GLOBAL_ATTEMPT_LIMIT = 1_000;
+    private static final int USER_CAPTCHA_THRESHOLD = 3;
+    private static final int IP_CAPTCHA_THRESHOLD = 10;
+
+    private final JdbcClient jdbcClient;
+    private final RecoveryCodeService recoveryCodes;
+    private final TransientSecurityKeyHasher keyHasher;
+    private final PostgresRateLimiter rateLimiter;
+    private final AltchaChallengeService captcha;
+    private final PasswordEncoder passwordEncoder;
+    private final PasswordPolicy passwordPolicy;
+    private final UuidV7Generator uuidGenerator;
+    private final BackChannelLogoutOutbox backChannelLogout;
+    private final SecureRandom secureRandom;
+    private final Clock clock;
+
+    @Autowired
+    public PasswordRecoveryService(
+            JdbcClient jdbcClient,
+            RecoveryCodeService recoveryCodes,
+            TransientSecurityKeyHasher keyHasher,
+            PostgresRateLimiter rateLimiter,
+            AltchaChallengeService captcha,
+            PasswordEncoder passwordEncoder,
+            PasswordPolicy passwordPolicy,
+            UuidV7Generator uuidGenerator,
+            BackChannelLogoutOutbox backChannelLogout) {
+        this(jdbcClient, recoveryCodes, keyHasher, rateLimiter, captcha, passwordEncoder,
+                passwordPolicy, uuidGenerator, backChannelLogout,
+                new SecureRandom(), Clock.systemUTC());
+    }
+
+    PasswordRecoveryService(
+            JdbcClient jdbcClient,
+            RecoveryCodeService recoveryCodes,
+            TransientSecurityKeyHasher keyHasher,
+            PostgresRateLimiter rateLimiter,
+            AltchaChallengeService captcha,
+            PasswordEncoder passwordEncoder,
+            PasswordPolicy passwordPolicy,
+            UuidV7Generator uuidGenerator,
+            BackChannelLogoutOutbox backChannelLogout,
+            SecureRandom secureRandom,
+            Clock clock) {
+        this.jdbcClient = jdbcClient;
+        this.recoveryCodes = recoveryCodes;
+        this.keyHasher = keyHasher;
+        this.rateLimiter = rateLimiter;
+        this.captcha = captcha;
+        this.passwordEncoder = passwordEncoder;
+        this.passwordPolicy = passwordPolicy;
+        this.uuidGenerator = uuidGenerator;
+        this.backChannelLogout = backChannelLogout;
+        this.secureRandom = secureRandom;
+        this.clock = clock;
+    }
+
+    @Transactional
+    public RecoverySession start(
+            String username,
+            String credential,
+            CredentialType credentialType,
+            CaptchaSubmission captchaSubmission,
+            String networkKey) {
+        var userDecision = consume("RECOVERY_USER", username, USER_ATTEMPT_LIMIT);
+        var ipDecision = consume("RECOVERY_IP", networkKey, IP_ATTEMPT_LIMIT);
+        consume("RECOVERY_GLOBAL", "all", GLOBAL_ATTEMPT_LIMIT);
+
+        boolean captchaRequired = userDecision.count() > USER_CAPTCHA_THRESHOLD
+                || ipDecision.count() > IP_CAPTCHA_THRESHOLD;
+        if (captchaRequired) {
+            if (captchaSubmission == null) {
+                throw new RecoveryFlowException("CAPTCHA_REQUIRED");
+            }
+            captcha.verifyAndConsume(
+                    captchaSubmission.challengeId(),
+                    AltchaChallengeService.Purpose.RECOVERY_RISK,
+                    captchaSubmission.payload(),
+                    networkKey);
+        }
+
+        OffsetDateTime now = now();
+        UUID userId = consumeCredential(username, credential, credentialType, now);
+        String token = newSessionToken();
+        jdbcClient.sql("""
+                INSERT INTO recovery_sessions
+                    (id, user_id, session_token_hash, credential_type, created_at, expires_at)
+                VALUES (:id, :userId, :tokenHash, :credentialType, :now, :expiresAt)
+                """).param("id", uuidGenerator.generate()).param("userId", userId)
+                .param("tokenHash", keyHasher.hash("recovery-session", token))
+                .param("credentialType", credentialType.name()).param("now", now)
+                .param("expiresAt", now.plus(SESSION_LIFETIME)).update();
+        securityEvent(userId, "RECOVERY_SESSION_CREATED", "INFO", now);
+        return new RecoverySession(token, now.plus(SESSION_LIFETIME));
+    }
+
+    @Transactional
+    public void complete(String sessionToken, String newPassword) {
+        if (sessionToken == null || sessionToken.isBlank()) {
+            throw new RecoveryFlowException("SESSION_EXPIRED");
+        }
+        OffsetDateTime now = now();
+        RecoveryCredential credential = jdbcClient.sql("""
+                SELECT rs.id AS recovery_session_id,
+                       rs.user_id,
+                       un.username,
+                       pc.password_hash
+                  FROM recovery_sessions rs
+                  JOIN users u ON u.id = rs.user_id
+                  JOIN usernames un ON un.user_id = u.id AND un.valid_to IS NULL
+                  JOIN password_credentials pc ON pc.user_id = u.id
+                 WHERE rs.session_token_hash = :tokenHash
+                   AND rs.consumed_at IS NULL
+                   AND rs.expires_at > :now
+                   AND u.account_status = 'ACTIVE'
+                 FOR UPDATE OF rs, u, un, pc
+                """).param("tokenHash", keyHasher.hash("recovery-session", sessionToken))
+                .param("now", now)
+                .query((rs, rowNum) -> new RecoveryCredential(
+                        rs.getObject("recovery_session_id", UUID.class),
+                        rs.getObject("user_id", UUID.class),
+                        rs.getString("username"),
+                        rs.getString("password_hash")))
+                .optional()
+                .orElseThrow(() -> new RecoveryFlowException("SESSION_EXPIRED"));
+
+        try {
+            passwordPolicy.validate(credential.username(), newPassword);
+        } catch (PasswordPolicyException exception) {
+            throw new RecoveryFlowException(exception.code());
+        }
+        if (passwordEncoder.matches(newPassword, credential.passwordHash())) {
+            throw new RecoveryFlowException("NEW_PASSWORD_REUSED");
+        }
+
+        jdbcClient.sql("""
+                UPDATE password_credentials
+                   SET password_hash = :passwordHash,
+                       state = 'ACTIVE',
+                       credentials_version = credentials_version + 1,
+                       password_changed_at = :now,
+                       temporary_expires_at = NULL,
+                       failed_attempts = 0,
+                       last_failed_at = NULL,
+                       locked_until = NULL
+                 WHERE user_id = :userId
+                """).param("passwordHash", passwordEncoder.encode(newPassword))
+                .param("now", now).param("userId", credential.userId()).update();
+        jdbcClient.sql("""
+                UPDATE recovery_sessions
+                   SET consumed_at = :now
+                 WHERE user_id = :userId AND consumed_at IS NULL
+                """).param("now", now).param("userId", credential.userId()).update();
+        jdbcClient.sql("""
+                UPDATE admin_recovery_credentials SET revoked_at = :now
+                 WHERE target_user_id = :userId AND revoked_at IS NULL
+                """).param("now", now).param("userId", credential.userId()).update();
+        jdbcClient.sql("""
+                UPDATE user_sessions
+                   SET status = 'REVOKED', revoked_at = :now, revoke_reason = 'PASSWORD_RECOVERED'
+                 WHERE user_id = :userId AND status = 'ACTIVE'
+                """).param("now", now).param("userId", credential.userId()).update();
+        backChannelLogout.enqueueForUser(credential.userId(), "PASSWORD_RECOVERED", now);
+        jdbcClient.sql("DELETE FROM oauth2_authorization WHERE principal_name = :principalName")
+                .param("principalName", credential.userId().toString()).update();
+        securityEvent(credential.userId(), "PASSWORD_RECOVERED", "WARNING", now);
+        jdbcClient.sql("""
+                INSERT INTO outbox_events
+                    (id, aggregate_type, aggregate_id, event_type, payload_json,
+                     created_at, available_at)
+                VALUES (:id, 'USER', :userId, 'GLOBAL_LOGOUT_REQUESTED',
+                        jsonb_build_object('userId', :userId, 'reason', 'PASSWORD_RECOVERED'),
+                        :now, :now)
+                """).param("id", uuidGenerator.generate())
+                .param("userId", credential.userId().toString()).param("now", now).update();
+    }
+
+    private UUID consumeCredential(
+            String username, String credential, CredentialType credentialType, OffsetDateTime now) {
+        byte[] digest = recoveryCodes.digest(credential);
+        if (credentialType == CredentialType.RECOVERY_CODE) {
+            return jdbcClient.sql("""
+                    UPDATE recovery_codes rc
+                       SET used_at = :now
+                      FROM users u, usernames un
+                     WHERE rc.user_id = u.id
+                       AND un.user_id = u.id
+                       AND un.valid_to IS NULL
+                       AND un.username = :username COLLATE "C"
+                       AND u.account_status = 'ACTIVE'
+                       AND rc.code_hash = :digest
+                       AND rc.used_at IS NULL
+                       AND rc.revoked_at IS NULL
+                    RETURNING rc.user_id
+                    """).param("now", now).param("username", username).param("digest", digest)
+                    .query(UUID.class).optional()
+                    .orElseThrow(() -> new RecoveryFlowException("RECOVERY_CREDENTIAL_INVALID"));
+        }
+        return jdbcClient.sql("""
+                UPDATE admin_recovery_credentials arc
+                   SET used_at = :now
+                  FROM users u, usernames un
+                 WHERE arc.target_user_id = u.id
+                   AND un.user_id = u.id
+                   AND un.valid_to IS NULL
+                   AND un.username = :username COLLATE "C"
+                   AND u.account_status = 'ACTIVE'
+                   AND arc.credential_hash = :digest
+                   AND arc.used_at IS NULL
+                   AND arc.revoked_at IS NULL
+                   AND arc.expires_at > :now
+                RETURNING arc.target_user_id
+                """).param("now", now).param("username", username).param("digest", digest)
+                .query(UUID.class).optional()
+                .orElseThrow(() -> new RecoveryFlowException("RECOVERY_CREDENTIAL_INVALID"));
+    }
+
+    private PostgresRateLimiter.Decision consume(String scope, String key, int limit) {
+        PostgresRateLimiter.Decision decision = rateLimiter.consume(scope, key, limit, ATTEMPT_WINDOW);
+        if (!decision.allowed()) {
+            throw new RateLimitExceededException(decision.resetsAt());
+        }
+        return decision;
+    }
+
+    private void securityEvent(UUID userId, String eventType, String severity, OffsetDateTime now) {
+        jdbcClient.sql("""
+                INSERT INTO security_events
+                    (id, occurred_at, user_id, event_type, severity, request_id, details_json)
+                VALUES (:id, :now, :userId, :eventType, :severity, :requestId, '{}'::jsonb)
+                """).param("id", uuidGenerator.generate()).param("now", now)
+                .param("userId", userId).param("eventType", eventType).param("severity", severity)
+                .param("requestId", uuidGenerator.generate()).update();
+    }
+
+    private String newSessionToken() {
+        byte[] value = new byte[32];
+        secureRandom.nextBytes(value);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(value);
+    }
+
+    private OffsetDateTime now() {
+        return OffsetDateTime.ofInstant(clock.instant(), ZoneOffset.UTC);
+    }
+
+    public enum CredentialType {
+        RECOVERY_CODE,
+        ADMIN_ISSUED
+    }
+
+    public record CaptchaSubmission(UUID challengeId, String payload) {
+    }
+
+    public record RecoverySession(String token, OffsetDateTime expiresAt) {
+    }
+
+    private record RecoveryCredential(
+            UUID sessionId, UUID userId, String username, String passwordHash) {
+    }
+}

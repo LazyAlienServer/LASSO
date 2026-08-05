@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="robots" content="noindex, nofollow">
+  <title th:text="${status == 404 ? '页面未找到' : '服务暂时不可用'} + ' · LazyAlienServer 通行证'">请求未完成 · LazyAlienServer 通行证</title>
+  <link rel="stylesheet" href="/assets/passport.css">
+</head>
+<body class="error-page">
+  <a class="skip-link" href="#error-content">跳到错误说明</a>
+  <main class="auth-shell">
+    <section class="brand-panel" aria-labelledby="brand-title">
+      <div class="section-index"><span class="target-mark" aria-hidden="true"></span> SYSTEM / ERROR <i></i></div>
+      <div class="brand-copy">
+        <h1 id="brand-title">LazyAlienServer<br><span>通行证</span></h1>
+      </div>
+    </section>
+
+    <section id="error-content" class="auth-card error-card" aria-labelledby="error-title" tabindex="-1">
+      <header class="card-header">
+        <span class="icon-frame" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M12 3 2.8 19h18.4L12 3Z"></path><path d="M12 9v4"></path><circle cx="12" cy="16.5" r=".7"></circle></svg>
+        </span>
+        <div>
+          <p>REQUEST INTERRUPTED</p>
+          <span>请求未能完成</span>
+        </div>
+      </header>
+
+      <div class="error-content">
+        <p class="error-code" aria-label="错误状态码" th:text="${status != null ? status : 500}">500</p>
+        <div th:if="${status == 404}">
+          <h2 id="error-title">没有找到这个页面</h2>
+          <p>页面地址可能有误，或者相关内容已经失效。</p>
+        </div>
+        <div th:unless="${status == 404}">
+          <h2 id="error-title">服务暂时无法处理请求</h2>
+          <p>这不是你的操作造成的。请稍后再试，或返回通行证首页。</p>
+        </div>
+
+        <a class="primary-button error-primary-action" href="/">
+          <span>返回通行证首页</span>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M14 7l5 5-5 5"></path></svg>
+        </a>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

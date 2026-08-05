@@ -1,0 +1,37 @@
+server:
+  port: 8088
+  servlet:
+    session:
+      cookie:
+        name: las_reference_session
+        http-only: true
+        same-site: lax
+        secure: false
+
+spring:
+  application:
+    name: las-sso-reference-bff
+  security:
+    oauth2:
+      client:
+        registration:
+          las-sso:
+            provider: las-sso
+            client-id: laslog-bff
+            client-secret: laslog-local-only
+            client-authentication-method: client_secret_basic
+            authorization-grant-type: authorization_code
+            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+            scope: openid,profile
+        provider:
+          las-sso:
+            issuer-uri: http://127.0.0.1:9000
+
+las:
+  sso:
+    client:
+      registration-id: las-sso
+      refresh-before-expiry: 60s
+      post-logout-redirect-uri: "{baseUrl}/logged-out"
+      logout-success-uri: /
+      logout-state-ttl: 5m

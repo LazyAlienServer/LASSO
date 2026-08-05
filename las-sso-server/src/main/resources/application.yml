@@ -1,0 +1,58 @@
+spring:
+  application:
+    name: las-sso-server
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: true
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  session:
+    timeout: 24h
+    jdbc:
+      initialize-schema: never
+
+server:
+  port: 9000
+  forward-headers-strategy: framework
+  servlet:
+    session:
+      cookie:
+        name: __Host-las_sso
+        http-only: true
+        secure: true
+        same-site: lax
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+
+las:
+  sso:
+    issuer: ${LAS_SSO_ISSUER}
+    signing-key:
+      path: ${LAS_SSO_SIGNING_KEY_PATH:}
+      password: ${LAS_SSO_SIGNING_KEY_PASSWORD:}
+      alias: ${LAS_SSO_SIGNING_KEY_ALIAS:}
+      key-id: ${LAS_SSO_SIGNING_KEY_ID}
+    recovery:
+      pepper: ${LAS_SSO_RECOVERY_PEPPER}
+    transient-security:
+      key-pepper: ${LAS_SSO_TRANSIENT_SECURITY_PEPPER}
+      captcha-hmac-secret: ${LAS_SSO_CAPTCHA_HMAC_SECRET}
+      cleanup-initial-delay: PT5M
+      cleanup-interval: PT5M
+    login-risk:
+      captcha-ip-failures: 20
+      block-ip-failures: 50
+      captcha-window: PT15M
+      block-window: PT30M
+      jitter-min: PT0.15S
+      jitter-max: PT0.45S

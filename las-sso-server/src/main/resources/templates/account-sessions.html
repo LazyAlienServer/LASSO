@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="light">
+  <title>活动会话 · LazyAlienServer 通行证</title>
+  <link rel="stylesheet" href="/assets/passport.css">
+  <script src="/assets/account-sessions.js" defer></script>
+</head>
+<body class="passport-account-page">
+  <a class="skip-link" href="#account-content">跳到活动会话</a>
+  <div th:replace="~{fragments/account-navigation :: header(${username})}"></div>
+  <main class="passport-account-layout">
+    <div th:replace="~{fragments/account-navigation :: nav('sessions')}"></div>
+    <section id="account-content" class="passport-content simple-account-content" aria-labelledby="sessions-title">
+      <div class="passport-section-index"><span class="target-mark" aria-hidden="true"></span> SECURITY / 02 <i></i></div>
+      <article class="passport-panel feature-panel session-panel">
+        <header class="passport-title-block">
+          <span class="title-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="1"></rect><path d="M8 21h8M12 17v4"></path></svg></span>
+          <div><p>SESSION CONTROL</p><h1 id="sessions-title">活动会话</h1><span>查看并管理已登录的设备</span></div>
+        </header>
+
+        <input id="session-csrf" type="hidden" th:value="${_csrf.token}" th:data-header="${_csrf.headerName}">
+        <div id="session-message" class="status-message" role="status" tabindex="-1" hidden>
+          <strong>会话已更新</strong><span id="session-message-text"></span>
+        </div>
+
+        <div class="session-empty" th:if="${#lists.isEmpty(sessions)}">
+          <span class="feature-state-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 5 6v5c0 5 3 8 7 10 4-2 7-5 7-10V6l-7-3Z"></path><path d="m9 12 2 2 4-5"></path></svg></span>
+          <h2>没有其他活动会话</h2>
+          <p>当前会话尚未登记，刷新页面后会自动建立安全会话记录。</p>
+        </div>
+
+        <ul class="session-list" aria-label="活动会话列表" th:unless="${#lists.isEmpty(sessions)}">
+          <li class="session-item" th:each="item : ${sessions}" th:data-sid="${item.sid}">
+            <span class="session-device-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="13" rx="1"></rect><path d="M8 21h8M12 17v4"></path></svg></span>
+            <div class="session-copy">
+              <div class="session-name">
+                <strong th:text="${item.userAgentSummary}">Chrome · Windows</strong>
+                <span class="state-badge success" th:if="${item.current}">当前会话</span>
+                <span class="state-badge" th:if="${item.administrator}">管理员</span>
+              </div>
+              <span th:text="|最近活动 ${item.lastSeenLabel} · 最晚 ${item.expiresLabel} 过期|">最近活动</span>
+            </div>
+            <button class="session-revoke" type="button"
+                    th:data-current="${item.current}"
+                    th:text="${item.current} ? '退出全部应用' : '撤销会话'">撤销会话</button>
+          </li>
+        </ul>
+
+        <div class="disabled-danger-row session-global-row" th:unless="${#lists.isEmpty(sessions)}">
+          <div><strong>退出所有设备</strong><span>撤销全部 SSO 会话与业务应用授权，需要重新登录。</span></div>
+          <button id="logout-all-sessions" type="button">全部退出</button>
+        </div>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

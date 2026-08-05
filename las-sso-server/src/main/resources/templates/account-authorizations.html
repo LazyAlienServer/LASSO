@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="light">
+  <title>已授权应用 · LazyAlienServer 通行证</title><link rel="stylesheet" href="/assets/passport.css">
+  <script src="/assets/account-authorizations.js" defer></script>
+</head>
+<body class="passport-account-page">
+  <a class="skip-link" href="#account-content">跳到已授权应用</a>
+  <div th:replace="~{fragments/account-navigation :: header(${username})}"></div>
+  <main class="passport-account-layout">
+    <div th:replace="~{fragments/account-navigation :: nav('authorizations')}"></div>
+    <section id="account-content" class="passport-content authorizations-content" aria-labelledby="authorizations-title">
+      <div class="passport-section-index"><span class="target-mark" aria-hidden="true"></span> ACCESS / 04 <i></i></div>
+      <article class="passport-panel authorization-panel">
+        <header class="authorization-heading">
+          <div><p class="passport-kicker">OIDC ACCESS</p><h1 id="authorizations-title">已授权应用</h1><span>查看哪些服务正在使用你的通行证</span></div>
+          <div class="authorization-count"><strong th:text="${#lists.size(authorizations)}">0</strong><span>个已授权应用</span></div>
+        </header>
+
+        <input id="authorization-csrf" type="hidden" th:value="${_csrf.token}" th:data-header="${_csrf.headerName}">
+        <div id="authorization-message" class="status-message" role="status" tabindex="-1" hidden>
+          <strong>操作未完成</strong><span id="authorization-message-text"></span>
+        </div>
+
+        <div class="authorization-list" th:if="${!#lists.isEmpty(authorizations)}">
+          <article class="authorization-item" th:each="authorization : ${authorizations}">
+            <span class="application-mark" aria-hidden="true" th:text="${#strings.substring(authorization.clientName, 0, 1)}">L</span>
+            <div class="application-name"><strong th:text="${authorization.clientName}">LAS service</strong><small th:text="${authorization.clientId}">client-id</small></div>
+            <div class="application-scopes"><span>授权范围</span><div><b th:each="scope : ${authorization.scopes}" th:text="${scope}">openid</b><em th:if="${#lists.isEmpty(authorization.scopes)}">未记录</em></div></div>
+            <div class="application-used"><span>最近使用</span><strong th:text="${authorization.lastUsedLabel}">尚无记录</strong></div>
+            <button class="authorization-revoke" type="button"
+                    th:data-client-id="${authorization.clientId}"
+                    th:data-client-name="${authorization.clientName}">撤销授权</button>
+          </article>
+        </div>
+
+        <div class="feature-state compact" th:if="${#lists.isEmpty(authorizations)}">
+          <span class="feature-state-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"></path><path d="m4 7.5 8 4.5 8-4.5"></path></svg></span>
+          <h2>尚无已授权应用</h2><p>当你通过通行证登录 LAS 服务后，真实授权关系会显示在这里。</p>
+        </div>
+        <p class="implementation-note">撤销只影响所选应用；你的通行证和其他应用会话保持不变。</p>
+      </article>
+    </section>
+  </main>
+
+  <dialog id="authorization-revoke-dialog" class="passport-dialog">
+    <form id="authorization-revoke-form" class="passport-dialog-card" method="dialog">
+      <div class="dialog-heading"><p>AUTHORIZATION CONTROL</p><h2>撤销应用授权</h2></div>
+      <p class="admin-dialog-description">撤销 <strong id="authorization-client-name"></strong> 的授权后，该应用会立即收到退出通知；再次使用时需要重新授权。</p>
+      <p id="authorization-dialog-error" class="field-error" aria-live="polite"></p>
+      <div class="dialog-actions">
+        <button id="authorization-dialog-cancel" class="secondary-button" type="button">取消</button>
+        <button id="authorization-dialog-submit" class="primary-button" type="submit">确认撤销</button>
+      </div>
+    </form>
+  </dialog>
+</body>
+</html>

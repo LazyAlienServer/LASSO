@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>受保护页面 · LAS SSO 参考客户端</title>
+  <link rel="stylesheet" href="/assets/reference.css">
+</head>
+<body>
+  <main class="reference-card" aria-labelledby="page-title">
+    <p class="kicker">PROTECTED RESOURCE</p>
+    <h1 id="page-title">认证链路有效</h1>
+    <p class="summary">这个页面只有已建立本地 BFF 会话的用户能够访问。</p>
+    <section class="session-box">
+      <span>当前身份</span>
+      <strong th:text="${username}">LAS User</strong>
+      <code th:text="${subject}">subject</code>
+    </section>
+    <div class="actions"><a class="primary" href="/">返回首页</a></div>
+  </main>
+</body>
+</html>

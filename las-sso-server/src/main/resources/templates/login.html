@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>登录 · LazyAlienServer 通行证</title>
+  <link rel="stylesheet" href="/assets/passport.css">
+  <script type="module" src="/webjars/altcha/3.1.0/dist/main/altcha.min.js" th:if="${param.captcha != null}"></script>
+  <script src="/assets/passport-ui.js" defer></script>
+  <script src="/assets/login-risk.js" defer th:if="${param.captcha != null}"></script>
+</head>
+<body th:classappend="${param.captcha != null} ? 'login-risk-page'">
+  <a class="skip-link" href="#auth-form">跳到登录表单</a>
+  <main class="auth-shell">
+    <section class="brand-panel" aria-labelledby="brand-title">
+      <div class="section-index"><span class="target-mark" aria-hidden="true"></span> AUTH / 01 <i></i></div>
+      <div class="brand-copy">
+        <h1 id="brand-title">LazyAlienServer<br><span>通行证</span></h1>
+      </div>
+    </section>
+
+    <section class="auth-card" aria-labelledby="form-title">
+      <header class="card-header">
+        <span class="icon-frame" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="10" rx="1"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3"></path><circle cx="12" cy="15" r="1"></circle></svg>
+        </span>
+        <div>
+          <p>ACCESS REQUEST</p>
+        </div>
+      </header>
+
+      <div class="status-message error" role="alert" th:if="${param.error}">
+        <strong>无法登录</strong>
+        <span>用户名或密码不正确，请检查大小写后重试。</span>
+      </div>
+      <div class="status-message success" role="status" th:if="${param.logout}">
+        <strong>已安全退出</strong>
+        <span>当前通行证会话已经结束。</span>
+      </div>
+      <div class="status-message error" role="alert" th:if="${param.sessionExpired}">
+        <strong>登录状态已失效</strong>
+        <span>密码或账号安全状态已经变化，请重新登录。</span>
+      </div>
+      <div class="status-message error" role="alert" th:if="${param.captcha != null}">
+        <strong>需要完成人机验证</strong>
+        <span>此网络近期登录失败较多。验证只用于保护账号，不会改变你的登录资料。</span>
+      </div>
+
+      <form id="auth-form" class="auth-form" method="post" action="/login" novalidate>
+        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+        <div class="field-group">
+          <label for="username">用户名</label>
+          <input id="username" name="username" type="text" autocomplete="username" maxlength="24" required autofocus>
+        </div>
+
+        <div class="field-group">
+          <label for="password">密码</label>
+          <div class="password-field">
+            <input id="password" name="password" type="password" autocomplete="current-password" required>
+            <button class="icon-button password-toggle" type="button" aria-label="显示密码" aria-pressed="false" data-password-toggle="password">
+              <svg class="eye-open" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"></path><circle cx="12" cy="12" r="2.5"></circle></svg>
+              <svg class="eye-closed" viewBox="0 0 24 24" aria-hidden="true"><path d="m3 3 18 18M10.5 6.2A10 10 0 0 1 12 6c6 0 9.5 6 9.5 6a16 16 0 0 1-2.3 3M6.2 6.2C3.8 8 2.5 12 2.5 12s3.5 6 9.5 6a10 10 0 0 0 3-.5"></path></svg>
+            </button>
+          </div>
+        </div>
+
+        <label class="remember-device-option" for="remember-device">
+          <input id="remember-device" name="rememberDevice" type="checkbox" value="true">
+          <span>信任此设备，延长登录时间</span>
+        </label>
+
+        <div class="field-group verification-group login-risk-group" th:if="${param.captcha != null}">
+          <div class="field-heading"><label>人机验证</label><span id="captcha-status">正在准备验证…</span></div>
+          <div class="captcha-frame" id="captcha-frame" aria-busy="true">
+            <altcha-widget id="altcha-widget" name="captchaPayload" auto="off" hide-footer hide-logo></altcha-widget>
+          </div>
+          <p id="captcha-error" class="field-error" aria-live="polite"></p>
+        </div>
+
+        <button class="primary-button" type="submit">
+          <span>继续登录</span>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M14 7l5 5-5 5"></path></svg>
+        </button>
+      </form>
+
+      <nav class="auth-links" aria-label="账户帮助">
+        <a href="/register">注册账号</a>
+        <span aria-hidden="true"></span>
+        <a href="/password-recovery">忘记密码</a>
+      </nav>
+    </section>
+  </main>
+</body>
+</html>

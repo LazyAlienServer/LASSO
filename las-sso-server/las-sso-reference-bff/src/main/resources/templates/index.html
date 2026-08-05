@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LAS SSO 参考客户端</title>
+  <link rel="stylesheet" href="/assets/reference.css">
+</head>
+<body>
+  <main class="reference-card" aria-labelledby="page-title">
+    <p class="kicker">LAS SSO / REFERENCE BFF</p>
+    <h1 id="page-title">业务系统接入验证</h1>
+    <p class="summary">这个页面只验证服务端 OIDC 会话。浏览器不会接收到 OAuth Token。</p>
+
+    <section class="session-box" th:if="${authenticated}">
+      <span>已通过 LAS SSO 登录</span>
+      <strong th:text="${username}">LAS User</strong>
+      <code th:text="${subject}">subject</code>
+    </section>
+
+    <div class="actions" th:if="${!authenticated}">
+      <a class="primary" href="/api/auth/login">使用 LAS SSO 登录</a>
+    </div>
+    <div class="actions" th:if="${authenticated}">
+      <a class="primary" href="/protected">访问受保护页面</a>
+      <form th:action="@{/api/auth/logout}" method="post"><button type="submit">退出当前应用</button></form>
+      <form th:action="@{/api/auth/logout/global}" method="post"><button type="submit">退出全部应用</button></form>
+    </div>
+    <p class="endpoint-note">AT 到期前由 BFF 自动续期；浏览器不会接触 AT 或 RT。</p>
+    <p class="endpoint-note">会话快照：<code>GET /api/auth/session</code></p>
+  </main>
+</body>
+</html>

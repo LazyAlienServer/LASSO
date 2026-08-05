@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>用户管理 · LazyAlienServer 通行证</title>
+  <link rel="stylesheet" href="/assets/passport.css">
+  <script src="/assets/admin-users.js" defer></script>
+</head>
+<body class="passport-account-page admin-page">
+  <a class="skip-link" href="#admin-content">跳到用户管理</a>
+  <div th:replace="~{fragments/account-navigation :: header(${username})}"></div>
+
+  <main id="admin-content" class="admin-layout">
+    <header class="admin-heading">
+      <div>
+        <p>LAS PASSPORT / ADMIN</p>
+        <h1>用户管理</h1>
+      </div>
+      <nav aria-label="管理区域">
+        <a class="active" href="/admin/users">用户</a>
+        <a href="/account">返回个人中心</a>
+      </nav>
+    </header>
+
+    <section class="admin-workspace">
+      <article class="passport-panel admin-list-panel" aria-labelledby="user-list-title">
+        <div class="admin-panel-title">
+          <div><p>IDENTITIES</p><h2 id="user-list-title">通行证账号</h2></div>
+          <span th:text="${#lists.size(users)}">0</span>
+        </div>
+
+        <form class="admin-search" method="get" action="/admin/users">
+          <label><span>搜索</span><input name="query" th:value="${query}" placeholder="用户名、显示名称或 UUID" autocomplete="off"></label>
+          <label><span>状态</span><select name="status">
+            <option value="" th:selected="${status == ''}">全部</option>
+            <option value="ACTIVE" th:selected="${status == 'ACTIVE'}">正常</option>
+            <option value="FROZEN" th:selected="${status == 'FROZEN'}">已冻结</option>
+            <option value="DELETED" th:selected="${status == 'DELETED'}">已删除</option>
+          </select></label>
+          <button type="submit">筛选</button>
+        </form>
+
+        <div class="admin-empty" th:if="${#lists.isEmpty(users)}">没有符合条件的账号</div>
+        <nav class="admin-user-list" aria-label="用户列表" th:unless="${#lists.isEmpty(users)}">
+          <a th:each="item : ${users}"
+             th:href="@{/admin/users(query=${query},status=${status},selected=${item.userId})}"
+             th:classappend="${selectedUser != null and selectedUser.userId == item.userId} ? ' active'">
+            <span class="admin-avatar" th:text="${#strings.substring(item.username, 0, 1)}">L</span>
+            <span><strong th:text="${item.username}">LASUser</strong><small th:text="${item.displayName}">LAS User</small></span>
+            <span class="state-badge" th:classappend="${item.status == 'ACTIVE'} ? ' success' : (${item.status == 'FROZEN'} ? ' danger' : '')"
+                  th:text="${item.administrator} ? '管理员' : (${item.status == 'ACTIVE'} ? '正常' : (${item.status == 'FROZEN'} ? '冻结' : '删除'))">正常</span>
+          </a>
+        </nav>
+
+        <div class="admin-pagination">
+          <a th:if="${nextCursor != null}" th:href="@{/admin/users(query=${query},status=${status},cursor=${nextCursor})}">下一页 →</a>
+          <a th:if="${nextCursor == null and (query != '' or status != '')}" href="/admin/users">清除筛选</a>
+        </div>
+      </article>
+
+      <article class="passport-panel admin-detail-panel" aria-live="polite">
+        <div class="admin-empty detail" th:if="${selectedUser == null}">选择一个账号查看详情</div>
+        <th:block th:if="${selectedUser != null}">
+          <header class="admin-user-heading">
+            <span class="admin-avatar large" th:text="${#strings.substring(selectedUser.username, 0, 1)}">L</span>
+            <div><p th:text="${selectedUser.userId}">UUID</p><h2 th:text="${selectedUser.username}">LASUser</h2><span th:text="${selectedUser.displayName}">LAS User</span></div>
+            <span class="state-badge" th:classappend="${selectedUser.status == 'ACTIVE'} ? ' success' : ' danger'"
+                  th:text="${selectedUser.administrator} ? '管理员' : (${selectedUser.status == 'ACTIVE'} ? '正常' : (${selectedUser.status == 'FROZEN'} ? '已冻结' : '已删除'))">正常</span>
+          </header>
+
+          <dl class="admin-detail-grid">
+            <div><dt>凭据状态</dt><dd th:text="${selectedUser.credentialState}">ACTIVE</dd></div>
+            <div><dt>活动会话</dt><dd th:text="${selectedUser.activeSessionCount}">0</dd></div>
+            <div><dt>活动授权</dt><dd th:text="${selectedUser.activeAuthorizationCount}">0</dd></div>
+            <div><dt>注册时间</dt><dd th:text="${#temporals.format(selectedUser.createdAt, 'yyyy-MM-dd HH:mm')}">2026-08-04</dd></div>
+            <div><dt>密码更新</dt><dd th:text="${#temporals.format(selectedUser.passwordChangedAt, 'yyyy-MM-dd HH:mm')}">2026-08-04</dd></div>
+            <div><dt>锁定到期</dt><dd th:text="${selectedUser.lockedUntil == null ? '未锁定' : #temporals.format(selectedUser.lockedUntil, 'yyyy-MM-dd HH:mm')}">未锁定</dd></div>
+          </dl>
+
+          <div id="admin-message" class="status-message" role="status" tabindex="-1" hidden><strong></strong><span></span></div>
+          <div class="admin-actions" th:if="${!selectedUser.administrator and selectedUser.userId != actorUserId and selectedUser.status != 'DELETED'}">
+            <button th:if="${selectedUser.status == 'ACTIVE'}" class="admin-action danger-button" type="button" data-action="freeze" th:data-user-id="${selectedUser.userId}">冻结账号</button>
+            <button th:if="${selectedUser.status == 'FROZEN'}" class="admin-action primary-button" type="button" data-action="unfreeze" th:data-user-id="${selectedUser.userId}">解除冻结</button>
+            <button class="admin-action secondary-button" type="button" data-action="revoke-sessions" th:data-user-id="${selectedUser.userId}">强制下线</button>
+          </div>
+          <p class="admin-protected-note" th:if="${selectedUser.administrator or selectedUser.userId == actorUserId}">为避免管理员锁死，当前账号必须通过离线维护流程处理。</p>
+        </th:block>
+      </article>
+    </section>
+  </main>
+
+  <input id="admin-csrf" type="hidden" th:value="${_csrf.token}" th:data-header="${_csrf.headerName}">
+  <dialog id="admin-action-dialog" class="passport-dialog">
+    <form id="admin-action-form" class="passport-dialog-card" method="dialog">
+      <div class="dialog-heading"><p>ADMIN CONFIRMATION</p><h2 id="admin-dialog-title">确认管理操作</h2></div>
+      <p id="admin-dialog-description" class="admin-dialog-description"></p>
+      <label class="field-group"><span>操作原因</span><textarea name="reason" maxlength="500" required placeholder="填写可审计的处理原因"></textarea></label>
+      <label class="field-group"><span>当前管理员密码</span><input name="password" type="password" maxlength="512" autocomplete="current-password" required></label>
+      <p id="admin-dialog-error" class="field-error" aria-live="polite"></p>
+      <div class="dialog-actions"><button id="admin-dialog-cancel" class="secondary-button" type="button">取消</button><button id="admin-dialog-submit" class="primary-button" type="submit">确认执行</button></div>
+    </form>
+  </dialog>
+</body>
+</html>

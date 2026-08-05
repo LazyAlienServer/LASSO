@@ -1,0 +1,11 @@
+build/
+bin/
+.gradle/
+target/
+.idea/
+*.iml
+.env
+.local/
+logs/
+hs_err_pid*
+replay_pid*

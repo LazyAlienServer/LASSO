@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>账户概览 · LazyAlienServer 通行证</title>
+  <link rel="stylesheet" href="/assets/passport.css">
+</head>
+<body class="passport-account-page">
+  <a class="skip-link" href="#account-content">跳到账户概览</a>
+  <div th:replace="~{fragments/account-navigation :: header(${username})}"></div>
+  <main class="passport-account-layout">
+    <div th:replace="~{fragments/account-navigation :: nav('overview')}"></div>
+
+    <section id="account-content" class="passport-content overview-content" aria-labelledby="account-title">
+      <div class="passport-section-index"><span class="target-mark" aria-hidden="true"></span> ACCOUNT / 01 <i></i></div>
+
+      <div class="overview-grid">
+        <article class="passport-panel profile-panel">
+          <div class="profile-visual" aria-hidden="true">
+            <span th:text="${#strings.substring(username, 0, 1)}">L</span>
+          </div>
+          <div class="profile-copy">
+            <p class="passport-kicker">通行证信息</p>
+            <h1 id="account-title">你好，<span th:text="${profile.displayName}">LAS User</span></h1>
+            <p>管理你的通行证资料与登录安全</p>
+            <dl class="passport-detail-list">
+              <div><dt>用户名</dt><dd th:text="${username}">LASUser</dd></div>
+              <div><dt>显示名称</dt><dd th:text="${profile.displayName}">LAS User</dd></div>
+              <div><dt>通行证 ID</dt><dd class="mono" th:text="${userId}">00000000-0000-0000-0000-000000000000</dd></div>
+              <div><dt>账号状态</dt><dd><span class="state-badge success">正常</span><span class="state-badge" th:if="${administrator}">管理员</span></dd></div>
+              <div><dt>注册时间</dt><dd th:text="${profile.createdDate}">2026-01-01</dd></div>
+            </dl>
+          </div>
+        </article>
+
+        <aside class="passport-panel status-panel" aria-labelledby="status-title">
+          <h2 id="status-title">安全状态</h2>
+          <div class="status-metric">
+            <span class="metric-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="1"></rect><path d="M8 21h8M12 17v4"></path></svg></span>
+            <span>活动会话</span><strong th:text="${activeSessionCount}">1</strong>
+          </div>
+          <div class="status-metric">
+            <span class="metric-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 5 6v5c0 5 3 8 7 10 4-2 7-5 7-10V6l-7-3Z"></path><path d="m9 12 2 2 4-5"></path></svg></span>
+            <span>可用恢复码</span><strong th:text="${recoveryStatus.availableCount}">0</strong>
+          </div>
+          <div class="status-metric">
+            <span class="metric-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg></span>
+            <span>当前认证</span><strong class="metric-text">本次会话</strong>
+          </div>
+        </aside>
+      </div>
+
+      <article class="passport-panel quick-panel" aria-labelledby="quick-title">
+        <h2 id="quick-title">快速操作</h2>
+        <nav class="quick-actions" th:classappend="${administrator} ? ' admin-enabled'" aria-label="快速操作">
+          <a href="/account/sessions">
+            <span class="metric-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="1"></rect><path d="M8 21h8M12 17v4"></path></svg></span>
+            <span><strong>查看会话</strong><small>管理已登录设备</small></span><b aria-hidden="true">→</b>
+          </a>
+          <a href="/account/recovery-codes">
+            <span class="metric-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 7a5 5 0 1 0-4.6 7L12 16h2v2h2v2h3v-3.2l-4.4-4.4"></path></svg></span>
+            <span><strong>管理恢复码</strong><small>查看状态或重新生成</small></span><b aria-hidden="true">→</b>
+          </a>
+          <a href="/account/authorizations">
+            <span class="metric-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"></path></svg></span>
+            <span><strong>查看授权</strong><small>检查已登录服务</small></span><b aria-hidden="true">→</b>
+          </a>
+          <a href="/admin/users" th:if="${administrator}">
+            <span class="metric-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"></circle><path d="M3 20c.5-4 2.5-6 6-6s5.5 2 6 6M16 8h5M18.5 5.5v5"></path></svg></span>
+            <span><strong>用户管理</strong><small>冻结账号或强制下线</small></span><b aria-hidden="true">→</b>
+          </a>
+        </nav>
+      </article>
+    </section>
+  </main>
+</body>
+</html>
