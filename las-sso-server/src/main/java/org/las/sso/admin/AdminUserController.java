@@ -29,16 +29,19 @@ import org.springframework.web.bind.annotation.RestController;
 public class AdminUserController {
 
     private final AdminUserManagementService users;
+    private final AdminRecoveryCredentialService recoveryCredentials;
     private final RecentAuthenticationService recentAuthentication;
     private final SameOriginVerifier sameOriginVerifier;
     private final UserSessionService userSessions;
 
     public AdminUserController(
             AdminUserManagementService users,
+            AdminRecoveryCredentialService recoveryCredentials,
             RecentAuthenticationService recentAuthentication,
             SameOriginVerifier sameOriginVerifier,
             UserSessionService userSessions) {
         this.users = users;
+        this.recoveryCredentials = recoveryCredentials;
         this.recentAuthentication = recentAuthentication;
         this.sameOriginVerifier = sameOriginVerifier;
         this.userSessions = userSessions;
@@ -93,6 +96,19 @@ public class AdminUserController {
         users.revokeSessions(principal.userId(), userSessions.currentSid(request), userId,
                 body.reason(), requestId(request));
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{userId}/recovery-credentials")
+    ResponseEntity<AdminRecoveryCredentialService.IssuedCredential> issueRecoveryCredential(
+            Authentication authentication,
+            @PathVariable UUID userId,
+            @Valid @RequestBody ActionRequest body,
+            HttpServletRequest request) {
+        LasUserPrincipal principal = authorizeWrite(authentication, request);
+        AdminRecoveryCredentialService.IssuedCredential issued = recoveryCredentials.issue(
+                principal.userId(), userSessions.currentSid(request), userId,
+                body.reason(), requestId(request));
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(issued);
     }
 
     private LasUserPrincipal authorizeWrite(

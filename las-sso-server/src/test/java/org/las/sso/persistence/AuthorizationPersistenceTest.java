@@ -587,7 +587,7 @@ class AuthorizationPersistenceTest {
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
                         .content().string(org.hamcrest.Matchers.containsString("已授权应用")))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
-                        .content().string(org.hamcrest.Matchers.containsString("真实 OIDC 授权记录")));
+                        .content().string(org.hamcrest.Matchers.containsString("真实授权关系会显示在这里")));
 
         mockMvc.perform(get("/account/delete").with(user(principal)))
                 .andExpect(status().isOk())

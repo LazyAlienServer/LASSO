@@ -84,6 +84,7 @@
             <button th:if="${selectedUser.status == 'ACTIVE'}" class="admin-action danger-button" type="button" data-action="freeze" th:data-user-id="${selectedUser.userId}">冻结账号</button>
             <button th:if="${selectedUser.status == 'FROZEN'}" class="admin-action primary-button" type="button" data-action="unfreeze" th:data-user-id="${selectedUser.userId}">解除冻结</button>
             <button class="admin-action secondary-button" type="button" data-action="revoke-sessions" th:data-user-id="${selectedUser.userId}">强制下线</button>
+            <button th:if="${selectedUser.status == 'ACTIVE'}" class="admin-action secondary-button" type="button" data-action="recovery-credentials" th:data-user-id="${selectedUser.userId}">签发恢复凭据</button>
           </div>
           <p class="admin-protected-note" th:if="${selectedUser.administrator or selectedUser.userId == actorUserId}">为避免管理员锁死，当前账号必须通过离线维护流程处理。</p>
         </th:block>
@@ -96,11 +97,28 @@
     <form id="admin-action-form" class="passport-dialog-card" method="dialog">
       <div class="dialog-heading"><p>ADMIN CONFIRMATION</p><h2 id="admin-dialog-title">确认管理操作</h2></div>
       <p id="admin-dialog-description" class="admin-dialog-description"></p>
+      <input name="username" type="hidden" autocomplete="username" aria-hidden="true" tabindex="-1">
       <label class="field-group"><span>操作原因</span><textarea name="reason" maxlength="500" required placeholder="填写可审计的处理原因"></textarea></label>
       <label class="field-group"><span>当前管理员密码</span><input name="password" type="password" maxlength="512" autocomplete="current-password" required></label>
       <p id="admin-dialog-error" class="field-error" aria-live="polite"></p>
       <div class="dialog-actions"><button id="admin-dialog-cancel" class="secondary-button" type="button">取消</button><button id="admin-dialog-submit" class="primary-button" type="submit">确认执行</button></div>
     </form>
+  </dialog>
+
+  <dialog id="admin-credential-dialog" class="passport-dialog" aria-labelledby="admin-credential-title">
+    <div class="passport-dialog-card">
+      <button id="admin-credential-close" class="dialog-close" type="button" aria-label="关闭凭据窗口">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"></path></svg>
+      </button>
+      <div class="dialog-heading"><p>ONE-TIME CREDENTIAL</p><h2 id="admin-credential-title">人工恢复凭据</h2></div>
+      <p class="admin-dialog-description">以下凭据只显示一次，请立即通过可信渠道交付给用户。关闭后无法再次查看；如果交付失败或丢失，只能重新签发。</p>
+      <code id="admin-credential-value" class="admin-credential-value"></code>
+      <p id="admin-credential-status" class="admin-credential-status" role="status" aria-live="polite"></p>
+      <div class="dialog-actions">
+        <button id="admin-credential-copy" class="secondary-button" type="button">复制凭据</button>
+        <button id="admin-credential-saved" class="primary-button" type="button">我已保存，关闭</button>
+      </div>
+    </div>
   </dialog>
 </body>
 </html>

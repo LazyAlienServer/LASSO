@@ -34,6 +34,11 @@ public final class RecoveryCodeService {
         return List.copyOf(codes);
     }
 
+    public RecoveryCode generateAdminCredential() {
+        String plaintext = "LAS-ADMIN-" + group() + "-" + group() + "-" + group();
+        return new RecoveryCode(plaintext, digest(plaintext));
+    }
+
     byte[] digest(String code) {
         try {
             Mac mac = Mac.getInstance("HmacSHA256");

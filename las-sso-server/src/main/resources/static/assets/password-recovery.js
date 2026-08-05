@@ -148,6 +148,10 @@
     return widget.value || hidden?.value || widget.getAttribute("value") || "";
   }
 
+  function isAdminCredential(value) {
+    return value.replace(/-/g, "").toUpperCase().startsWith("LASADMIN");
+  }
+
   function validateCredentialForm() {
     clearError();
     const username = credentialForm.elements.username;
@@ -226,7 +230,8 @@
         body: JSON.stringify({
           username: credentialForm.elements.username.value,
           credential: credentialForm.elements.credential.value,
-          credentialType: "RECOVERY_CODE",
+          credentialType: isAdminCredential(credentialForm.elements.credential.value)
+            ? "ADMIN_ISSUED" : "RECOVERY_CODE",
           captcha
         })
       });
