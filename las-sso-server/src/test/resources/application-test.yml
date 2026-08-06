@@ -17,3 +17,5 @@ las:
       block-ip-failures: 3
       jitter-min: PT0S
       jitter-max: PT0S
+    deletion-job:
+      initial-delay: PT240H

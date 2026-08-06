@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>注销申请 · LazyAlienServer 通行证</title>
+  <link rel="stylesheet" href="/assets/passport.css">
+  <script src="/assets/admin-deletion-requests.js" defer></script>
+</head>
+<body class="passport-account-page admin-page">
+  <a class="skip-link" href="#admin-content">跳到注销申请</a>
+  <div th:replace="~{fragments/account-navigation :: header(${username})}"></div>
+
+  <main id="admin-content" class="admin-layout">
+    <header class="admin-heading">
+      <div>
+        <p>LAS PASSPORT / ADMIN</p>
+        <h1>注销申请</h1>
+      </div>
+      <nav aria-label="管理区域">
+        <a href="/admin/users">用户</a>
+        <a href="/admin/audit">审计</a>
+        <a class="active" href="/admin/deletion-requests">注销申请</a>
+        <a href="/account">返回个人中心</a>
+      </nav>
+    </header>
+
+    <section class="admin-workspace audit-workspace">
+      <article class="passport-panel admin-list-panel audit-panel" aria-labelledby="deletion-list-title">
+        <div class="admin-panel-title">
+          <div><p>ACCOUNT DELETION</p><h2 id="deletion-list-title">注销申请</h2></div>
+        </div>
+
+        <form class="admin-search audit-filter" method="get" action="/admin/deletion-requests">
+          <label><span>状态</span><select name="status">
+            <option value="" th:selected="${status == ''}">全部</option>
+            <option value="PENDING" th:selected="${status == 'PENDING'}">等待期</option>
+            <option value="HELD" th:selected="${status == 'HELD'}">暂缓</option>
+            <option value="CANCELLED" th:selected="${status == 'CANCELLED'}">已取消</option>
+            <option value="EXECUTED" th:selected="${status == 'EXECUTED'}">已执行</option>
+          </select></label>
+          <button type="submit">筛选</button>
+        </form>
+
+        <div class="admin-empty" th:if="${#lists.isEmpty(requests.items)}">没有符合条件的注销申请</div>
+        <div class="audit-list" th:unless="${#lists.isEmpty(requests.items)}">
+          <article class="audit-item deletion-item" th:each="request : ${requests.items}">
+            <div class="deletion-item-info">
+              <div class="audit-item-head">
+                <strong th:text="${request.username}">LASUser</strong>
+                <small th:if="${request.accountStatus == 'FROZEN'}">账号已冻结</small>
+                <span class="severity-badge" th:classappend="${request.status == 'HELD'} ? ' warning' : (${request.status == 'EXECUTED'} ? ' high' : ' info')"
+                      th:text="${request.status == 'PENDING' ? '等待期' : (request.status == 'HELD' ? '暂缓' : (request.status == 'CANCELLED' ? '已取消' : '已执行'))}">等待期</span>
+              </div>
+              <dl class="audit-item-meta">
+                <div><dt>用户 ID</dt><dd th:text="${request.userId}">UUID</dd></div>
+                <div><dt>申请时间</dt><dd><time class="audit-time" th:datetime="${request.requestedAt}" th:text="${request.requestedAt}">2026-08-06T00:00:00Z</time></dd></div>
+                <div><dt>执行时间</dt><dd><time class="audit-time" th:datetime="${request.executeAfter}" th:text="${request.executeAfter}">2026-09-05T00:00:00Z</time></dd></div>
+                <div th:if="${request.holdUntil != null}"><dt>暂缓截止</dt><dd><time class="audit-time" th:datetime="${request.holdUntil}" th:text="${request.holdUntil}">2026-10-01T00:00:00Z</time></dd></div>
+              </dl>
+              <p class="audit-item-reason" th:if="${request.holdReason != null}" th:text="${'暂缓原因：' + request.holdReason}">暂缓原因</p>
+            </div>
+            <div class="audit-item-actions" th:if="${request.status == 'PENDING' or request.status == 'HELD'}">
+              <button th:if="${request.status == 'PENDING'}" class="admin-action secondary-button" type="button" data-action="hold" th:data-request-id="${request.id}" th:data-username="${request.username}">暂缓</button>
+              <button th:if="${request.status == 'HELD'}" class="admin-action secondary-button" type="button" data-action="release" th:data-request-id="${request.id}" th:data-username="${request.username}">释放</button>
+            </div>
+          </article>
+        </div>
+
+        <div class="admin-pagination">
+          <a th:if="${requests.nextCursor != null}"
+             th:href="@{/admin/deletion-requests(status=${status},cursor=${requests.nextCursor})}">下一页 →</a>
+        </div>
+      </article>
+    </section>
+  </main>
+
+  <input id="admin-csrf" type="hidden" th:value="${_csrf.token}" th:data-header="${_csrf.headerName}">
+  <dialog id="admin-action-dialog" class="passport-dialog">
+    <form id="admin-action-form" class="passport-dialog-card" method="dialog">
+      <div class="dialog-heading"><p>ADMIN CONFIRMATION</p><h2 id="admin-dialog-title">确认管理操作</h2></div>
+      <p id="admin-dialog-description" class="admin-dialog-description"></p>
+      <input name="username" type="hidden" autocomplete="username" aria-hidden="true" tabindex="-1">
+      <label class="field-group"><span>操作原因</span><textarea name="reason" maxlength="500" required placeholder="填写可审计的处理原因"></textarea></label>
+      <label class="field-group" id="hold-until-group"><span>暂缓截止时间</span><input name="holdUntil" type="datetime-local" maxlength="32"></label>
+      <label class="field-group"><span>当前管理员密码</span><input name="password" type="password" maxlength="512" autocomplete="current-password" required></label>
+      <p id="admin-dialog-error" class="field-error" aria-live="polite"></p>
+      <div class="dialog-actions"><button id="admin-dialog-cancel" class="secondary-button" type="button">取消</button><button id="admin-dialog-submit" class="primary-button" type="submit">确认执行</button></div>
+    </form>
+  </dialog>
+</body>
+</html>

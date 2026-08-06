@@ -792,7 +792,7 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .audit-quick-ranges button { height: 35px; padding: 6px 9px; border: 1px solid var(--line); border-radius: 6px; background: white; color: var(--purple); font-size: 9px; font-weight: 700; cursor: pointer; }
 .audit-item-head small { margin-left: 6px; color: var(--ink-soft); font-size: 9px; min-width: 0; }
 .audit-item-head small.unregistered { color: var(--danger); }
-.audit-list { margin-top: 9px; display: grid; gap: 5px; }
+.audit-list { margin-top: 9px; display: grid; gap: 5px; align-content: start; }
 .audit-item { padding: 10px 11px; background: var(--surface-soft); border: 1px solid var(--line-soft); border-radius: 7px; }
 .audit-item-head { display: flex; align-items: center; gap: 8px; }
 .audit-item-head strong { flex: 0 0 auto; font-size: 11px; overflow-wrap: anywhere; }
@@ -809,6 +809,24 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .audit-item-meta dt { color: var(--ink-soft); font: 700 8px/1.2 ui-monospace, monospace; letter-spacing: .08em; }
 .audit-item-meta dd { margin: 2px 0 0; font-size: 9px; overflow-wrap: anywhere; }
 .audit-item-reason { margin: 8px 0 0; padding: 7px 9px; color: var(--ink-soft); background: white; border: 1px solid var(--line-soft); border-radius: 5px; font-size: 9px; line-height: 1.5; overflow-wrap: anywhere; }
+.audit-item-actions { margin-top: 9px; display: flex; justify-content: flex-end; gap: 6px; }
+.audit-item-actions button { min-height: 32px; padding: 6px 12px; }
+.deletion-item { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.deletion-item-info { flex: 1 1 auto; min-width: 0; }
+.deletion-item .audit-item-actions { margin-top: 0; flex: 0 0 auto; }
+@media (max-width: 560px) {
+  .deletion-item { flex-direction: column; align-items: stretch; gap: 8px; }
+  .deletion-item .audit-item-actions { justify-content: flex-end; }
+}
+.deletion-request-form { margin: 12px auto 0; width: min(320px, 100%); display: grid; gap: 8px; }
+.deletion-request-form .deletion-submit { min-height: 42px; width: 100%; cursor: pointer; }
+.deletion-apply { display: grid; gap: 18px; }
+.deletion-apply-copy { display: grid; justify-items: center; gap: 6px; text-align: center; }
+.deletion-apply-copy a { color: var(--purple); font-size: 10px; font-weight: 700; }
+@media (min-width: 780px) {
+  .deletion-apply { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); align-items: center; gap: 26px; }
+  .deletion-request-form { margin: 0 0 0 auto; width: 100%; max-width: 340px; }
+}
 @media (max-width: 900px) {
   .audit-item-meta { grid-template-columns: 1fr 1fr; }
 }

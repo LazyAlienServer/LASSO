@@ -594,7 +594,7 @@ class AuthorizationPersistenceTest {
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
                         .content().string(org.hamcrest.Matchers.containsString("30 天等待期")))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
-                        .content().string(org.hamcrest.Matchers.containsString("注销申请暂未开放")));
+                        .content().string(org.hamcrest.Matchers.containsString("申请注销通行证")));
     }
 
     @Test

@@ -196,7 +196,7 @@ public class AdminAuditQueryService {
         return java.util.HexFormat.of().formatHex(prefixHash, 0, length);
     }
 
-    private static Cursor decodeCursor(String cursor) {
+    static Cursor decodeCursor(String cursor) {
         if (cursor == null || cursor.isBlank()) {
             return null;
         }
@@ -219,7 +219,7 @@ public class AdminAuditQueryService {
         }
     }
 
-    private static String encodeCursor(OffsetDateTime occurredAt, UUID id) {
+    static String encodeCursor(OffsetDateTime occurredAt, UUID id) {
         return CURSOR_ENCODER.encodeToString(
                 (occurredAt + "|" + id).getBytes(StandardCharsets.US_ASCII));
     }
@@ -289,6 +289,6 @@ public class AdminAuditQueryService {
         }
     }
 
-    private record Cursor(OffsetDateTime occurredAt, UUID id) {
+    record Cursor(OffsetDateTime occurredAt, UUID id) {
     }
 }

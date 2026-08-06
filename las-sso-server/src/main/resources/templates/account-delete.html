@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="light">
   <title>注销账号 · LazyAlienServer 通行证</title><link rel="stylesheet" href="/assets/passport.css">
+  <script src="/assets/account-delete.js" defer></script>
 </head>
 <body class="passport-account-page">
   <a class="skip-link" href="#account-content">跳到注销账号</a>
@@ -22,14 +23,55 @@
             <li><strong>02</strong><span>进入 30 天等待期</span></li>
             <li><strong>03</strong><span>到期删除通行证数据</span></li>
           </ol>
-          <aside class="deletion-note"><strong>注销不是立即删除</strong><p>业务系统中的历史内容可能按各自规则保留。</p></aside>
+          <aside class="deletion-note"><strong>注销不是立即删除</strong><p>30 天内可以随时取消；业务系统中的历史内容可能按各自规则保留。</p></aside>
         </div>
-        <div class="feature-state compact deletion-unavailable">
-          <span class="feature-state-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 5 6v5c0 5 3 8 7 10 4-2 7-5 7-10V6l-7-3Z"></path></svg></span>
-          <h2>注销申请暂未开放</h2>
-          <p>30 天等待期、取消申请、任务执行和全局退出必须作为完整事务上线。目前不接受不完整的注销请求。</p>
-          <button type="button" disabled>申请注销通行证</button>
-          <a href="/account">返回账户概览</a>
+
+        <input id="deletion-csrf" type="hidden" th:value="${_csrf.token}" th:data-header="${_csrf.headerName}">
+        <div id="deletion-message" class="status-message" role="status" tabindex="-1" hidden>
+          <strong>操作未完成</strong><span id="deletion-message-text"></span>
+        </div>
+
+        <div class="feature-state compact deletion-apply" th:if="${deletion.status == 'NONE' or deletion.status == 'CANCELLED'}">
+          <div class="deletion-apply-copy">
+            <span class="feature-state-icon" th:if="${deletion.status == 'NONE'}">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 5 6v5c0 5 3 8 7 10 4-2 7-5 7-10V6l-7-3Z"></path></svg>
+            </span>
+            <span class="feature-state-icon" th:if="${deletion.status == 'CANCELLED'}">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 5 6v5c0 5 3 8 7 10 4-2 7-5 7-10V6l-7-3Z"></path><path d="m8.5 12 2.5 2.5 4.5-5"></path></svg>
+            </span>
+            <h2 th:text="${deletion.status == 'NONE' ? '申请注销通行证' : '注销申请已取消'}">申请注销通行证</h2>
+            <p th:text="${deletion.status == 'NONE' ? '申请后立即退出所有设备和应用，进入 30 天等待期；到期后删除通行证数据，账号无法恢复。' : '你的账号保持正常，可以继续使用 LazyAlienServer 通行证；如仍需注销，可以再次提交申请。'}">说明</p>
+            <a href="/account">返回账户概览</a>
+          </div>
+          <form id="deletion-request-form" class="deletion-request-form" novalidate>
+            <label class="field-group"><span>当前密码</span>
+              <input name="password" type="password" autocomplete="current-password" maxlength="512" required aria-describedby="deletion-password-error">
+            </label>
+            <p id="deletion-password-error" class="field-error" aria-live="polite"></p>
+            <button class="danger-button deletion-submit" type="submit">申请注销通行证</button>
+          </form>
+        </div>
+
+        <div class="feature-state compact" th:if="${deletion.status == 'PENDING'}">
+          <span class="feature-state-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8v5l3 2"></path><circle cx="12" cy="12" r="9"></circle></svg></span>
+          <h2>注销申请进行中</h2>
+          <p>你已在 <strong th:text="${#temporals.format(deletion.requestedAt, 'yyyy-MM-dd HH:mm')}">2026-08-06</strong> 申请注销。等待期将于 <strong th:text="${#temporals.format(deletion.executeAfter, 'yyyy-MM-dd HH:mm')}">2026-09-05</strong> 结束，届时通行证数据会被删除。等待期内可以随时取消，取消后账号恢复正常。</p>
+          <button id="deletion-cancel" class="secondary-button" type="button">取消注销申请</button>
+          <a href="/logout" th:href="@{/logout}">退出登录</a>
+        </div>
+
+        <div class="feature-state compact" th:if="${deletion.status == 'HELD'}">
+          <span class="feature-state-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 5 6v5c0 5 3 8 7 10 4-2 7-5 7-10V6l-7-3Z"></path><path d="M9 12h6"></path></svg></span>
+          <h2>注销申请正在人工处理</h2>
+          <p th:if="${deletion.holdReason != null}" th:text="${'处理原因：' + deletion.holdReason}">处理原因：账号存在业务争议。</p>
+          <p>请等待人工处理完成。暂缓期间不能取消申请，处理结束后会恢复等待期。</p>
+          <a href="/logout" th:href="@{/logout}">退出登录</a>
+        </div>
+
+        <div class="feature-state compact" th:if="${deletion.status == 'EXECUTED'}">
+          <span class="feature-state-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 5 6v5c0 5 3 8 7 10 4-2 7-5 7-10V6l-7-3Z"></path><path d="m8.5 12 2.5 2.5 4.5-5"></path></svg></span>
+          <h2>账号已注销</h2>
+          <p>通行证数据已删除，此页面仅用于说明。</p>
         </div>
       </article>
     </section>

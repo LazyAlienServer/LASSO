@@ -8,6 +8,7 @@ import java.util.UUID;
 
 import jakarta.servlet.http.HttpServletRequest;
 import org.las.sso.admin.AdminUserManagementException;
+import org.las.sso.account.AccountDeletionConflictException;
 import org.las.sso.account.IdempotencyConflictException;
 import org.las.sso.account.PasswordPolicyException;
 import org.las.sso.account.RecoveryFlowException;
@@ -43,9 +44,25 @@ public class ApiProblemHandler {
             case "ADMIN_TARGET_IS_ADMIN" -> problem(
                     HttpStatus.CONFLICT, exception.code(),
                     "不能操作管理员账号", "管理员账号必须通过离线维护流程处理。", request, null);
+            case "INVALID_HOLD_UNTIL" -> problem(
+                    HttpStatus.BAD_REQUEST, exception.code(),
+                    "暂缓期限无效", "暂缓截止时间必须在当前时间之后、90 天以内。", request, null);
             default -> problem(
                     HttpStatus.CONFLICT, "ACCOUNT_STATE_CONFLICT",
                     "账号状态已经变化", "请刷新用户详情后重试。", request, null);
+        };
+    }
+
+    @ExceptionHandler(AccountDeletionConflictException.class)
+    ResponseEntity<ProblemDetail> deletionConflict(
+            AccountDeletionConflictException exception, HttpServletRequest request) {
+        return switch (exception.code()) {
+            case "ADMIN_DELETION_FORBIDDEN" -> problem(
+                    HttpStatus.CONFLICT, exception.code(),
+                    "管理员账号不能自助注销", "管理员账号必须通过运维维护流程处理。", request, null);
+            default -> problem(
+                    HttpStatus.CONFLICT, exception.code(),
+                    "注销申请状态冲突", "当前账号的注销申请状态不允许此操作。", request, null);
         };
     }
 

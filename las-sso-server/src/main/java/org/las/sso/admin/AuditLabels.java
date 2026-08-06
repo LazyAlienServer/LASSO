@@ -23,6 +23,8 @@ public final class AuditLabels {
         AUDIT_ACTIONS.put("ADMIN_USER_REVOKE_SESSIONS", "强制下线，撤销会话与授权");
         AUDIT_ACTIONS.put("ADMIN_RECOVERY_CREDENTIAL_ISSUE", "签发人工恢复凭据");
         AUDIT_ACTIONS.put("ADMIN_PASSWORD_RESET_BY_MAINTENANCE", "维护命令重置管理员密码");
+        AUDIT_ACTIONS.put("ADMIN_DELETION_HOLD", "暂缓注销申请");
+        AUDIT_ACTIONS.put("ADMIN_DELETION_RELEASE", "释放注销申请暂缓");
 
         SECURITY_EVENTS.put("ACCOUNT_TEMPORARILY_LOCKED", "登录失败达到阈值，账号临时锁定");
         SECURITY_EVENTS.put("RECOVERY_SESSION_CREATED", "恢复凭据验证成功，恢复会话建立");
@@ -39,6 +41,13 @@ public final class AuditLabels {
                 "刷新令牌安全状态失效（账号或版本变化），令牌族已撤销");
         SECURITY_EVENTS.put("REFRESH_TOKEN_REUSE_DETECTED",
                 "检测到旧刷新令牌重用，令牌族已撤销并通知业务系统退出");
+        SECURITY_EVENTS.put("DELETION_REQUESTED", "用户申请注销，进入 30 天等待期并全局退出");
+        SECURITY_EVENTS.put("DELETION_CANCELLED", "用户取消注销申请");
+        SECURITY_EVENTS.put("DELETION_HELD_BY_ADMIN", "管理员暂缓注销申请");
+        SECURITY_EVENTS.put("DELETION_RELEASED_BY_ADMIN", "管理员释放注销申请暂缓");
+        SECURITY_EVENTS.put("DELETION_HOLD_EXPIRED", "暂缓到期自动恢复为待执行");
+        SECURITY_EVENTS.put("DELETION_SKIPPED_ADMIN_PROMOTED", "注销执行时账号已是管理员，已跳过并保留申请");
+        SECURITY_EVENTS.put("ACCOUNT_DELETED", "注销执行完成，账号已删除");
     }
 
     private AuditLabels() {

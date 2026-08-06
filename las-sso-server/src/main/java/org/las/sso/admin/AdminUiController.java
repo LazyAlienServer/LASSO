@@ -16,12 +16,15 @@ public class AdminUiController {
 
     private final AdminUserManagementService users;
     private final AdminAuditQueryService auditEvents;
+    private final AdminDeletionRequestService deletionRequests;
 
     public AdminUiController(
             AdminUserManagementService users,
-            AdminAuditQueryService auditEvents) {
+            AdminAuditQueryService auditEvents,
+            AdminDeletionRequestService deletionRequests) {
         this.users = users;
         this.auditEvents = auditEvents;
+        this.deletionRequests = deletionRequests;
     }
 
     @GetMapping("/admin/users")
@@ -83,6 +86,20 @@ public class AdminUiController {
         model.addAttribute("auditActions", AuditLabels.auditActions());
         model.addAttribute("securityEvents", AuditLabels.securityEvents());
         return "admin-audit";
+    }
+
+    @GetMapping("/admin/deletion-requests")
+    String deletionRequests(
+            Authentication authentication,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String cursor,
+            @RequestParam(defaultValue = "50") int limit,
+            Model model) {
+        LasUserPrincipal principal = principal(authentication);
+        model.addAttribute("username", principal.loginUsername());
+        model.addAttribute("status", status == null ? "" : status);
+        model.addAttribute("requests", deletionRequests.list(status, cursor, limit));
+        return "admin-deletion-requests";
     }
 
     private static LasUserPrincipal principal(Authentication authentication) {

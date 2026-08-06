@@ -1,6 +1,7 @@
 package org.las.sso.api;
 
 import org.las.sso.account.AccountManagementQueryService;
+import org.las.sso.account.DeletionRequestService;
 import org.las.sso.account.RecoveryCodeRotationService;
 import org.las.sso.identity.LasUserPrincipal;
 import org.las.sso.session.UserSessionService;
@@ -16,14 +17,17 @@ public class UiPageController {
     private final AccountManagementQueryService accountManagement;
     private final RecoveryCodeRotationService recoveryCodes;
     private final UserSessionService userSessions;
+    private final DeletionRequestService deletions;
 
     public UiPageController(
             AccountManagementQueryService accountManagement,
             RecoveryCodeRotationService recoveryCodes,
-            UserSessionService userSessions) {
+            UserSessionService userSessions,
+            DeletionRequestService deletions) {
         this.accountManagement = accountManagement;
         this.recoveryCodes = recoveryCodes;
         this.userSessions = userSessions;
+        this.deletions = deletions;
     }
 
     @GetMapping("/login")
@@ -101,6 +105,7 @@ public class UiPageController {
     String accountDeletion(Authentication authentication, Model model) {
         LasUserPrincipal principal = requireReadyPrincipal(authentication);
         populateAccountModel(model, principal);
+        model.addAttribute("deletion", deletions.status(principal.userId()));
         return "account-delete";
     }
 
