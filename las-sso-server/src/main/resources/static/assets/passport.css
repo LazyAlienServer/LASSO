@@ -823,6 +823,8 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .deletion-apply { display: grid; gap: 18px; }
 .deletion-apply-copy { display: grid; justify-items: center; gap: 6px; text-align: center; }
 .deletion-apply-copy a { color: var(--purple); font-size: 10px; font-weight: 700; }
+.profile-actions { margin-top: 14px; display: flex; gap: 7px; }
+.profile-actions button { min-height: 36px; padding: 8px 13px; cursor: pointer; }
 .client-detail-body { margin-top: 10px; max-height: 46dvh; overflow-y: auto; }
 .client-detail-grid { margin: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; }
 .client-detail-grid div { min-width: 0; padding: 8px 9px; background: var(--surface-soft); border: 1px solid var(--line-soft); border-radius: 6px; }

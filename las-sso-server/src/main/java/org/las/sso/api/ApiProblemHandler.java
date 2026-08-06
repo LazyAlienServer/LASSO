@@ -14,6 +14,7 @@ import org.las.sso.account.IdempotencyConflictException;
 import org.las.sso.account.PasswordPolicyException;
 import org.las.sso.account.RecoveryFlowException;
 import org.las.sso.account.UsernameUnavailableException;
+import org.las.sso.account.UsernameCooldownException;
 import org.las.sso.security.CaptchaInvalidException;
 import org.las.sso.security.RateLimitExceededException;
 import org.las.sso.security.RequestOriginInvalidException;
@@ -148,6 +149,18 @@ public class ApiProblemHandler {
                     HttpStatus.UNAUTHORIZED, "REAUTHENTICATION_FAILED",
                     "认证失败", "当前密码不正确。", request, null);
         };
+    }
+
+    @ExceptionHandler(UsernameCooldownException.class)
+    ResponseEntity<ProblemDetail> usernameCooldown(
+            UsernameCooldownException exception, HttpServletRequest request) {
+        ResponseEntity<ProblemDetail> response = problem(
+                HttpStatus.CONFLICT, "USERNAME_CHANGE_COOLDOWN",
+                "用户名修改冷却中", "距上次修改用户名不足 90 天，请稍后再试。", request, null);
+        if (response.getBody() != null) {
+            response.getBody().setProperty("availableAt", exception.availableAt());
+        }
+        return response;
     }
 
     @ExceptionHandler(RecoveryFlowException.class)

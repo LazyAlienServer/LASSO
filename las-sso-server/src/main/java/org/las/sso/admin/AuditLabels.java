@@ -56,6 +56,8 @@ public final class AuditLabels {
         SECURITY_EVENTS.put("CLIENT_DISABLED_BY_ADMIN", "管理员禁用客户端，授权与会话已撤销");
         SECURITY_EVENTS.put("CLIENT_ENABLED_BY_ADMIN", "管理员启用客户端");
         SECURITY_EVENTS.put("CLIENT_SECRET_ROTATED", "管理员轮换客户端密钥，旧密钥立即失效");
+        SECURITY_EVENTS.put("DISPLAY_NAME_UPDATED", "用户修改显示名称");
+        SECURITY_EVENTS.put("USERNAME_CHANGED", "用户修改用户名（含历史名复用）");
     }
 
     private AuditLabels() {

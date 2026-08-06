@@ -6,6 +6,7 @@
   <meta name="color-scheme" content="light">
   <title>账户概览 · LazyAlienServer 通行证</title>
   <link rel="stylesheet" href="/assets/passport.css">
+  <script src="/assets/account-profile.js" defer></script>
 </head>
 <body class="passport-account-page">
   <a class="skip-link" href="#account-content">跳到账户概览</a>
@@ -32,6 +33,10 @@
               <div><dt>账号状态</dt><dd><span class="state-badge success">正常</span><span class="state-badge" th:if="${administrator}">管理员</span></dd></div>
               <div><dt>注册时间</dt><dd th:text="${profile.createdDate}">2026-01-01</dd></div>
             </dl>
+            <div class="profile-actions">
+              <button id="open-edit-display-name" class="secondary-button" type="button">编辑资料</button>
+              <button id="open-change-username" class="secondary-button" type="button">修改用户名</button>
+            </div>
           </div>
         </article>
 
@@ -75,5 +80,46 @@
       </article>
     </section>
   </main>
+
+  <input id="account-csrf" type="hidden" th:value="${_csrf.token}" th:data-header="${_csrf.headerName}">
+
+  <dialog id="display-name-dialog" class="passport-dialog" aria-labelledby="display-name-title">
+    <form id="display-name-form" class="passport-dialog-card" method="dialog" novalidate>
+      <button id="display-name-close" class="dialog-close" type="button" aria-label="关闭编辑资料窗口">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"></path></svg>
+      </button>
+      <div class="dialog-heading"><p>PROFILE</p><h2 id="display-name-title">编辑资料</h2></div>
+      <label class="field-group"><span>显示名称</span>
+        <input name="displayName" type="text" maxlength="64" required>
+      </label>
+      <p id="display-name-error" class="field-error" aria-live="polite"></p>
+      <div class="dialog-actions">
+        <button id="display-name-cancel" class="secondary-button" type="button">取消</button>
+        <button id="display-name-submit" class="primary-button" type="submit">保存</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="username-dialog" class="passport-dialog" aria-labelledby="username-title">
+    <form id="username-form" class="passport-dialog-card" method="dialog" novalidate>
+      <button id="username-close" class="dialog-close" type="button" aria-label="关闭修改用户名窗口">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"></path></svg>
+      </button>
+      <div class="dialog-heading"><p>USERNAME</p><h2 id="username-title">修改用户名</h2></div>
+      <p class="admin-dialog-description">用户名是登录名，3–24 位字母、数字或下划线，大小写敏感。修改不影响你的通行证 ID、会话和已登录应用。历史用户名（含大小写变体之外的精确原名）保留给本人复用，其他账号不能占用。每次修改后 90 天内不能再改。</p>
+      <label class="field-group"><span>新用户名</span>
+        <input name="newUsername" type="text" maxlength="24" autocomplete="off" required aria-describedby="username-error">
+      </label>
+      <p id="username-error" class="field-error" aria-live="polite"></p>
+      <label class="field-group"><span>当前密码</span>
+        <input name="currentPassword" type="password" maxlength="512" autocomplete="current-password" required>
+      </label>
+      <p id="username-dialog-error" class="field-error" aria-live="polite"></p>
+      <div class="dialog-actions">
+        <button id="username-cancel" class="secondary-button" type="button">取消</button>
+        <button id="username-submit" class="primary-button" type="submit">确认修改</button>
+      </div>
+    </form>
+  </dialog>
 </body>
 </html>
