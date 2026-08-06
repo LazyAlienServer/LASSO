@@ -193,7 +193,8 @@ public class AuthorizationServerConfiguration {
             return switch (path) {
                 case "/", "/account", "/account/security", "/account/sessions",
                         "/account/recovery-codes", "/account/authorizations", "/account/delete", "/password-change",
-                        "/password-change-required", "/admin/users", "/oauth2/authorize" -> true;
+                        "/password-change-required", "/admin/users", "/admin/audit",
+                        "/admin/deletion-requests", "/admin/clients", "/oauth2/authorize" -> true;
                 default -> false;
             };
         });

@@ -25,6 +25,11 @@ public final class AuditLabels {
         AUDIT_ACTIONS.put("ADMIN_PASSWORD_RESET_BY_MAINTENANCE", "维护命令重置管理员密码");
         AUDIT_ACTIONS.put("ADMIN_DELETION_HOLD", "暂缓注销申请");
         AUDIT_ACTIONS.put("ADMIN_DELETION_RELEASE", "释放注销申请暂缓");
+        AUDIT_ACTIONS.put("ADMIN_CLIENT_CREATE", "新建 OIDC 客户端");
+        AUDIT_ACTIONS.put("ADMIN_CLIENT_UPDATE", "修改 OIDC 客户端配置");
+        AUDIT_ACTIONS.put("ADMIN_CLIENT_DISABLE", "禁用 OIDC 客户端");
+        AUDIT_ACTIONS.put("ADMIN_CLIENT_ENABLE", "启用 OIDC 客户端");
+        AUDIT_ACTIONS.put("ADMIN_CLIENT_SECRET_ROTATE", "轮换 OIDC 客户端密钥");
 
         SECURITY_EVENTS.put("ACCOUNT_TEMPORARILY_LOCKED", "登录失败达到阈值，账号临时锁定");
         SECURITY_EVENTS.put("RECOVERY_SESSION_CREATED", "恢复凭据验证成功，恢复会话建立");
@@ -48,6 +53,9 @@ public final class AuditLabels {
         SECURITY_EVENTS.put("DELETION_HOLD_EXPIRED", "暂缓到期自动恢复为待执行");
         SECURITY_EVENTS.put("DELETION_SKIPPED_ADMIN_PROMOTED", "注销执行时账号已是管理员，已跳过并保留申请");
         SECURITY_EVENTS.put("ACCOUNT_DELETED", "注销执行完成，账号已删除");
+        SECURITY_EVENTS.put("CLIENT_DISABLED_BY_ADMIN", "管理员禁用客户端，授权与会话已撤销");
+        SECURITY_EVENTS.put("CLIENT_ENABLED_BY_ADMIN", "管理员启用客户端");
+        SECURITY_EVENTS.put("CLIENT_SECRET_ROTATED", "管理员轮换客户端密钥，旧密钥立即失效");
     }
 
     private AuditLabels() {

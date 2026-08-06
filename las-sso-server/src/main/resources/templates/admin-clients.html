@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>客户端 · LazyAlienServer 通行证</title>
+  <link rel="stylesheet" href="/assets/passport.css">
+  <script src="/assets/admin-clients.js" defer></script>
+</head>
+<body class="passport-account-page admin-page">
+  <a class="skip-link" href="#admin-content">跳到客户端管理</a>
+  <div th:replace="~{fragments/account-navigation :: header(${username})}"></div>
+
+  <main id="admin-content" class="admin-layout">
+    <header class="admin-heading">
+      <div>
+        <p>LAS PASSPORT / ADMIN</p>
+        <h1>OIDC 客户端</h1>
+      </div>
+      <nav aria-label="管理区域">
+        <a href="/admin/users">用户</a>
+        <a href="/admin/audit">审计</a>
+        <a href="/admin/deletion-requests">注销申请</a>
+        <a class="active" href="/admin/clients">客户端</a>
+        <a href="/account">返回个人中心</a>
+      </nav>
+    </header>
+
+    <section class="admin-workspace audit-workspace">
+      <article class="passport-panel admin-list-panel audit-panel" aria-labelledby="client-list-title">
+        <div class="admin-panel-title">
+          <div><p>OIDC CLIENTS</p><h2 id="client-list-title">接入应用</h2></div>
+          <button id="open-create-client" class="primary-button" type="button">新建客户端</button>
+        </div>
+
+        <form class="admin-search audit-filter" method="get" action="/admin/clients">
+          <label><span>搜索</span><input name="query" th:value="${query}" placeholder="客户端 ID 或名称" autocomplete="off"></label>
+          <label><span>状态</span><select name="status">
+            <option value="ACTIVE" th:selected="${status == 'ACTIVE'}">正常</option>
+            <option value="DISABLED" th:selected="${status == 'DISABLED'}">已禁用</option>
+            <option value="ALL" th:selected="${status == 'ALL'}">全部</option>
+          </select></label>
+          <button type="submit">筛选</button>
+        </form>
+
+        <div class="admin-empty" th:if="${#lists.isEmpty(clients.items)}">没有符合条件的客户端</div>
+        <div class="audit-list" th:unless="${#lists.isEmpty(clients.items)}">
+          <article class="audit-item deletion-item" th:each="client : ${clients.items}">
+            <div class="deletion-item-info">
+              <div class="audit-item-head">
+                <strong th:text="${client.clientId}">laslog-bff</strong>
+                <small th:text="${client.clientName}">LASLOG</small>
+                <span class="severity-badge" th:classappend="${client.status == 'DISABLED'} ? ' high' : ' info'"
+                      th:text="${client.status == 'ACTIVE' ? (client.clientType == 'FIRST_PARTY' ? '第一方' : '合作方') : '已禁用'}">第一方</span>
+              </div>
+              <dl class="audit-item-meta">
+                <div><dt>回调地址</dt><dd th:text="${#strings.listJoin(client.redirectUris, ', ')}">https://…</dd></div>
+                <div><dt>授权范围</dt><dd th:text="${#strings.listJoin(client.scopes, ', ')}">openid profile</dd></div>
+                <div><dt>授权数</dt><dd th:text="${client.authorizationCount}">0</dd></div>
+                <div><dt>配置版本</dt><dd th:text="${client.configVersion}">1</dd></div>
+              </dl>
+            </div>
+            <div class="audit-item-actions">
+              <button class="admin-action secondary-button" type="button" data-action="detail" th:data-client-id="${client.clientId}">详情</button>
+            </div>
+          </article>
+        </div>
+
+        <div class="admin-pagination">
+          <a th:if="${clients.nextCursor != null}"
+             th:href="@{/admin/clients(query=${query},status=${status},cursor=${clients.nextCursor})}">下一页 →</a>
+        </div>
+      </article>
+    </section>
+  </main>
+
+  <input id="admin-csrf" type="hidden" th:value="${_csrf.token}" th:data-header="${_csrf.headerName}">
+  <dialog id="client-detail-dialog" class="passport-dialog" aria-labelledby="client-detail-title">
+    <div class="passport-dialog-card">
+      <button id="client-detail-close" class="dialog-close" type="button" aria-label="关闭客户端详情">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"></path></svg>
+      </button>
+      <div class="dialog-heading"><p>CLIENT DETAIL</p><h2 id="client-detail-title">客户端详情</h2></div>
+      <div id="client-detail-body" class="client-detail-body" aria-live="polite">加载中…</div>
+      <div class="client-detail-actions">
+        <button id="client-edit" class="secondary-button" type="button" hidden>编辑配置</button>
+        <button id="client-toggle-status" class="secondary-button" type="button" hidden></button>
+        <button id="client-rotate-secret" class="danger-button" type="button" hidden>轮换密钥</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="client-create-dialog" class="passport-dialog" aria-labelledby="client-create-title">
+    <form id="client-create-form" class="passport-dialog-card" method="dialog" novalidate>
+      <button id="client-create-close" class="dialog-close" type="button" aria-label="关闭新建窗口">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"></path></svg>
+      </button>
+      <div class="dialog-heading"><p>NEW CLIENT</p><h2 id="client-create-title">新建 OIDC 客户端</h2></div>
+      <input name="username" type="hidden" autocomplete="username" aria-hidden="true" tabindex="-1">
+      <label class="field-group"><span>客户端 ID（可选，留空自动生成）</span><input name="clientId" maxlength="100" autocomplete="off"></label>
+      <label class="field-group"><span>名称</span><input name="clientName" maxlength="128" required></label>
+      <label class="field-group"><span>类型</span><select name="clientType">
+        <option value="FIRST_PARTY">第一方（不显示授权确认）</option>
+        <option value="REVIEWED_PARTNER">合作方（登录需授权确认）</option>
+      </select></label>
+      <label class="field-group"><span>回调地址（每行一个，至少一个）</span><textarea name="redirectUris" rows="3" required placeholder="https://app.example/callback"></textarea></label>
+      <label class="field-group"><span>退出回调（每行一个，可选）</span><textarea name="postLogoutRedirectUris" rows="2" placeholder="https://app.example/logged-out"></textarea></label>
+      <label class="field-group"><span>资源 audience（每行一个，至少一个）</span><textarea name="resourceAudiences" rows="2" required placeholder="urn:las:resource:example"></textarea></label>
+      <label class="field-group"><span>后端退出地址（可选）</span><input name="backchannelLogoutUri" maxlength="500" placeholder="https://app.example/internal/oidc/backchannel-logout"></label>
+      <label class="field-group"><span>操作原因</span><textarea name="reason" rows="2" maxlength="500" required></textarea></label>
+      <label class="field-group"><span>当前管理员密码</span><input name="password" type="password" maxlength="512" autocomplete="current-password" required></label>
+      <p id="client-create-error" class="field-error" aria-live="polite"></p>
+      <div class="dialog-actions"><button id="client-create-cancel" class="secondary-button" type="button">取消</button><button id="client-create-submit" class="primary-button" type="submit">创建</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="client-edit-dialog" class="passport-dialog" aria-labelledby="client-edit-title">
+    <form id="client-edit-form" class="passport-dialog-card" method="dialog" novalidate>
+      <button id="client-edit-close" class="dialog-close" type="button" aria-label="关闭编辑窗口">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"></path></svg>
+      </button>
+      <div class="dialog-heading"><p>EDIT CLIENT</p><h2 id="client-edit-title">编辑客户端</h2></div>
+      <input name="username" type="hidden" autocomplete="username" aria-hidden="true" tabindex="-1">
+      <p class="admin-dialog-description">客户端 ID：<strong id="client-edit-id"></strong>（不可修改）</p>
+      <label class="field-group"><span>名称</span><input name="clientName" maxlength="128" required></label>
+      <label class="field-group"><span>类型</span><select name="clientType">
+        <option value="FIRST_PARTY">第一方（不显示授权确认）</option>
+        <option value="REVIEWED_PARTNER">合作方（登录需授权确认）</option>
+      </select></label>
+      <label class="field-group"><span>回调地址（每行一个，至少一个）</span><textarea name="redirectUris" rows="3" required></textarea></label>
+      <label class="field-group"><span>退出回调（每行一个，可选）</span><textarea name="postLogoutRedirectUris" rows="2"></textarea></label>
+      <label class="field-group"><span>资源 audience（每行一个，至少一个）</span><textarea name="resourceAudiences" rows="2" required></textarea></label>
+      <label class="field-group"><span>后端退出地址（可选）</span><input name="backchannelLogoutUri" maxlength="500"></label>
+      <p class="admin-dialog-description">授权范围固定为 openid profile，不能修改。安全相关变更（缩小范围、修改地址、切换类型）会使所有已授权用户需要重新登录授权。</p>
+      <label class="field-group"><span>操作原因</span><textarea name="reason" rows="2" maxlength="500" required></textarea></label>
+      <label class="field-group"><span>当前管理员密码</span><input name="password" type="password" maxlength="512" autocomplete="current-password" required></label>
+      <p id="client-edit-error" class="field-error" aria-live="polite"></p>
+      <div class="dialog-actions"><button id="client-edit-cancel" class="secondary-button" type="button">取消</button><button id="client-edit-submit" class="primary-button" type="submit">保存修改</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="client-secret-dialog" class="passport-dialog" aria-labelledby="client-secret-title">
+    <div class="passport-dialog-card">
+      <button id="client-secret-close" class="dialog-close" type="button" aria-label="关闭密钥窗口">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"></path></svg>
+      </button>
+      <div class="dialog-heading"><p>ONE-TIME SECRET</p><h2 id="client-secret-title">客户端密钥</h2></div>
+      <p class="admin-dialog-description">密钥只显示一次，请立即通过可信渠道交付给对接方。关闭后无法再次查看，只能再次轮换。</p>
+      <code id="client-secret-value" class="admin-credential-value"></code>
+      <p id="client-secret-status" class="admin-credential-status" role="status" aria-live="polite"></p>
+      <div class="dialog-actions">
+        <button id="client-secret-copy" class="secondary-button" type="button">复制密钥</button>
+        <button id="client-secret-saved" class="primary-button" type="button">我已保存，关闭</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="client-action-dialog" class="passport-dialog">
+    <form id="client-action-form" class="passport-dialog-card" method="dialog">
+      <div class="dialog-heading"><p>ADMIN CONFIRMATION</p><h2 id="client-dialog-title">确认管理操作</h2></div>
+      <p id="client-dialog-description" class="admin-dialog-description"></p>
+      <input name="username" type="hidden" autocomplete="username" aria-hidden="true" tabindex="-1">
+      <label class="field-group"><span>操作原因</span><textarea name="reason" maxlength="500" required></textarea></label>
+      <label class="field-group"><span>当前管理员密码</span><input name="password" type="password" maxlength="512" autocomplete="current-password" required></label>
+      <p id="client-dialog-error" class="field-error" aria-live="polite"></p>
+      <div class="dialog-actions"><button id="client-dialog-cancel" class="secondary-button" type="button">取消</button><button id="client-dialog-submit" class="primary-button" type="submit">确认执行</button></div>
+    </form>
+  </dialog>
+</body>
+</html>

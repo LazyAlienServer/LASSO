@@ -44,6 +44,19 @@ public final class SecurityAwareAuthorizationService implements OAuth2Authorizat
     @Override
     public void save(OAuth2Authorization authorization) {
         transactions.executeWithoutResult(status -> {
+            String clientStatus = jdbcClient.sql("""
+                    SELECT status::text FROM registered_client_metadata
+                     WHERE registered_client_id = :registeredClientId
+                    """).param("registeredClientId", authorization.getRegisteredClientId())
+                    .query(String.class).optional().orElse("ACTIVE");
+            if ("DISABLED".equals(clientStatus)) {
+                throw new org.springframework.security.oauth2.core.OAuth2AuthenticationException(
+                        new org.springframework.security.oauth2.core.OAuth2Error(
+                                org.springframework.security.oauth2.core.OAuth2ErrorCodes.INVALID_CLIENT,
+                                "Client is disabled",
+                                null),
+                        "Client is disabled");
+            }
             delegate.save(authorization);
             persistSecurityMetadata(authorization);
             tokenFamilies.recordCurrent(authorization);

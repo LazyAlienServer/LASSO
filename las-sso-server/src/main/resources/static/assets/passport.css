@@ -639,7 +639,7 @@ input[type="password"]::-ms-clear { display: none; }
 .passport-dialog { width: min(680px, calc(100vw - 28px)); max-height: calc(100dvh - 28px); padding: 0; color: var(--ink); background: transparent; border: 0; overflow: visible; }
 body:has(.passport-dialog[open]) { overflow: hidden !important; }
 .passport-dialog::backdrop { background: rgba(25, 17, 51, .48); backdrop-filter: blur(2px); }
-.passport-dialog-card { position: relative; padding: clamp(18px, 2.4vw, 28px); background: white; border: 1px solid var(--purple); border-radius: 10px; box-shadow: 0 22px 60px rgba(44, 28, 70, .22); }
+.passport-dialog-card { position: relative; padding: clamp(18px, 2.4vw, 28px); background: white; border: 1px solid var(--purple); border-radius: 10px; box-shadow: 0 22px 60px rgba(44, 28, 70, .22); max-height: calc(100dvh - 28px); overflow-y: auto; }
 .dialog-close { position: absolute; top: 12px; right: 12px; width: 44px; height: 44px; display: grid; place-items: center; color: var(--ink-soft); background: transparent; border: 0; border-radius: 6px; cursor: pointer; }
 .dialog-close:hover { color: var(--purple); background: var(--purple-pale); }
 .dialog-close svg { width: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; }
@@ -823,6 +823,13 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .deletion-apply { display: grid; gap: 18px; }
 .deletion-apply-copy { display: grid; justify-items: center; gap: 6px; text-align: center; }
 .deletion-apply-copy a { color: var(--purple); font-size: 10px; font-weight: 700; }
+.client-detail-body { margin-top: 10px; max-height: 46dvh; overflow-y: auto; }
+.client-detail-grid { margin: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; }
+.client-detail-grid div { min-width: 0; padding: 8px 9px; background: var(--surface-soft); border: 1px solid var(--line-soft); border-radius: 6px; }
+.client-detail-grid dt { color: var(--ink-soft); font: 700 8px/1.2 ui-monospace, monospace; letter-spacing: .08em; }
+.client-detail-grid dd { margin: 4px 0 0; font-size: 10px; overflow-wrap: anywhere; }
+.client-detail-actions { margin-top: 12px; display: flex; justify-content: flex-end; gap: 7px; }
+.client-detail-actions button { min-height: 36px; padding: 8px 13px; cursor: pointer; }
 @media (min-width: 780px) {
   .deletion-apply { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); align-items: center; gap: 26px; }
   .deletion-request-form { margin: 0 0 0 auto; width: 100%; max-width: 340px; }

@@ -17,14 +17,17 @@ public class AdminUiController {
     private final AdminUserManagementService users;
     private final AdminAuditQueryService auditEvents;
     private final AdminDeletionRequestService deletionRequests;
+    private final AdminClientService clients;
 
     public AdminUiController(
             AdminUserManagementService users,
             AdminAuditQueryService auditEvents,
-            AdminDeletionRequestService deletionRequests) {
+            AdminDeletionRequestService deletionRequests,
+            AdminClientService clients) {
         this.users = users;
         this.auditEvents = auditEvents;
         this.deletionRequests = deletionRequests;
+        this.clients = clients;
     }
 
     @GetMapping("/admin/users")
@@ -100,6 +103,22 @@ public class AdminUiController {
         model.addAttribute("status", status == null ? "" : status);
         model.addAttribute("requests", deletionRequests.list(status, cursor, limit));
         return "admin-deletion-requests";
+    }
+
+    @GetMapping("/admin/clients")
+    String clients(
+            Authentication authentication,
+            @RequestParam(required = false) String query,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String cursor,
+            @RequestParam(defaultValue = "50") int limit,
+            Model model) {
+        LasUserPrincipal principal = principal(authentication);
+        model.addAttribute("username", principal.loginUsername());
+        model.addAttribute("query", query == null ? "" : query);
+        model.addAttribute("status", status == null || status.isBlank() ? "ACTIVE" : status);
+        model.addAttribute("clients", clients.list(query, status, cursor, limit));
+        return "admin-clients";
     }
 
     private static LasUserPrincipal principal(Authentication authentication) {

@@ -7,6 +7,7 @@ import java.time.ZoneOffset;
 import java.util.UUID;
 
 import jakarta.servlet.http.HttpServletRequest;
+import org.las.sso.admin.AdminClientException;
 import org.las.sso.admin.AdminUserManagementException;
 import org.las.sso.account.AccountDeletionConflictException;
 import org.las.sso.account.IdempotencyConflictException;
@@ -50,6 +51,34 @@ public class ApiProblemHandler {
             default -> problem(
                     HttpStatus.CONFLICT, "ACCOUNT_STATE_CONFLICT",
                     "账号状态已经变化", "请刷新用户详情后重试。", request, null);
+        };
+    }
+
+    @ExceptionHandler(AdminClientException.class)
+    ResponseEntity<ProblemDetail> adminClient(
+            AdminClientException exception, HttpServletRequest request) {
+        return switch (exception.code()) {
+            case "CLIENT_NOT_FOUND" -> problem(
+                    HttpStatus.NOT_FOUND, exception.code(),
+                    "客户端不存在", "没有找到该 OIDC 客户端。", request, null);
+            case "CLIENT_ID_CONFLICT" -> problem(
+                    HttpStatus.CONFLICT, exception.code(),
+                    "客户端 ID 已被使用", "请更换客户端 ID。", request, null);
+            case "INVALID_REDIRECT_URI", "REDIRECT_URI_REQUIRED", "TOO_MANY_URIS" -> problem(
+                    HttpStatus.BAD_REQUEST, exception.code(),
+                    "回调地址无效", "回调地址必须为精确 HTTPS（或本机 HTTP）地址，禁止通配符、片段和用户信息。", request, null);
+            case "INVALID_SCOPE", "SCOPE_REQUIRED" -> problem(
+                    HttpStatus.BAD_REQUEST, exception.code(),
+                    "授权范围无效", "第一版只允许 openid 和 profile，且必须包含 openid。", request, null);
+            case "AUDIENCE_REQUIRED", "INVALID_AUDIENCE", "TOO_MANY_AUDIENCES" -> problem(
+                    HttpStatus.BAD_REQUEST, exception.code(),
+                    "资源标识无效", "每个客户端至少需要一个明确的资源 audience。", request, null);
+            case "INVALID_CLIENT_ID" -> problem(
+                    HttpStatus.BAD_REQUEST, exception.code(),
+                    "客户端 ID 格式无效", "客户端 ID 只能包含字母、数字、点、下划线和连字符。", request, null);
+            default -> problem(
+                    HttpStatus.BAD_REQUEST, "VALIDATION_FAILED",
+                    "请求字段无效", "请检查请求字段格式。", request, null);
         };
     }
 
