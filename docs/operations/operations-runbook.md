@@ -2,7 +2,8 @@
 
 - 状态：第一版实施规格
 - 规模假设：约 1,000 用户，常态并发 1–2，单实例可接受
-- 依赖：[总纲](../LAS_SSO_DESIGN.md)、[安全与恢复](security-and-recovery.md)
+- 依赖：[总纲](../../LAS_SSO_DESIGN.md)、[安全与恢复](../architecture/security-and-recovery.md)
+- 可执行步骤：[SSO 部署指南](sso-deployment-guide.md)
 
 ## 1. 责任分界
 
@@ -139,7 +140,7 @@ LAS_SSO_TRUSTED_PROXY_CIDRS
 ### 7.1 发布前
 
 - 固定应用、JDK、PostgreSQL 和前端构建版本；
-- 通过 [测试计划](test-plan.md) 的发布门禁；
+- 通过 [测试计划](../implementation/test-plan.md) 的发布门禁；
 - 检查依赖漏洞和许可证；
 - 生成数据库备份并验证可读取；
 - 检查当前 outbox 无持续失败；
@@ -306,7 +307,7 @@ maintenance
 
 ### 12.1 管理员初始化
 
-使用[安全与恢复设计](security-and-recovery.md#6-唯一管理员初始化)中的 Java 维护命令。完成后记录：
+使用[安全与恢复设计](../architecture/security-and-recovery.md#6-唯一管理员初始化)中的 Java 维护命令。完成后记录：
 
 - 管理员 UUID；
 - 命令审计事件 ID；

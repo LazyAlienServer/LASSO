@@ -3,7 +3,7 @@
 - 状态：第一版实施规格
 - 基础地址：`https://auth.las.example`
 - API 前缀：`/api/v1`
-- 依赖：[总纲](../LAS_SSO_DESIGN.md)、[数据模型](identity-and-data-model.md)
+- 依赖：[总纲](../../LAS_SSO_DESIGN.md)、[数据模型](identity-and-data-model.md)
 
 ## 1. 通用规则
 

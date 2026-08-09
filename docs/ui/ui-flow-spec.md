@@ -2,7 +2,7 @@
 
 - 状态：实施前低保真规格
 - 目的：冻结影响认证、安全和 API 的交互，不规定最终品牌视觉
-- 依赖：[API 契约](api-contract.md)、[OIDC 与 BFF 契约](oidc-and-bff-contract.md)、[实施就绪度](implementation-readiness.md)
+- 依赖：[API 契约](../architecture/api-contract.md)、[OIDC 与 BFF 契约](../architecture/oidc-and-bff-contract.md)、[实施就绪度](../implementation/implementation-readiness.md)
 
 ## 1. 设计原则
 

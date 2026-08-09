@@ -2,7 +2,7 @@
 
 - 状态：允许开始第一版代码实施，尚未达到生产上线条件
 - 评审日期：2026-08-01
-- 依赖：[总纲](../LAS_SSO_DESIGN.md)、[身份与数据模型](identity-and-data-model.md)、[OIDC 与 BFF 契约](oidc-and-bff-contract.md)、[UI 流程规格](ui-flow-spec.md)
+- 依赖：[总纲](../../LAS_SSO_DESIGN.md)、[身份与数据模型](../architecture/identity-and-data-model.md)、[OIDC 与 BFF 契约](../architecture/oidc-and-bff-contract.md)、[UI 流程规格](../ui/ui-flow-spec.md)
 - 实施进度：[阶段 0 实施记录](phase-0-implementation.md)
 - Phase 1 进度：[账号基础实施记录](phase-1-account-foundation.md)
 
@@ -18,13 +18,13 @@ LAS SSO 已经可以开始编写代码。账号边界、永久身份、用户名
 
 | 文档 | 权威范围 |
 |---|---|
-| [总纲](../LAS_SSO_DESIGN.md) | 产品边界、系统关系和已经确认的产品决策 |
-| [身份与数据模型](identity-and-data-model.md) | 状态机、字段、数据库约束、事务和并发 |
-| [账号与管理 API](api-contract.md) | 页面调用的 HTTP 契约、错误、权限和近期认证 |
-| [OIDC 与 BFF](oidc-and-bff-contract.md) | OAuth/OIDC、Token、Claims、客户端与 BFF 行为 |
-| [安全与恢复](security-and-recovery.md) | 密码、恢复、威胁控制、会话和 Secret |
-| [UI 流程规格](ui-flow-spec.md) | 页面、状态、跳转、危险操作确认和一次性秘密展示 |
-| [部署与运维](operations-runbook.md) | 环境、上线、备份、恢复、轮换和故障处理 |
+| [总纲](../../LAS_SSO_DESIGN.md) | 产品边界、系统关系和已经确认的产品决策 |
+| [身份与数据模型](../architecture/identity-and-data-model.md) | 状态机、字段、数据库约束、事务和并发 |
+| [账号与管理 API](../architecture/api-contract.md) | 页面调用的 HTTP 契约、错误、权限和近期认证 |
+| [OIDC 与 BFF](../architecture/oidc-and-bff-contract.md) | OAuth/OIDC、Token、Claims、客户端与 BFF 行为 |
+| [安全与恢复](../architecture/security-and-recovery.md) | 密码、恢复、威胁控制、会话和 Secret |
+| [UI 流程规格](../ui/ui-flow-spec.md) | 页面、状态、跳转、危险操作确认和一次性秘密展示 |
+| [部署与运维](../operations/operations-runbook.md) | 环境、上线、备份、恢复、轮换和故障处理 |
 | [测试与验收](test-plan.md) | 可验证的完成条件与发布证据 |
 
 发生冲突时先按权威范围判断；跨范围冲突以总纲的产品边界为上位约束，并在同一次变更中同步所有受影响文档。不能只修改实现而不更新契约。
@@ -88,7 +88,7 @@ LAS SSO 已经可以开始编写代码。账号边界、永久身份、用户名
 
 可以后置的是品牌视觉、插画、动效、最终配色、精细排版和非核心账号首页布局。后端的数据库、OIDC、会话、Token、outbox、维护命令和契约测试不应等待高保真稿。
 
-最小 UI 前置产物见 [UI 流程规格](ui-flow-spec.md)：
+最小 UI 前置产物见 [UI 流程规格](../ui/ui-flow-spec.md)：
 
 1. 页面清单与入口；
 2. 每页正常、加载、空、错误、过期和权限不足状态；

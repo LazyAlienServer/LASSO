@@ -27,14 +27,15 @@ LAS SSO 使用 Spring Authorization Server 构建独立身份中心，负责回�
 
 本文件只保存架构边界和已经确认的产品决策；可直接指导实现的字段、接口、协议和验收规则拆分到以下文档：
 
-- [身份与数据模型](docs/identity-and-data-model.md)
-- [账号与管理 API](docs/api-contract.md)
-- [OIDC 与 BFF 接入契约](docs/oidc-and-bff-contract.md)
-- [安全、密码与恢复](docs/security-and-recovery.md)
-- [部署与运维手册](docs/operations-runbook.md)
-- [测试与验收计划](docs/test-plan.md)
-- [实施就绪度与开工门禁](docs/implementation-readiness.md)
-- [SSO UI 流程规格](docs/ui-flow-spec.md)
+- [文档总目录](docs/README.md)
+- [身份与数据模型](docs/architecture/identity-and-data-model.md)
+- [账号与管理 API](docs/architecture/api-contract.md)
+- [OIDC 与 BFF 接入契约](docs/architecture/oidc-and-bff-contract.md)
+- [安全、密码与恢复](docs/architecture/security-and-recovery.md)
+- [部署与运维手册](docs/operations/operations-runbook.md)
+- [测试与验收计划](docs/implementation/test-plan.md)
+- [实施就绪度与开工门禁](docs/implementation/implementation-readiness.md)
+- [SSO UI 流程规格](docs/ui/ui-flow-spec.md)
 
 如文档之间出现冲突，以本文件中的产品边界为准；详细文档必须随总纲决策同步更新。
 
@@ -496,7 +497,7 @@ https://auth.las.example/api/*      账号与安全接口
 
 可以由反向代理分别路由静态 UI 和 Spring 服务，也可以把前端构建产物交给 Spring/静态服务器提供。
 
-开始 UI 编码前应先完成[第一版 UI 流程规格](docs/ui-flow-spec.md)中的低保真页面状态和安全交互，尤其是 OIDC 登录上下文、恢复码一次性展示、强制改密、近期认证、两种退出、注销等待期和管理员危险操作。不要求先完成 Logo、品牌视觉、插画或高保真设计；后端工程、数据模型、OIDC 和 BFF 契约实现可以与线框设计并行。
+开始 UI 编码前应先完成[第一版 UI 流程规格](docs/ui/ui-flow-spec.md)中的低保真页面状态和安全交互，尤其是 OIDC 登录上下文、恢复码一次性展示、强制改密、近期认证、两种退出、注销等待期和管理员危险操作。不要求先完成 Logo、品牌视觉、插画或高保真设计；后端工程、数据模型、OIDC 和 BFF 契约实现可以与线框设计并行。
 
 第一阶段推荐部署：
 
@@ -590,7 +591,7 @@ POST /api/logout/global
 
 ## 21. 第一阶段交付顺序
 
-1. 按[实施就绪度](docs/implementation-readiness.md)完成阶段 0：正式工程、依赖/迁移工具锁定、真实 PostgreSQL 测试环境，以及持久化 Authorization、UUID principal、Back-channel Logout 三个技术验证。
+1. 按[实施就绪度](docs/implementation/implementation-readiness.md)完成阶段 0：正式工程、依赖/迁移工具锁定、真实 PostgreSQL 测试环境，以及持久化 Authorization、UUID principal、Back-channel Logout 三个技术验证。
 2. 实现持久化用户、密码、恢复码、账号/注销双状态、唯一管理员初始化和离线密码重置命令。
 3. 实现登录、会话版本校验、近期认证、ALTCHA 注册与限流。
 4. 实现持久化 OIDC Client、Authorization 和 Consent，固定本地 Issuer、签名密钥和 JWKS。

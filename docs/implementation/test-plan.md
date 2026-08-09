@@ -2,7 +2,7 @@
 
 - 状态：第一版实施规格
 - 范围：SSO、LASLOG BFF 适配、AlienCommon BFF 适配、退出传播和运维恢复
-- 依赖：[总纲](../LAS_SSO_DESIGN.md)及 `docs/` 下全部详细设计
+- 依赖：[总纲](../../LAS_SSO_DESIGN.md)及 `docs/` 各分类目录下的详细设计
 
 ## 1. 质量门禁
 

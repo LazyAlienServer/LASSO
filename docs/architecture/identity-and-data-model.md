@@ -1,7 +1,7 @@
 # LAS SSO 身份与数据模型
 
 - 状态：第一版实施规格
-- 依赖总纲：[LAS SSO 第一版设计](../LAS_SSO_DESIGN.md)
+- 依赖总纲：[LAS SSO 第一版设计](../../LAS_SSO_DESIGN.md)
 - 数据库：PostgreSQL
 - 临时状态：PostgreSQL 独立短期状态表
 

@@ -2,7 +2,7 @@
 
 - 状态：第一版实施规格
 - 角色：LAS SSO 是 OpenID Provider；LASLOG、AlienCommon 后端是 Relying Party/BFF
-- 依赖：[总纲](../LAS_SSO_DESIGN.md)、[API 契约](api-contract.md)
+- 依赖：[总纲](../../LAS_SSO_DESIGN.md)、[API 契约](api-contract.md)
 
 ## 1. 协议配置
 

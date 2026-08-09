@@ -1,7 +1,7 @@
 # LAS SSO 安全、密码与恢复设计
 
 - 状态：第一版实施规格
-- 依赖：[总纲](../LAS_SSO_DESIGN.md)、[数据模型](identity-and-data-model.md)、[API 契约](api-contract.md)
+- 依赖：[总纲](../../LAS_SSO_DESIGN.md)、[数据模型](identity-and-data-model.md)、[API 契约](api-contract.md)
 - 明确接受的限制：第一版没有邮箱验证和 MFA
 
 ## 1. 保护目标与信任边界

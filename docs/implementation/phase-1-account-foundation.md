@@ -2,7 +2,7 @@
 
 - 实施日期：2026-08-02 至 2026-08-03
 - 状态：账号领域、管理员 bootstrap、密码登录保护、强制改密、公开注册、恢复码找回、ALTCHA v2、幂等和 PostgreSQL 限流闭环完成
-- 工程：[las-sso-server](../las-sso-server/README.md)
+- 工程：[las-sso-server](../../las-sso-server/README.md)
 
 ## 1. 已实现
 

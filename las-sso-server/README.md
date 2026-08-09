@@ -15,7 +15,7 @@ LAS SSO 的正式后端工程。`../SAS-Test` 仅是历史协议演示，本工�
 
 解析后的依赖保存在 `gradle.lockfile`。升级 Version Catalog 或 Spring Boot 后，应执行 `.\gradlew.bat dependencies --write-locks` 并审查锁文件变化。
 
-版本选择依据和阶段 0 结果记录在 `../docs/phase-0-implementation.md`。
+版本选择依据和阶段 0 结果记录在 `../docs/implementation/phase-0-implementation.md`。
 
 ## 本地运行
 
@@ -101,6 +101,11 @@ Refresh Token 每次成功使用都会轮换，但 family 的绝对期限固定�
 纯 JVM 测试始终运行。PostgreSQL 集成测试使用 Testcontainers；Docker 不可用时会明确跳过，不能把跳过当成持久化验证通过。
 
 ## 业务系统接入样例
+
+完整的合作网站申请、客户端登记、各框架实现、登录续期、退出和联调流程见
+[业务网站接入实施指南](../docs/integration/business-system-sso-integration-guide.md)。
+LAS 自营系统另见[第一方网站接入指南](../docs/integration/first-party-system-sso-integration-guide.md)，
+身份中心服务器部署见[SSO 部署指南](../docs/operations/sso-deployment-guide.md)。
 
 工程包含两个独立子模块：
 

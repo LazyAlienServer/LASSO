@@ -1,7 +1,7 @@
 # LAS SSO 阶段 0 实施记录
 
 - 实施日期：2026-08-02
-- 工程：[las-sso-server](../las-sso-server/README.md)
+- 工程：[las-sso-server](../../las-sso-server/README.md)
 - 状态：阶段 0 工程骨架、纯 JVM 验证和 PostgreSQL 集成验证均已完成
 
 ## 1. 已建立的正式工程
