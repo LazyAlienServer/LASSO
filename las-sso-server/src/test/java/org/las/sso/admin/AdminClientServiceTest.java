@@ -37,7 +37,8 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
-@SpringBootTest
+@SpringBootTest(properties = "spring.autoconfigure.exclude="
+        + "org.springframework.boot.session.jdbc.autoconfigure.JdbcSessionAutoConfiguration")
 @ActiveProfiles("test")
 @AutoConfigureMockMvc
 @Testcontainers(disabledWithoutDocker = true)
