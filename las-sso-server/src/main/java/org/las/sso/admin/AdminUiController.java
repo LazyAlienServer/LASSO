@@ -50,6 +50,8 @@ public class AdminUiController {
         model.addAttribute("status", status == null ? "" : status);
         model.addAttribute("users", page.items());
         model.addAttribute("nextCursor", page.nextCursor());
+        model.addAttribute("previousCursor", page.previousCursor());
+        model.addAttribute("currentCursor", cursor);
         model.addAttribute("selectedUser", selectedId == null ? null : users.user(selectedId));
         return "admin-users";
     }

@@ -87,21 +87,17 @@
   <input id="account-csrf" type="hidden" th:value="${_csrf.token}" th:data-header="${_csrf.headerName}">
 
   <dialog id="display-name-dialog" class="passport-dialog" aria-labelledby="display-name-title">
-    <form id="display-name-form" class="passport-dialog-card" method="dialog" novalidate>
+    <form id="display-name-form" class="passport-dialog-card profile-edit-dialog-card" method="dialog" novalidate>
       <button id="display-name-close" class="dialog-close" type="button" aria-label="关闭编辑资料窗口">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"></path></svg>
       </button>
       <div class="dialog-heading"><p>PROFILE</p><h2 id="display-name-title">编辑资料</h2></div>
-      <label class="field-group"><span>显示名称</span>
-        <input name="displayName" type="text" maxlength="64" required>
-      </label>
-      <label class="field-group"><span>头像</span>
-        <select name="avatarResourceId">
-          <option value="">使用用户名首字母</option>
-          <option value="default-alien-01"
-                  th:selected="${profile.avatarResourceId == 'default-alien-01'}">LAS Alien</option>
-        </select>
-      </label>
+      <input name="avatarResourceId" type="hidden" th:value="${profile.avatarResourceId}">
+      <div class="profile-edit-fields">
+        <label class="field-group"><span>显示名称</span>
+          <input name="displayName" type="text" maxlength="64" th:value="${profile.displayName}" required>
+        </label>
+      </div>
       <p id="display-name-error" class="field-error" aria-live="polite"></p>
       <div class="dialog-actions">
         <button id="display-name-cancel" class="secondary-button" type="button">取消</button>
@@ -111,19 +107,25 @@
   </dialog>
 
   <dialog id="username-dialog" class="passport-dialog" aria-labelledby="username-title">
-    <form id="username-form" class="passport-dialog-card" method="dialog" novalidate>
+    <form id="username-form" class="passport-dialog-card username-dialog-card" method="dialog" novalidate>
       <button id="username-close" class="dialog-close" type="button" aria-label="关闭修改用户名窗口">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"></path></svg>
       </button>
       <div class="dialog-heading"><p>USERNAME</p><h2 id="username-title">修改用户名</h2></div>
       <p class="admin-dialog-description">用户名是登录名，3–24 位字母、数字或下划线，大小写敏感。修改不影响你的通行证 ID、会话和已登录应用。历史用户名（含大小写变体之外的精确原名）保留给本人复用，其他账号不能占用。每次修改后 90 天内不能再改。</p>
-      <label class="field-group"><span>新用户名</span>
-        <input name="newUsername" type="text" maxlength="24" autocomplete="off" required aria-describedby="username-error">
-      </label>
-      <p id="username-error" class="field-error" aria-live="polite"></p>
-      <label class="field-group"><span>当前密码</span>
-        <input name="currentPassword" type="password" maxlength="512" autocomplete="current-password" required>
-      </label>
+      <div class="username-dialog-fields">
+        <div class="username-dialog-field">
+          <label class="field-group"><span>新用户名</span>
+            <input name="newUsername" type="text" maxlength="24" autocomplete="off" required aria-describedby="username-error">
+          </label>
+          <p id="username-error" class="field-error" aria-live="polite"></p>
+        </div>
+        <div class="username-dialog-field">
+          <label class="field-group"><span>当前密码</span>
+            <input name="currentPassword" type="password" maxlength="512" autocomplete="current-password" required>
+          </label>
+        </div>
+      </div>
       <p id="username-dialog-error" class="field-error" aria-live="polite"></p>
       <div class="dialog-actions">
         <button id="username-cancel" class="secondary-button" type="button">取消</button>

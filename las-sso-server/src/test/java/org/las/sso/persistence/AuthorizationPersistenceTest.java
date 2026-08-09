@@ -2227,6 +2227,62 @@ class AuthorizationPersistenceTest {
     }
 
     @Test
+    void administratorUserListShowsPreviousPageAfterFollowingTheNextCursor()
+            throws Exception {
+        var actorAccount = registrationService.register(
+                "PagingAdminActor", "Paging Admin Actor", "paging admin actor passphrase");
+        var actorUser = (LasUserPrincipal) userDetailsService.loadUserByUsername("PagingAdminActor");
+        var adminPrincipal = new LasUserPrincipal(
+                actorUser.userId(), actorUser.loginUsername(), actorUser.getPassword(),
+                actorUser.credentialsVersion(), true, false,
+                List.of(new SimpleGrantedAuthority("ROLE_SSO_ADMIN")));
+        jdbcClient.sql("UPDATE users SET is_sso_admin = false WHERE is_sso_admin = true").update();
+        jdbcClient.sql("UPDATE users SET is_sso_admin = true WHERE id = :userId")
+                .param("userId", actorAccount.userId()).update();
+        for (int index = 0; index < 18; index++) {
+            registrationService.register(
+                    "PagingUser" + index,
+                    "Paging User " + index,
+                    "paging user passphrase " + index);
+        }
+
+        var loginRequest = new MockHttpServletRequest();
+        var adminSession = (MockHttpSession) loginRequest.getSession(true);
+        userSessions.registerLogin(adminPrincipal, loginRequest);
+        MvcResult firstPage = mockMvc.perform(get("/admin/users")
+                        .param("query", "PagingUser")
+                        .session(adminSession)
+                        .with(user(adminPrincipal)))
+                .andExpect(status().isOk())
+                .andReturn();
+        String nextCursor = (String) firstPage.getModelAndView().getModel().get("nextCursor");
+        assertThat(nextCursor).isNotBlank();
+
+        MvcResult secondPage = mockMvc.perform(get("/admin/users")
+                        .param("query", "PagingUser")
+                        .param("cursor", nextCursor)
+                        .session(adminSession)
+                        .with(user(adminPrincipal)))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .content().string(org.hamcrest.Matchers.containsString("上一页")))
+                .andReturn();
+        assertThat(secondPage.getModelAndView().getModel().get("previousCursor")).isNull();
+        String secondNextCursor = (String) secondPage.getModelAndView().getModel().get("nextCursor");
+        assertThat(secondNextCursor).isNotBlank();
+
+        MvcResult thirdPage = mockMvc.perform(get("/admin/users")
+                        .param("query", "PagingUser")
+                        .param("cursor", secondNextCursor)
+                        .session(adminSession)
+                        .with(user(adminPrincipal)))
+                .andExpect(status().isOk())
+                .andReturn();
+        assertThat(thirdPage.getModelAndView().getModel().get("previousCursor"))
+                .isEqualTo(nextCursor);
+    }
+
+    @Test
     void administratorUserManagementRequiresRoleAndRecentAuthenticationAndAuditsStateChanges()
             throws Exception {
         var actorAccount = registrationService.register(

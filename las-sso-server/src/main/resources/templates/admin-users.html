@@ -48,7 +48,7 @@
         <div class="admin-empty" th:if="${#lists.isEmpty(users)}">没有符合条件的账号</div>
         <nav class="admin-user-list" aria-label="用户列表" th:unless="${#lists.isEmpty(users)}">
           <a th:each="item : ${users}"
-             th:href="@{/admin/users(query=${query},status=${status},selected=${item.userId})}"
+             th:href="@{/admin/users(query=${query},status=${status},cursor=${currentCursor},selected=${item.userId})}"
              th:classappend="${selectedUser != null and selectedUser.userId == item.userId} ? ' active'">
             <span class="admin-avatar" th:text="${#strings.substring(item.username, 0, 1)}">L</span>
             <span><strong th:text="${item.username}">LASUser</strong><small th:text="${item.displayName}">LAS User</small></span>
@@ -57,9 +57,13 @@
           </a>
         </nav>
 
-        <div class="admin-pagination">
-          <a th:if="${nextCursor != null}" th:href="@{/admin/users(query=${query},status=${status},cursor=${nextCursor})}">下一页 →</a>
-          <a th:if="${nextCursor == null and (query != '' or status != '')}" href="/admin/users">清除筛选</a>
+        <div class="admin-pagination user-pagination">
+          <a class="previous-page" th:if="${currentCursor != null}"
+             th:href="@{/admin/users(query=${query},status=${status},cursor=${previousCursor})}">← 上一页</a>
+          <a class="next-page" th:if="${nextCursor != null}"
+             th:href="@{/admin/users(query=${query},status=${status},cursor=${nextCursor})}">下一页 →</a>
+          <a class="clear-filter" th:if="${currentCursor == null and nextCursor == null and (query != '' or status != '')}"
+             href="/admin/users">清除筛选</a>
         </div>
       </article>
 

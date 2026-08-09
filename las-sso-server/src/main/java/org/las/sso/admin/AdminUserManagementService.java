@@ -83,7 +83,37 @@ public class AdminUserManagementService {
         boolean hasMore = rows.size() > limit;
         List<UserSummary> items = hasMore ? List.copyOf(rows.subList(0, limit)) : List.copyOf(rows);
         String nextCursor = hasMore ? items.getLast().userId().toString() : null;
-        return new UserPage(items, nextCursor);
+        String previousCursor = previousCursor(
+                normalizedQuery, normalizedStatus, cursor, limit);
+        return new UserPage(items, nextCursor, previousCursor);
+    }
+
+    private String previousCursor(
+            String query, String status, UUID cursor, int limit) {
+        if (cursor == null) return null;
+        return jdbcClient.sql("""
+                SELECT u.id
+                  FROM users u
+                  JOIN usernames un ON un.user_id = u.id AND un.valid_to IS NULL
+                 WHERE (:query = '' OR un.username ILIKE '%' || :query || '%'
+                        OR u.display_name ILIKE '%' || :query || '%'
+                        OR u.id::text = :query)
+                   AND (:status = '' OR u.account_status::text = :status)
+                   AND (u.created_at, u.id) > (
+                        SELECT cursor_user.created_at, cursor_user.id
+                          FROM users cursor_user
+                         WHERE cursor_user.id = CAST(:cursor AS uuid))
+                 ORDER BY u.created_at ASC, u.id ASC
+                 OFFSET :offset
+                 LIMIT 1
+                """).param("query", query)
+                .param("status", status)
+                .param("cursor", cursor.toString())
+                .param("offset", limit - 1)
+                .query(UUID.class)
+                .optional()
+                .map(UUID::toString)
+                .orElse(null);
     }
 
     @Transactional(readOnly = true)
@@ -262,7 +292,10 @@ public class AdminUserManagementService {
         return OffsetDateTime.ofInstant(clock.instant(), ZoneOffset.UTC);
     }
 
-    public record UserPage(List<UserSummary> items, String nextCursor) {
+    public record UserPage(
+            List<UserSummary> items,
+            String nextCursor,
+            String previousCursor) {
         public UserPage {
             items = List.copyOf(items);
         }

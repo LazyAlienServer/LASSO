@@ -44,10 +44,12 @@
             <a href="/account">返回账户概览</a>
           </div>
           <form id="deletion-request-form" class="deletion-request-form" novalidate>
-            <label class="field-group"><span>当前密码</span>
-              <input name="password" type="password" autocomplete="current-password" maxlength="512" required aria-describedby="deletion-password-error">
-            </label>
-            <p id="deletion-password-error" class="field-error" aria-live="polite"></p>
+            <div class="deletion-password-field">
+              <label class="field-group"><span>当前密码</span>
+                <input name="password" type="password" autocomplete="current-password" maxlength="512" required aria-describedby="deletion-password-error">
+              </label>
+              <p id="deletion-password-error" class="field-error" aria-live="polite"></p>
+            </div>
             <button class="danger-button deletion-submit" type="submit">申请注销通行证</button>
           </form>
         </div>
@@ -57,9 +59,11 @@
           <h2>注销申请进行中</h2>
           <p>你已在 <strong th:text="${#temporals.format(deletion.requestedAt, 'yyyy-MM-dd HH:mm')}">2026-08-06</strong> 申请注销。等待期将于 <strong th:text="${#temporals.format(deletion.executeAfter, 'yyyy-MM-dd HH:mm')}">2026-09-05</strong> 结束，届时通行证数据会被删除。等待期内可以随时取消，取消后账号恢复正常。</p>
           <form id="deletion-cancel-form" class="deletion-request-form" novalidate>
-            <label class="field-group"><span>当前密码</span>
-              <input name="password" type="password" autocomplete="current-password" maxlength="512" required>
-            </label>
+            <div class="deletion-password-field">
+              <label class="field-group"><span>当前密码</span>
+                <input name="password" type="password" autocomplete="current-password" maxlength="512" required>
+              </label>
+            </div>
             <button class="secondary-button" type="submit">取消注销申请</button>
           </form>
           <a href="/logout" th:href="@{/logout}">退出登录</a>
