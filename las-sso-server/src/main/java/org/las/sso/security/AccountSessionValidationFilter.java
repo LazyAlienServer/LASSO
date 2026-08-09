@@ -57,7 +57,10 @@ public final class AccountSessionValidationFilter extends OncePerRequestFilter {
             }
             return;
         }
-        userSessions.validateOrRegister(principal, request);
+        if (!userSessions.validateOrRegister(principal, request)) {
+            expireSession(request, response);
+            return;
+        }
         if (!isDeletionRestricted(principal.userId())
                 || isDeletionScopeAllowed(request)) {
             filterChain.doFilter(request, response);
@@ -71,6 +74,25 @@ public final class AccountSessionValidationFilter extends OncePerRequestFilter {
             response.getWriter().write("{\"code\":\"DELETION_PENDING\"}");
         } else {
             response.sendRedirect(request.getContextPath() + "/account/delete");
+        }
+    }
+
+    private static void expireSession(
+            HttpServletRequest request,
+            HttpServletResponse response) throws IOException {
+        SecurityContextHolder.clearContext();
+        HttpSession session = request.getSession(false);
+        if (session != null) {
+            session.invalidate();
+        }
+        if (request.getRequestURI().startsWith("/api/")) {
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+            response.setCharacterEncoding(StandardCharsets.UTF_8.name());
+            response.setHeader("Cache-Control", "no-store");
+            response.getWriter().write("{\"code\":\"SESSION_EXPIRED\"}");
+        } else {
+            response.sendRedirect(request.getContextPath() + "/login?sessionExpired");
         }
     }
 

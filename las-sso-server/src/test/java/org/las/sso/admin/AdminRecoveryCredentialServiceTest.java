@@ -24,12 +24,14 @@ import org.las.sso.identity.JdbcLasUserDetailsService;
 import org.las.sso.identity.LasUserPrincipal;
 import org.las.sso.maintenance.AdminBootstrapService;
 import org.las.sso.security.RecentAuthenticationService;
+import org.las.sso.session.UserSessionService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.mock.web.MockHttpSession;
+import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
@@ -63,6 +65,9 @@ class AdminRecoveryCredentialServiceTest {
 
     @Autowired
     PasswordRecoveryService passwordRecoveryService;
+
+    @Autowired
+    UserSessionService userSessions;
 
     @Autowired
     JdbcLasUserDetailsService userDetailsService;
@@ -254,6 +259,9 @@ class AdminRecoveryCredentialServiceTest {
                 "EndpointTarget", "Endpoint Target", "endpoint target passphrase");
         LasUserPrincipal actorPrincipal = principal(actor.userId(), "EndpointActor", false);
         LasUserPrincipal adminPrincipal = principal(actor.userId(), "EndpointActor", true);
+        jdbcClient.sql("UPDATE users SET is_sso_admin = false WHERE is_sso_admin = true").update();
+        jdbcClient.sql("UPDATE users SET is_sso_admin = true WHERE id = :userId")
+                .param("userId", actor.userId()).update();
 
         mockMvc.perform(post("/api/v1/admin/users/{userId}/recovery-credentials", target.userId())
                         .with(user(actorPrincipal))
@@ -263,12 +271,15 @@ class AdminRecoveryCredentialServiceTest {
                         .content("{\"reason\":\"no role\"}"))
                 .andExpect(status().isForbidden());
 
-        var adminSession = new MockHttpSession();
+        var loginRequest = new MockHttpServletRequest();
+        var adminSession = (MockHttpSession) loginRequest.getSession(true);
+        userSessions.registerLogin(adminPrincipal, loginRequest);
         mockMvc.perform(post("/api/v1/admin/users/{userId}/recovery-credentials", target.userId())
                         .session(adminSession)
                         .with(user(adminPrincipal))
                         .with(csrf())
                         .header("Origin", "http://127.0.0.1:9000")
+                        .header("Idempotency-Key", UUID.randomUUID().toString())
                         .contentType("application/json")
                         .content("{\"reason\":\"missing recent authentication\"}"))
                 .andExpect(status().isForbidden());
@@ -280,6 +291,7 @@ class AdminRecoveryCredentialServiceTest {
                         .with(user(adminPrincipal))
                         .with(csrf())
                         .header("Origin", "http://127.0.0.1:9000")
+                        .header("Idempotency-Key", UUID.randomUUID().toString())
                         .contentType("application/json")
                         .content("{\"reason\":\"identity verified offline\"}"))
                 .andExpect(status().isOk())
@@ -292,6 +304,7 @@ class AdminRecoveryCredentialServiceTest {
                         .with(user(adminPrincipal))
                         .with(csrf())
                         .header("Origin", "http://127.0.0.1:9000")
+                        .header("Idempotency-Key", UUID.randomUUID().toString())
                         .contentType("application/json")
                         .content("{\"reason\":\"self issue\"}"))
                 .andExpect(status().isForbidden());

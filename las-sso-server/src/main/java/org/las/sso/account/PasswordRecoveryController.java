@@ -8,6 +8,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
+import org.las.sso.api.RequestIdFilter;
 import org.las.sso.security.ClientNetworkKey;
 import org.las.sso.security.SameOriginVerifier;
 import org.springframework.http.CacheControl;
@@ -54,7 +55,8 @@ public class PasswordRecoveryController {
                 body.credential(),
                 body.credentialType(),
                 captcha,
-                clientNetworkKey.fromRemoteAddress(request.getRemoteAddr()));
+                clientNetworkKey.fromRemoteAddress(request.getRemoteAddr()),
+                requestId(request));
         return ResponseEntity.noContent()
                 .header(HttpHeaders.SET_COOKIE, recoveryCookie(
                         session.token(), PasswordRecoveryService.SESSION_LIFETIME).toString())
@@ -68,7 +70,7 @@ public class PasswordRecoveryController {
             @Valid @RequestBody CompleteRecoveryRequest body,
             HttpServletRequest request) {
         sameOriginVerifier.verify(request);
-        recovery.complete(sessionToken, body.newPassword());
+        recovery.complete(sessionToken, body.newPassword(), requestId(request));
         return ResponseEntity.noContent()
                 .header(HttpHeaders.SET_COOKIE, recoveryCookie("", Duration.ZERO).toString())
                 .cacheControl(CacheControl.noStore())
@@ -83,6 +85,12 @@ public class PasswordRecoveryController {
                 .path("/")
                 .maxAge(maxAge)
                 .build();
+    }
+
+    private static UUID requestId(HttpServletRequest request) {
+        Object requestId = request.getAttribute(RequestIdFilter.ATTRIBUTE);
+        if (requestId instanceof UUID value) return value;
+        throw new IllegalStateException("Request ID filter must run before recovery operations");
     }
 
     public record StartRecoveryRequest(

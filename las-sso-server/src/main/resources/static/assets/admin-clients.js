@@ -19,15 +19,17 @@
   let currentClient = null;
   let secretOpen = false;
 
-  async function request(method, url, body) {
+  async function request(method, url, body, idempotencyKey) {
+    const headers = {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      [csrf.dataset.header]: csrf.value
+    };
+    if (idempotencyKey) headers["Idempotency-Key"] = idempotencyKey;
     const response = await fetch(url, {
       method,
       credentials: "same-origin",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-        [csrf.dataset.header]: csrf.value
-      },
+      headers,
       body: body == null ? undefined : JSON.stringify(body)
     });
     if (response.ok) return response.status === 204 ? null : response.json();
@@ -170,6 +172,7 @@
     document.getElementById("client-dialog-error").textContent = "";
     actionForm.reset();
     actionForm.dataset.action = action;
+    actionForm.dataset.idempotencyKey = crypto.randomUUID();
     actionDialog.showModal();
     actionForm.elements.reason.focus({ preventScroll: true });
   }
@@ -188,9 +191,14 @@
       await request("POST", "/api/v1/me/reauthentication", { password: actionForm.elements.password.value });
       const result = await request("POST",
         `/api/v1/admin/clients/${encodeURIComponent(currentClientId)}/${actionForm.dataset.action}`,
-        { reason: actionForm.elements.reason.value.trim() });
+        { reason: actionForm.elements.reason.value.trim() },
+        actionForm.dataset.action === "secret-rotation"
+          ? actionForm.dataset.idempotencyKey : null);
       actionDialog.close();
       if (actionForm.dataset.action === "secret-rotation") {
+        if (!result.secretsAvailable) {
+          throw new Error("该轮换已经完成，一次性密钥不能再次显示。请再次轮换生成新密钥。");
+        }
         showSecret(result.clientSecret);
       } else {
         detailDialog.close();

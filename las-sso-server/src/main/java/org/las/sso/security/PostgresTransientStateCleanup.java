@@ -54,7 +54,8 @@ public class PostgresTransientStateCleanup {
         return deleteExpired("rate_limit_buckets", "window_expires_at", now, batchSize)
                 + deleteExpired("captcha_challenges", "expires_at", now, batchSize)
                 + deleteExpired("recovery_sessions", "expires_at", now, batchSize)
-                + deleteExpired("registration_idempotency", "expires_at", now, batchSize);
+                + deleteExpired("registration_idempotency", "expires_at", now, batchSize)
+                + deleteExpired("operation_idempotency", "expires_at", now, batchSize);
     }
 
     private int deleteExpired(String table, String expiryColumn, OffsetDateTime now, int batchSize) {

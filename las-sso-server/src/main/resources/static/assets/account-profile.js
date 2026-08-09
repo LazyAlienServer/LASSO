@@ -47,7 +47,10 @@
     error.textContent = "";
     try {
       await request("PATCH", "/api/v1/me/profile",
-        { displayName: displayNameForm.elements.displayName.value.trim() });
+        {
+          displayName: displayNameForm.elements.displayName.value.trim(),
+          avatarResourceId: displayNameForm.elements.avatarResourceId.value || null
+        });
       displayNameDialog.close();
       window.location.reload();
     } catch (failure) {

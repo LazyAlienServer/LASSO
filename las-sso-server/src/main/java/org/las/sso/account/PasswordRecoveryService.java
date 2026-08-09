@@ -6,6 +6,7 @@ import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Base64;
+import java.util.List;
 import java.util.UUID;
 
 import org.las.sso.identity.UuidV7Generator;
@@ -43,6 +44,7 @@ public class PasswordRecoveryService {
     private final BackChannelLogoutOutbox backChannelLogout;
     private final SecureRandom secureRandom;
     private final Clock clock;
+    private final AdminRecoveryFailureAuditService failureAudit;
 
     @Autowired
     public PasswordRecoveryService(
@@ -54,10 +56,11 @@ public class PasswordRecoveryService {
             PasswordEncoder passwordEncoder,
             PasswordPolicy passwordPolicy,
             UuidV7Generator uuidGenerator,
-            BackChannelLogoutOutbox backChannelLogout) {
+            BackChannelLogoutOutbox backChannelLogout,
+            AdminRecoveryFailureAuditService failureAudit) {
         this(jdbcClient, recoveryCodes, keyHasher, rateLimiter, captcha, passwordEncoder,
                 passwordPolicy, uuidGenerator, backChannelLogout,
-                new SecureRandom(), Clock.systemUTC());
+                new SecureRandom(), Clock.systemUTC(), failureAudit);
     }
 
     PasswordRecoveryService(
@@ -71,7 +74,8 @@ public class PasswordRecoveryService {
             UuidV7Generator uuidGenerator,
             BackChannelLogoutOutbox backChannelLogout,
             SecureRandom secureRandom,
-            Clock clock) {
+            Clock clock,
+            AdminRecoveryFailureAuditService failureAudit) {
         this.jdbcClient = jdbcClient;
         this.recoveryCodes = recoveryCodes;
         this.keyHasher = keyHasher;
@@ -83,6 +87,17 @@ public class PasswordRecoveryService {
         this.backChannelLogout = backChannelLogout;
         this.secureRandom = secureRandom;
         this.clock = clock;
+        this.failureAudit = failureAudit;
+    }
+
+    public RecoverySession start(
+            String username,
+            String credential,
+            CredentialType credentialType,
+            CaptchaSubmission captchaSubmission,
+            String networkKey) {
+        return start(username, credential, credentialType, captchaSubmission,
+                networkKey, uuidGenerator.generate());
     }
 
     @Transactional
@@ -91,7 +106,8 @@ public class PasswordRecoveryService {
             String credential,
             CredentialType credentialType,
             CaptchaSubmission captchaSubmission,
-            String networkKey) {
+            String networkKey,
+            UUID requestId) {
         var userDecision = consume("RECOVERY_USER", username, USER_ATTEMPT_LIMIT);
         var ipDecision = consume("RECOVERY_IP", networkKey, IP_ATTEMPT_LIMIT);
         consume("RECOVERY_GLOBAL", "all", GLOBAL_ATTEMPT_LIMIT);
@@ -110,7 +126,17 @@ public class PasswordRecoveryService {
         }
 
         OffsetDateTime now = now();
-        UUID userId = consumeCredential(username, credential, credentialType, now);
+        ConsumedCredential consumed;
+        try {
+            consumed = consumeCredential(username, credential, credentialType, now);
+        } catch (RecoveryFlowException exception) {
+            if (credentialType == CredentialType.ADMIN_ISSUED) {
+                failureAudit.recordRejectedAttempt(
+                        username, recoveryCodes.digest(credential), requestId, now);
+            }
+            throw exception;
+        }
+        UUID userId = consumed.userId();
         String token = newSessionToken();
         jdbcClient.sql("""
                 INSERT INTO recovery_sessions
@@ -120,12 +146,21 @@ public class PasswordRecoveryService {
                 .param("tokenHash", keyHasher.hash("recovery-session", token))
                 .param("credentialType", credentialType.name()).param("now", now)
                 .param("expiresAt", now.plus(SESSION_LIFETIME)).update();
-        securityEvent(userId, "RECOVERY_SESSION_CREATED", "INFO", now);
+        securityEvent(userId, "RECOVERY_SESSION_CREATED", "INFO", requestId, now);
+        if (consumed.adminCredentialId() != null) {
+            adminRecoveryAudit(
+                    consumed.issuedByUserId(), userId, consumed.adminCredentialId(),
+                    "ADMIN_RECOVERY_CREDENTIAL_USED", "SUCCESS", requestId, now);
+        }
         return new RecoverySession(token, now.plus(SESSION_LIFETIME));
     }
 
-    @Transactional
     public void complete(String sessionToken, String newPassword) {
+        complete(sessionToken, newPassword, uuidGenerator.generate());
+    }
+
+    @Transactional
+    public void complete(String sessionToken, String newPassword, UUID requestId) {
         if (sessionToken == null || sessionToken.isBlank()) {
             throw new RecoveryFlowException("SESSION_EXPIRED");
         }
@@ -181,10 +216,24 @@ public class PasswordRecoveryService {
                    SET consumed_at = :now
                  WHERE user_id = :userId AND consumed_at IS NULL
                 """).param("now", now).param("userId", credential.userId()).update();
+        List<AdminCredentialAuditTarget> revokedAdminCredentials = jdbcClient.sql("""
+                SELECT id, issued_by_user_id
+                  FROM admin_recovery_credentials
+                 WHERE target_user_id = :userId
+                   AND used_at IS NULL AND revoked_at IS NULL
+                """).param("userId", credential.userId())
+                .query((rs, rowNum) -> new AdminCredentialAuditTarget(
+                        rs.getObject("id", UUID.class),
+                        rs.getObject("issued_by_user_id", UUID.class))).list();
         jdbcClient.sql("""
                 UPDATE admin_recovery_credentials SET revoked_at = :now
                  WHERE target_user_id = :userId AND revoked_at IS NULL
                 """).param("now", now).param("userId", credential.userId()).update();
+        for (AdminCredentialAuditTarget revoked : revokedAdminCredentials) {
+            adminRecoveryAudit(
+                    revoked.issuedByUserId(), credential.userId(), revoked.id(),
+                    "ADMIN_RECOVERY_CREDENTIAL_REVOKED", "SUCCESS", requestId, now);
+        }
         jdbcClient.sql("""
                 UPDATE user_sessions
                    SET status = 'REVOKED', revoked_at = :now, revoke_reason = 'PASSWORD_RECOVERED'
@@ -193,7 +242,7 @@ public class PasswordRecoveryService {
         backChannelLogout.enqueueForUser(credential.userId(), "PASSWORD_RECOVERED", now);
         jdbcClient.sql("DELETE FROM oauth2_authorization WHERE principal_name = :principalName")
                 .param("principalName", credential.userId().toString()).update();
-        securityEvent(credential.userId(), "PASSWORD_RECOVERED", "WARNING", now);
+        securityEvent(credential.userId(), "PASSWORD_RECOVERED", "WARNING", requestId, now);
         jdbcClient.sql("""
                 INSERT INTO outbox_events
                     (id, aggregate_type, aggregate_id, event_type, payload_json,
@@ -205,11 +254,11 @@ public class PasswordRecoveryService {
                 .param("userId", credential.userId().toString()).param("now", now).update();
     }
 
-    private UUID consumeCredential(
+    private ConsumedCredential consumeCredential(
             String username, String credential, CredentialType credentialType, OffsetDateTime now) {
         byte[] digest = recoveryCodes.digest(credential);
         if (credentialType == CredentialType.RECOVERY_CODE) {
-            return jdbcClient.sql("""
+            UUID userId = jdbcClient.sql("""
                     UPDATE recovery_codes rc
                        SET used_at = :now
                       FROM users u, usernames un
@@ -225,6 +274,7 @@ public class PasswordRecoveryService {
                     """).param("now", now).param("username", username).param("digest", digest)
                     .query(UUID.class).optional()
                     .orElseThrow(() -> new RecoveryFlowException("RECOVERY_CREDENTIAL_INVALID"));
+            return new ConsumedCredential(userId, null, null);
         }
         return jdbcClient.sql("""
                 UPDATE admin_recovery_credentials arc
@@ -239,10 +289,35 @@ public class PasswordRecoveryService {
                    AND arc.used_at IS NULL
                    AND arc.revoked_at IS NULL
                    AND arc.expires_at > :now
-                RETURNING arc.target_user_id
+                RETURNING arc.target_user_id, arc.id, arc.issued_by_user_id
                 """).param("now", now).param("username", username).param("digest", digest)
-                .query(UUID.class).optional()
+                .query((rs, rowNum) -> new ConsumedCredential(
+                        rs.getObject("target_user_id", UUID.class),
+                        rs.getObject("id", UUID.class),
+                        rs.getObject("issued_by_user_id", UUID.class)))
+                .optional()
                 .orElseThrow(() -> new RecoveryFlowException("RECOVERY_CREDENTIAL_INVALID"));
+    }
+
+    private void adminRecoveryAudit(
+            UUID actorUserId,
+            UUID targetUserId,
+            UUID credentialId,
+            String action,
+            String result,
+            UUID requestId,
+            OffsetDateTime now) {
+        jdbcClient.sql("""
+                INSERT INTO admin_audit_events
+                    (id, occurred_at, actor_user_id, action, target_type, target_id,
+                     request_id, result, details_json)
+                VALUES (:id, :now, :actorUserId, :action, 'USER', :targetId,
+                        :requestId, :result,
+                        jsonb_build_object('credentialId', :credentialId))
+                """).param("id", uuidGenerator.generate()).param("now", now)
+                .param("actorUserId", actorUserId).param("action", action)
+                .param("targetId", targetUserId.toString()).param("requestId", requestId)
+                .param("result", result).param("credentialId", credentialId.toString()).update();
     }
 
     private PostgresRateLimiter.Decision consume(String scope, String key, int limit) {
@@ -253,14 +328,19 @@ public class PasswordRecoveryService {
         return decision;
     }
 
-    private void securityEvent(UUID userId, String eventType, String severity, OffsetDateTime now) {
+    private void securityEvent(
+            UUID userId,
+            String eventType,
+            String severity,
+            UUID requestId,
+            OffsetDateTime now) {
         jdbcClient.sql("""
                 INSERT INTO security_events
                     (id, occurred_at, user_id, event_type, severity, request_id, details_json)
                 VALUES (:id, :now, :userId, :eventType, :severity, :requestId, '{}'::jsonb)
                 """).param("id", uuidGenerator.generate()).param("now", now)
                 .param("userId", userId).param("eventType", eventType).param("severity", severity)
-                .param("requestId", uuidGenerator.generate()).update();
+                .param("requestId", requestId).update();
     }
 
     private String newSessionToken() {
@@ -286,5 +366,12 @@ public class PasswordRecoveryService {
 
     private record RecoveryCredential(
             UUID sessionId, UUID userId, String username, String passwordHash) {
+    }
+
+    private record ConsumedCredential(
+            UUID userId, UUID adminCredentialId, UUID issuedByUserId) {
+    }
+
+    private record AdminCredentialAuditTarget(UUID id, UUID issuedByUserId) {
     }
 }

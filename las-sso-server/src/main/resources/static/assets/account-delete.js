@@ -3,10 +3,12 @@
 
   const csrf = document.getElementById("deletion-csrf");
   const form = document.getElementById("deletion-request-form");
-  const cancelButton = document.getElementById("deletion-cancel");
+  const cancelForm = document.getElementById("deletion-cancel-form");
   const message = document.getElementById("deletion-message");
   if (!csrf) return;
   if (!message) return;
+  let requestIdempotencyKey = crypto.randomUUID();
+  let cancelIdempotencyKey = crypto.randomUUID();
 
   function showError(text) {
     message.hidden = false;
@@ -24,13 +26,14 @@
     message.focus({ preventScroll: true });
   }
 
-  async function send(method, url, body) {
+  async function send(method, url, body, idempotencyKey) {
     const response = await fetch(url, {
       method,
       credentials: "same-origin",
       headers: {
         Accept: "application/json",
         "Content-Type": "application/json",
+        "Idempotency-Key": idempotencyKey,
         [csrf.dataset.header]: csrf.value
       },
       body: body == null ? undefined : JSON.stringify(body)
@@ -52,7 +55,8 @@
     message.hidden = true;
     try {
       await send("POST", "/api/v1/me/deletion-request",
-        { password: form.elements.password.value });
+        { password: form.elements.password.value }, requestIdempotencyKey);
+      requestIdempotencyKey = crypto.randomUUID();
       showSuccess("注销申请已提交，正在退出所有应用…");
       window.setTimeout(() => window.location.reload(), 800);
     } catch (failure) {
@@ -65,15 +69,22 @@
     }
   });
 
-  cancelButton?.addEventListener("click", async () => {
+  cancelForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!cancelForm.reportValidity()) return;
+    const cancelButton = cancelForm.querySelector("button[type='submit']");
     cancelButton.disabled = true;
     message.hidden = true;
     try {
-      await send("DELETE", "/api/v1/me/deletion-request");
+      await send("DELETE", "/api/v1/me/deletion-request",
+        { password: cancelForm.elements.password.value }, cancelIdempotencyKey);
+      cancelIdempotencyKey = crypto.randomUUID();
       showSuccess("注销申请已取消，账号保持正常。");
       window.setTimeout(() => window.location.reload(), 800);
     } catch (failure) {
       showError(failure.message);
+      cancelForm.elements.password.value = "";
+      cancelForm.elements.password.focus({ preventScroll: true });
       cancelButton.disabled = false;
     }
   });

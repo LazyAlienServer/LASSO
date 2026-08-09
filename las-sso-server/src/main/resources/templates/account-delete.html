@@ -56,7 +56,12 @@
           <span class="feature-state-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8v5l3 2"></path><circle cx="12" cy="12" r="9"></circle></svg></span>
           <h2>注销申请进行中</h2>
           <p>你已在 <strong th:text="${#temporals.format(deletion.requestedAt, 'yyyy-MM-dd HH:mm')}">2026-08-06</strong> 申请注销。等待期将于 <strong th:text="${#temporals.format(deletion.executeAfter, 'yyyy-MM-dd HH:mm')}">2026-09-05</strong> 结束，届时通行证数据会被删除。等待期内可以随时取消，取消后账号恢复正常。</p>
-          <button id="deletion-cancel" class="secondary-button" type="button">取消注销申请</button>
+          <form id="deletion-cancel-form" class="deletion-request-form" novalidate>
+            <label class="field-group"><span>当前密码</span>
+              <input name="password" type="password" autocomplete="current-password" maxlength="512" required>
+            </label>
+            <button class="secondary-button" type="submit">取消注销申请</button>
+          </form>
           <a href="/logout" th:href="@{/logout}">退出登录</a>
         </div>
 

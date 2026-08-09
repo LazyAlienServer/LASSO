@@ -11,6 +11,7 @@ import org.las.sso.api.RequestIdFilter;
 import org.las.sso.identity.LasUserPrincipal;
 import org.las.sso.security.RecentAuthenticationException;
 import org.las.sso.security.RecentAuthenticationService;
+import org.las.sso.security.SameOriginVerifier;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -19,6 +20,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -27,30 +29,61 @@ public class AccountDeletionController {
 
     private final DeletionRequestService deletions;
     private final RecentAuthenticationService recentAuthentication;
+    private final SameOriginVerifier sameOriginVerifier;
+    private final OperationIdempotencyService idempotency;
 
     public AccountDeletionController(
             DeletionRequestService deletions,
-            RecentAuthenticationService recentAuthentication) {
+            RecentAuthenticationService recentAuthentication,
+            SameOriginVerifier sameOriginVerifier,
+            OperationIdempotencyService idempotency) {
         this.deletions = deletions;
         this.recentAuthentication = recentAuthentication;
+        this.sameOriginVerifier = sameOriginVerifier;
+        this.idempotency = idempotency;
     }
 
     @PostMapping
     ResponseEntity<DeletionRequestService.RequestView> request(
             Authentication authentication,
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
             @Valid @RequestBody Request body,
             HttpServletRequest request) {
         LasUserPrincipal principal = principal(authentication);
+        sameOriginVerifier.verify(request);
         recentAuthentication.reauthenticate(principal, body.password(), request);
-        DeletionRequestService.RequestView view = deletions.request(
-                principal.userId(), requestId(request));
+        DeletionRequestService.RequestView view = idempotency.execute(
+                principal.userId(), "ACCOUNT_DELETION_REQUEST", idempotencyKey,
+                body.password(),
+                () -> deletions.request(principal.userId(), requestId(request)),
+                result -> new OperationIdempotencyService.StoredResult(
+                        result.requestedAt() + "|" + result.executeAfter(), result.requestedAt()),
+                stored -> {
+                    String[] values = stored.resultRef().split("\\|", 2);
+                    return new DeletionRequestService.RequestView(
+                            "PENDING", java.time.OffsetDateTime.parse(values[0]),
+                            java.time.OffsetDateTime.parse(values[1]), null, null);
+                });
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(view);
     }
 
     @DeleteMapping
-    ResponseEntity<Void> cancel(Authentication authentication, HttpServletRequest request) {
+    ResponseEntity<Void> cancel(
+            Authentication authentication,
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
+            @Valid @RequestBody Request body,
+            HttpServletRequest request) {
         LasUserPrincipal principal = principal(authentication);
-        deletions.cancel(principal.userId(), requestId(request));
+        sameOriginVerifier.verify(request);
+        recentAuthentication.reauthenticate(principal, body.password(), request);
+        idempotency.executeWithoutResult(
+                principal.userId(), "ACCOUNT_DELETION_CANCEL", idempotencyKey,
+                body.password(),
+                () -> {
+                    deletions.cancel(principal.userId(), requestId(request));
+                    return Boolean.TRUE;
+                },
+                () -> Boolean.TRUE);
         return ResponseEntity.noContent().build();
     }
 

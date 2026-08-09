@@ -73,25 +73,27 @@ public class DeletionExecutionJob {
     @Transactional
     public int releaseExpiredHolds(OffsetDateTime now) {
         List<UUID> expired = jdbcClient.sql("""
-                SELECT user_id
-                  FROM account_deletion_requests
-                 WHERE status = 'HELD'
-                   AND hold_until IS NOT NULL
-                   AND hold_until < :now
-                 LIMIT :limit
+                WITH selected AS (
+                    SELECT id
+                      FROM account_deletion_requests
+                     WHERE status = 'HELD'
+                       AND hold_until IS NOT NULL
+                       AND hold_until < :now
+                     ORDER BY hold_until, id
+                     LIMIT :limit
+                     FOR UPDATE SKIP LOCKED
+                )
+                UPDATE account_deletion_requests request
+                   SET status = 'PENDING', hold_until = NULL,
+                       held_by_user_id = NULL, hold_reason = NULL
+                  FROM selected
+                 WHERE request.id = selected.id
+                RETURNING request.user_id
                 """).param("now", now).param("limit", BATCH_SIZE)
                 .query(UUID.class).list();
         if (expired.isEmpty()) {
             return 0;
         }
-        int updated = jdbcClient.sql("""
-                UPDATE account_deletion_requests
-                   SET status = 'PENDING', hold_until = NULL,
-                       held_by_user_id = NULL, hold_reason = NULL
-                 WHERE status = 'HELD'
-                   AND hold_until IS NOT NULL
-                   AND hold_until < :now
-                """).param("now", now).update();
         for (UUID userId : expired) {
             jdbcClient.sql("""
                     INSERT INTO security_events
@@ -101,6 +103,6 @@ public class DeletionExecutionJob {
                     """).param("id", uuidGenerator.generate()).param("now", now)
                     .param("userId", userId).param("requestId", uuidGenerator.generate()).update();
         }
-        return updated;
+        return expired.size();
     }
 }

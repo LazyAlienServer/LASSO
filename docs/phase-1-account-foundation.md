@@ -86,6 +86,6 @@
 - starter 已提供 Back-Channel Logout Token 校验、重放防护和本地 Session 失效。当前会话注册表与重放缓存仍是单 JVM 实现。
 - 已实现 `/admin/users` 管理员页面和用户查询/详情 API；冻结、解冻和强制下线禁止对自己及管理员账号操作，要求同源 CSRF、15 分钟近期认证和原因，并写入 `admin_audit_events` 与 `security_events`。冻结和强制下线复用全局撤销与 Back-Channel outbox。
 - 尚未完成：starter 的 PostgreSQL 持久化授权客户端、跨实例刷新锁及 Back-Channel 会话索引/重放缓存。
-- 产品管理功能尚未完成：管理员人工恢复凭据一次性交付、OIDC 客户端管理、删除请求与审计查询页面。
+- 管理员人工恢复凭据一次性交付、OIDC 客户端管理、删除请求、审计查询与资料修改已经完成；危险写操作统一检查当前数据库管理员角色、管理员会话和近期认证。
 
-注册、登录、风险 ALTCHA、恢复密码、改密、近期认证、恢复码一次性交付、个人中心、活动会话和管理员用户管理界面已经按现有 LAS Passport 视觉语言实现，并提供桌面、平板和手机响应式布局。管理员离线重置命令、最小 BFF 端到端样例、单实例 Token 自动续期、`auth_fresh_until` 强制边界、持久化 SSO 会话、RP-Initiated Logout 及 Back-Channel Logout 的单实例闭环已经完成；下一批优先补管理员人工恢复凭据和 OIDC 客户端管理，多实例持久化按实际部署需要推进。
+注册、登录、风险 ALTCHA、恢复密码、改密、近期认证、恢复码一次性交付、个人中心、活动会话、资料修改、注销与管理员管理界面已经按现有 LAS Passport 视觉语言实现，并提供桌面、平板和手机响应式布局。管理员离线重置命令、最小 BFF 端到端样例、单实例 Token 自动续期、`auth_fresh_until` 强制边界、持久化 SSO 会话、RP-Initiated Logout、Back-Channel Logout、人工恢复、OIDC 客户端管理和审计查询的单实例闭环已经完成；多实例 BFF 状态持久化按实际部署需要推进。

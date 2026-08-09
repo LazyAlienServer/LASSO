@@ -77,6 +77,9 @@ public class ApiProblemHandler {
             case "INVALID_CLIENT_ID" -> problem(
                     HttpStatus.BAD_REQUEST, exception.code(),
                     "客户端 ID 格式无效", "客户端 ID 只能包含字母、数字、点、下划线和连字符。", request, null);
+            case "INVALID_CLIENT_TYPE" -> problem(
+                    HttpStatus.BAD_REQUEST, exception.code(),
+                    "客户端类型无效", "客户端类型只能为第一方或已审核合作方。", request, null);
             default -> problem(
                     HttpStatus.BAD_REQUEST, "VALIDATION_FAILED",
                     "请求字段无效", "请检查请求字段格式。", request, null);

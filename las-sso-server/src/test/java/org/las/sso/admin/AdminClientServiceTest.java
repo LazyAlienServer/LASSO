@@ -17,12 +17,14 @@ import org.las.sso.account.AccountRegistrationService;
 import org.las.sso.identity.LasUserPrincipal;
 import org.las.sso.maintenance.AdminBootstrapService;
 import org.las.sso.security.RecentAuthenticationService;
+import org.las.sso.session.UserSessionService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.mock.web.MockHttpSession;
+import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
@@ -63,6 +65,9 @@ class AdminClientServiceTest {
 
     @Autowired
     OAuth2AuthorizationService authorizationService;
+
+    @Autowired
+    UserSessionService userSessions;
 
     @Autowired
     MockMvc mockMvc;
@@ -125,6 +130,13 @@ class AdminClientServiceTest {
         assertThatThrownBy(() -> clients.create(withClientId(base, "ab"),
                 adminId, null, "r", UUID.randomUUID()))
                 .extracting("code").isEqualTo("INVALID_CLIENT_ID");
+        assertThatThrownBy(() -> clients.create(
+                new AdminClientService.CreateRequest(
+                        null, "Invalid type", "TYPO_PARTNER", base.redirectUris(),
+                        base.postLogoutRedirectUris(), base.scopes(),
+                        base.resourceAudiences(), base.backchannelLogoutUri()),
+                adminId, null, "r", UUID.randomUUID()))
+                .extracting("code").isEqualTo("INVALID_CLIENT_TYPE");
 
         AdminClientService.CreateRequest first = withClientId(withUris(base,
                 List.of("https://dup.example/callback")), "dup-client");
@@ -181,6 +193,28 @@ class AdminClientServiceTest {
 
         assertThat(result.revocationTriggered()).isFalse();
         assertThat(result.configVersion()).isOne();
+    }
+
+    @Test
+    void patchScopeExpansionBumpsVersionWithoutRevokingExistingAuthorization() {
+        UUID adminId = administrator("ClientAdminExpand");
+        clients.create(new AdminClientService.CreateRequest(
+                "expand-client", "Expand", "REVIEWED_PARTNER",
+                List.of("https://expand.example/callback"), List.of(),
+                List.of("openid"), List.of("urn:las:resource:expand"), null),
+                adminId, null, "r", UUID.randomUUID());
+
+        AdminClientService.PatchResult result = clients.patch(
+                "expand-client",
+                new AdminClientService.PatchRequest(
+                        "Expand", "REVIEWED_PARTNER",
+                        List.of("https://expand.example/callback"), List.of(),
+                        List.of("openid", "profile"),
+                        List.of("urn:las:resource:expand"), null),
+                adminId, null, "scope expanded", UUID.randomUUID());
+
+        assertThat(result.revocationTriggered()).isFalse();
+        assertThat(result.configVersion()).isEqualTo(2);
     }
 
     @Test
@@ -301,11 +335,16 @@ class AdminClientServiceTest {
                 "ClientActorUser", "Client Actor User", "client actor passphrase");
         LasUserPrincipal ordinary = principal(actor.userId(), "ClientActorUser", false);
         LasUserPrincipal admin = principal(actor.userId(), "ClientActorUser", true);
+        jdbcClient.sql("UPDATE users SET is_sso_admin = false WHERE is_sso_admin = true").update();
+        jdbcClient.sql("UPDATE users SET is_sso_admin = true WHERE id = :userId")
+                .param("userId", actor.userId()).update();
 
         mockMvc.perform(get("/api/v1/admin/clients").with(user(ordinary)))
                 .andExpect(status().isForbidden());
 
-        var adminSession = new MockHttpSession();
+        var loginRequest = new MockHttpServletRequest();
+        var adminSession = (MockHttpSession) loginRequest.getSession(true);
+        userSessions.registerLogin(admin, loginRequest);
         mockMvc.perform(post("/api/v1/admin/clients").session(adminSession).with(user(admin))
                         .with(csrf()).header("Origin", "http://127.0.0.1:9000")
                         .contentType("application/json")

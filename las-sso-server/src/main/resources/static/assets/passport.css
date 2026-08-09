@@ -580,6 +580,7 @@ input[type="password"]::-ms-clear { display: none; }
 .profile-panel { min-height: 0; padding: clamp(18px, 2vw, 28px); display: grid; grid-template-columns: minmax(120px, .48fr) minmax(0, 1.52fr); align-items: center; gap: clamp(18px, 2vw, 30px); }
 .profile-visual { align-self: stretch; display: grid; place-items: center; border-right: 1px solid var(--line-soft); }
 .profile-visual span { width: 94px; height: 94px; display: grid; place-items: center; color: var(--purple); border: 2px solid var(--purple); border-radius: 50%; box-shadow: 0 0 0 10px var(--purple-pale), 0 0 0 11px var(--line); font-size: 38px; font-weight: 800; text-transform: uppercase; }
+.profile-visual img { width: 94px; height: 94px; display: block; border: 2px solid var(--purple); border-radius: 50%; box-shadow: 0 0 0 10px var(--purple-pale), 0 0 0 11px var(--line); }
 .passport-kicker { margin: 0 0 4px; color: var(--purple); font: 700 10px/1.2 ui-monospace, monospace; letter-spacing: .12em; }
 .profile-copy h1, .authorization-heading h1 { margin: 0; font-size: clamp(22px, 2.1vw, 32px); line-height: 1.2; }
 .profile-copy > p:last-of-type, .authorization-heading > div > span { display: block; margin-top: 5px; color: var(--purple); font-size: 13px; }
@@ -861,6 +862,7 @@ button:disabled { cursor: not-allowed; opacity: .5; }
   .overview-content { justify-content: center; }
   .profile-panel { padding: 16px; }
   .profile-visual span { width: 72px; height: 72px; font-size: 28px; }
+  .profile-visual img { width: 72px; height: 72px; }
   .quick-panel { margin-top: 10px; }
   .recovery-dashboard { align-content: center; }
   .admin-layout { height: calc(100dvh - 60px); padding: 10px 14px 14px; }

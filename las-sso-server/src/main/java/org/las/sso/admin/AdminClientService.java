@@ -16,6 +16,7 @@ import java.util.UUID;
 
 import org.las.sso.identity.UuidV7Generator;
 import org.las.sso.logout.BackChannelLogoutOutbox;
+import org.las.sso.config.LasSsoProperties;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -47,6 +48,7 @@ public class AdminClientService {
     private final UuidV7Generator uuidGenerator;
     private final SecureRandom secureRandom;
     private final Clock clock;
+    private final boolean allowInsecureLoopback;
 
     @Autowired
     public AdminClientService(
@@ -55,9 +57,11 @@ public class AdminClientService {
             TokenSettings tokenSettings,
             PasswordEncoder passwordEncoder,
             BackChannelLogoutOutbox backChannelLogout,
-            UuidV7Generator uuidGenerator) {
+            UuidV7Generator uuidGenerator,
+            LasSsoProperties properties) {
         this(jdbcClient, registeredClients, tokenSettings, passwordEncoder, backChannelLogout,
-                uuidGenerator, new SecureRandom(), Clock.systemUTC());
+                uuidGenerator, new SecureRandom(), Clock.systemUTC(),
+                "http".equalsIgnoreCase(properties.issuer().getScheme()));
     }
 
     AdminClientService(
@@ -68,7 +72,8 @@ public class AdminClientService {
             BackChannelLogoutOutbox backChannelLogout,
             UuidV7Generator uuidGenerator,
             SecureRandom secureRandom,
-            Clock clock) {
+            Clock clock,
+            boolean allowInsecureLoopback) {
         this.jdbcClient = jdbcClient;
         this.registeredClients = registeredClients;
         this.tokenSettings = tokenSettings;
@@ -77,6 +82,7 @@ public class AdminClientService {
         this.uuidGenerator = uuidGenerator;
         this.secureRandom = secureRandom;
         this.clock = clock;
+        this.allowInsecureLoopback = allowInsecureLoopback;
     }
 
     @Transactional(readOnly = true)
@@ -185,7 +191,8 @@ public class AdminClientService {
         List<String> scopes = validatedScopes(request.scopes());
         List<String> audiences = validatedAudiences(request.resourceAudiences());
         String backchannelUri = validatedBackchannelUri(request.backchannelLogoutUri());
-        boolean partner = "REVIEWED_PARTNER".equals(request.clientType());
+        String clientType = validatedClientType(request.clientType());
+        boolean partner = "REVIEWED_PARTNER".equals(clientType);
         String plainSecret = generateClientSecret();
         RegisteredClient client = RegisteredClient.withId(uuidGenerator.generate().toString())
                 .clientId(clientId)
@@ -247,12 +254,15 @@ public class AdminClientService {
         List<String> newScopes = validatedScopes(request.scopes());
         List<String> newAudiences = validatedAudiences(request.resourceAudiences());
         String newBackchannelUri = validatedBackchannelUri(request.backchannelLogoutUri());
-        boolean newPartner = "REVIEWED_PARTNER".equals(request.clientType());
+        String newClientType = validatedClientType(request.clientType());
+        boolean newPartner = "REVIEWED_PARTNER".equals(newClientType);
 
+        boolean scopesChanged = !newScopes.equals(List.copyOf(current.getScopes()));
+        boolean audiencesChanged = !newAudiences.equals(currentAudiences(clientId));
         boolean scopesShrunk = !newScopes.containsAll(current.getScopes());
         boolean audiencesShrunk = !newAudiences.containsAll(currentAudiences(clientId));
         boolean typeChanged = newPartner != partner;
-        boolean securityRelevant = scopesShrunk || audiencesShrunk || typeChanged
+        boolean securityRelevant = scopesChanged || audiencesChanged || typeChanged
                 || !newRedirectUris.equals(List.copyOf(current.getRedirectUris()))
                 || !newPostLogoutUris.equals(List.copyOf(current.getPostLogoutRedirectUris()))
                 || !java.util.Objects.equals(
@@ -325,6 +335,15 @@ public class AdminClientService {
         if (revoke) {
             revoked = revokeClientAuthorizations(
                     current.getId(), current.getClientId(), "CLIENT_CONFIG_REVOKED", now);
+        } else if (securityRelevant) {
+            jdbcClient.sql("""
+                    UPDATE oauth2_authorization_security security
+                       SET client_config_version = :configVersion
+                      FROM oauth2_authorization authz
+                     WHERE security.authorization_id = authz.id
+                       AND authz.registered_client_id = :registeredClientId
+                    """).param("configVersion", configVersion)
+                    .param("registeredClientId", current.getId()).update();
         }
         insertAudit(actorUserId, actorSid, clientId, "ADMIN_CLIENT_UPDATE", reason, requestId, now);
         return new PatchResult(revoke, revoked, configVersion);
@@ -382,7 +401,8 @@ public class AdminClientService {
         securityEvent("CLIENT_SECRET_ROTATED", "HIGH", clientId, requestId, now);
         insertAudit(actorUserId, actorSid, clientId, "ADMIN_CLIENT_SECRET_ROTATE", reason,
                 requestId, now);
-        return new RotationResult(plainSecret, now, null, configVersion(clientId));
+        return new RotationResult(
+                plainSecret, now, null, configVersion(clientId), true, false);
     }
 
     private int revokeClientAuthorizations(
@@ -485,7 +505,7 @@ public class AdminClientService {
                 .param("requestId", requestId).param("clientId", clientId).update();
     }
 
-    private static List<String> validatedUris(List<String> uris, boolean required) {
+    private List<String> validatedUris(List<String> uris, boolean required) {
         if (uris == null || uris.isEmpty()) {
             if (required) {
                 throw new AdminClientException("REDIRECT_URI_REQUIRED");
@@ -504,7 +524,7 @@ public class AdminClientService {
         return List.copyOf(seen);
     }
 
-    private static void validateUri(String uri) {
+    private void validateUri(String uri) {
         URI parsed;
         try {
             parsed = new URI(uri);
@@ -523,7 +543,7 @@ public class AdminClientService {
         if ("https".equalsIgnoreCase(scheme)) {
             return;
         }
-        if ("http".equalsIgnoreCase(scheme)
+        if (allowInsecureLoopback && "http".equalsIgnoreCase(scheme)
                 && ("localhost".equalsIgnoreCase(parsed.getHost())
                         || "127.0.0.1".equals(parsed.getHost()))) {
             return;
@@ -531,7 +551,7 @@ public class AdminClientService {
         throw new AdminClientException("INVALID_REDIRECT_URI");
     }
 
-    private static String validatedBackchannelUri(String uri) {
+    private String validatedBackchannelUri(String uri) {
         if (uri == null || uri.isBlank()) {
             return null;
         }
@@ -580,6 +600,13 @@ public class AdminClientService {
         if (!clientId.matches("[A-Za-z0-9][A-Za-z0-9._-]{2,99}")) {
             throw new AdminClientException("INVALID_CLIENT_ID");
         }
+    }
+
+    private static String validatedClientType(String clientType) {
+        if (!"FIRST_PARTY".equals(clientType) && !"REVIEWED_PARTNER".equals(clientType)) {
+            throw new AdminClientException("INVALID_CLIENT_TYPE");
+        }
+        return clientType;
     }
 
     private static String normalizeStatus(String status) {
@@ -707,6 +734,8 @@ public class AdminClientService {
             String clientSecret,
             OffsetDateTime validFrom,
             OffsetDateTime expiresAt,
-            long configVersion) {
+            long configVersion,
+            boolean secretsAvailable,
+            boolean idempotentReplay) {
     }
 }

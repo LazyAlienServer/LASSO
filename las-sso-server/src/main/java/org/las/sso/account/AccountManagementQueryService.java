@@ -25,13 +25,16 @@ public class AccountManagementQueryService {
     @Transactional(readOnly = true)
     public Profile profile(UUID userId) {
         return jdbcClient.sql("""
-                SELECT display_name, created_at
+                SELECT display_name, avatar_resource_id, created_at
                   FROM users
                  WHERE id = :userId AND account_status = 'ACTIVE'
                 """).param("userId", userId)
                 .query((rs, rowNum) -> {
                     OffsetDateTime createdAt = rs.getObject("created_at", OffsetDateTime.class);
-                    return new Profile(rs.getString("display_name"), DATE_FORMAT.format(createdAt));
+                    return new Profile(
+                            rs.getString("display_name"),
+                            rs.getString("avatar_resource_id"),
+                            DATE_FORMAT.format(createdAt));
                 }).single();
     }
 
@@ -80,7 +83,7 @@ public class AccountManagementQueryService {
                 .toList();
     }
 
-    public record Profile(String displayName, String createdDate) {
+    public record Profile(String displayName, String avatarResourceId, String createdDate) {
     }
 
     public record Authorization(

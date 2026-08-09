@@ -8,11 +8,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 import org.las.sso.api.RequestIdFilter;
-import org.las.sso.identity.LasUserPrincipal;
-import org.las.sso.security.RecentAuthenticationException;
-import org.las.sso.security.RecentAuthenticationService;
-import org.las.sso.security.SameOriginVerifier;
-import org.las.sso.session.UserSessionService;
+import org.las.sso.account.OperationIdempotencyService;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -22,6 +18,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -30,19 +27,16 @@ import org.springframework.web.bind.annotation.RestController;
 public class AdminClientController {
 
     private final AdminClientService clients;
-    private final RecentAuthenticationService recentAuthentication;
-    private final SameOriginVerifier sameOriginVerifier;
-    private final UserSessionService userSessions;
+    private final AdminOperationGuard adminGuard;
+    private final OperationIdempotencyService idempotency;
 
     public AdminClientController(
             AdminClientService clients,
-            RecentAuthenticationService recentAuthentication,
-            SameOriginVerifier sameOriginVerifier,
-            UserSessionService userSessions) {
+            AdminOperationGuard adminGuard,
+            OperationIdempotencyService idempotency) {
         this.clients = clients;
-        this.recentAuthentication = recentAuthentication;
-        this.sameOriginVerifier = sameOriginVerifier;
-        this.userSessions = userSessions;
+        this.adminGuard = adminGuard;
+        this.idempotency = idempotency;
     }
 
     @GetMapping
@@ -66,7 +60,7 @@ public class AdminClientController {
             Authentication authentication,
             @Valid @RequestBody CreateBody body,
             HttpServletRequest request) {
-        LasUserPrincipal principal = authorizeWrite(authentication, request);
+        AdminOperationGuard.Context context = adminGuard.authorizeWrite(authentication, request);
         AdminClientService.CreateResult result = clients.create(
                 new AdminClientService.CreateRequest(
                         body.clientId(),
@@ -77,7 +71,7 @@ public class AdminClientController {
                         body.scopes(),
                         body.resourceAudiences(),
                         body.backchannelLogoutUri()),
-                principal.userId(), userSessions.currentSid(request),
+                context.principal().userId(), context.sid(),
                 body.reason(), requestId(request));
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(result);
     }
@@ -88,7 +82,7 @@ public class AdminClientController {
             @PathVariable String clientId,
             @Valid @RequestBody PatchBody body,
             HttpServletRequest request) {
-        LasUserPrincipal principal = authorizeWrite(authentication, request);
+        AdminOperationGuard.Context context = adminGuard.authorizeWrite(authentication, request);
         AdminClientService.PatchResult result = clients.patch(
                 clientId,
                 new AdminClientService.PatchRequest(
@@ -99,7 +93,7 @@ public class AdminClientController {
                         body.scopes(),
                         body.resourceAudiences(),
                         body.backchannelLogoutUri()),
-                principal.userId(), userSessions.currentSid(request),
+                context.principal().userId(), context.sid(),
                 body.reason(), requestId(request));
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(result);
     }
@@ -110,8 +104,8 @@ public class AdminClientController {
             @PathVariable String clientId,
             @Valid @RequestBody ActionBody body,
             HttpServletRequest request) {
-        LasUserPrincipal principal = authorizeWrite(authentication, request);
-        clients.disable(clientId, principal.userId(), userSessions.currentSid(request),
+        AdminOperationGuard.Context context = adminGuard.authorizeWrite(authentication, request);
+        clients.disable(clientId, context.principal().userId(), context.sid(),
                 body.reason(), requestId(request));
         return ResponseEntity.noContent().build();
     }
@@ -122,8 +116,8 @@ public class AdminClientController {
             @PathVariable String clientId,
             @Valid @RequestBody ActionBody body,
             HttpServletRequest request) {
-        LasUserPrincipal principal = authorizeWrite(authentication, request);
-        clients.enable(clientId, principal.userId(), userSessions.currentSid(request),
+        AdminOperationGuard.Context context = adminGuard.authorizeWrite(authentication, request);
+        clients.enable(clientId, context.principal().userId(), context.sid(),
                 body.reason(), requestId(request));
         return ResponseEntity.noContent().build();
     }
@@ -132,29 +126,22 @@ public class AdminClientController {
     ResponseEntity<AdminClientService.RotationResult> rotateSecret(
             Authentication authentication,
             @PathVariable String clientId,
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
             @Valid @RequestBody ActionBody body,
             HttpServletRequest request) {
-        LasUserPrincipal principal = authorizeWrite(authentication, request);
-        AdminClientService.RotationResult result = clients.rotateSecret(
-                clientId, principal.userId(), userSessions.currentSid(request),
-                body.reason(), requestId(request));
+        AdminOperationGuard.Context context = adminGuard.authorizeWrite(authentication, request);
+        AdminClientService.RotationResult result = idempotency.execute(
+                context.principal().userId(), "ADMIN_CLIENT_SECRET_ROTATE",
+                idempotencyKey, clientId + "\u0000" + body.reason(),
+                () -> clients.rotateSecret(
+                        clientId, context.principal().userId(), context.sid(),
+                        body.reason(), requestId(request)),
+                rotated -> new OperationIdempotencyService.StoredResult(
+                        Long.toString(rotated.configVersion()), rotated.validFrom()),
+                stored -> new AdminClientService.RotationResult(
+                        null, stored.resultTime(), null,
+                        Long.parseLong(stored.resultRef()), false, true));
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(result);
-    }
-
-    private LasUserPrincipal authorizeWrite(
-            Authentication authentication,
-            HttpServletRequest request) {
-        sameOriginVerifier.verify(request);
-        if (authentication == null
-                || !(authentication.getPrincipal() instanceof LasUserPrincipal principal)
-                || principal.getAuthorities().stream()
-                        .noneMatch(authority -> "ROLE_SSO_ADMIN".equals(authority.getAuthority()))) {
-            throw new AdminUserManagementException("ADMIN_ACCESS_DENIED");
-        }
-        if (!recentAuthentication.isRecent(request)) {
-            throw new RecentAuthenticationException("RECENT_AUTHENTICATION_REQUIRED");
-        }
-        return principal;
     }
 
     private static UUID requestId(HttpServletRequest request) {

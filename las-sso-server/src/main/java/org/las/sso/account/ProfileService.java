@@ -5,6 +5,7 @@ import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.UUID;
+import java.util.Set;
 
 import org.las.sso.identity.UuidV7Generator;
 import org.las.sso.security.RecentAuthenticationException;
@@ -19,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class ProfileService {
 
     public static final Duration USERNAME_CHANGE_COOLDOWN = Duration.ofDays(90);
+    private static final Set<String> ALLOWED_AVATARS = Set.of("default-alien-01");
 
     private final JdbcClient jdbcClient;
     private final PasswordEncoder passwordEncoder;
@@ -50,7 +52,11 @@ public class ProfileService {
     }
 
     @Transactional
-    public View updateDisplayName(UUID userId, String displayName, UUID requestId) {
+    public View updateProfile(
+            UUID userId,
+            String displayName,
+            String avatarResourceId,
+            UUID requestId) {
         if (displayName == null || displayName.strip().isEmpty()) {
             throw new IllegalArgumentException("Display name required");
         }
@@ -58,14 +64,19 @@ public class ProfileService {
         if (normalized.codePointCount(0, normalized.length()) > 64) {
             throw new IllegalArgumentException("Display name too long");
         }
+        if (avatarResourceId != null && !ALLOWED_AVATARS.contains(avatarResourceId)) {
+            throw new IllegalArgumentException("Invalid avatar resource");
+        }
         OffsetDateTime now = now();
         jdbcClient.sql("""
                 UPDATE users
                    SET display_name = :displayName,
+                       avatar_resource_id = :avatarResourceId,
                        profile_version = profile_version + 1,
                        updated_at = :now
                  WHERE id = :userId
-                """).param("displayName", normalized).param("now", now)
+                """).param("displayName", normalized)
+                .param("avatarResourceId", avatarResourceId).param("now", now)
                 .param("userId", userId).update();
         securityEvent(userId, "DISPLAY_NAME_UPDATED", "INFO", requestId, now, null);
         return queryView(userId);
@@ -106,7 +117,8 @@ public class ProfileService {
         OffsetDateTime lastChange = jdbcClient.sql("""
                 SELECT MAX(valid_from) FROM usernames
                  WHERE user_id = :userId
-                   AND change_reason IN ('USERNAME_CHANGE', 'USERNAME_REUSE_HISTORICAL')
+                   AND change_reason IN ('SELF_SERVICE', 'USERNAME_CHANGE',
+                                         'USERNAME_REUSE_HISTORICAL')
                 """).param("userId", userId)
                 .query(OffsetDateTime.class).optional().orElse(null);
         if (lastChange != null
@@ -115,40 +127,29 @@ public class ProfileService {
                     lastChange.plus(USERNAME_CHANGE_COOLDOWN));
         }
 
-        UUID historicalId = jdbcClient.sql("""
-                SELECT id FROM usernames
-                 WHERE username = :username COLLATE "C"
-                   AND user_id = :userId
-                   AND valid_to IS NOT NULL
-                """).param("username", normalized).param("userId", userId)
-                .query(UUID.class).optional().orElse(null);
-        boolean reused = historicalId != null;
+        boolean reserved = Boolean.TRUE.equals(jdbcClient.sql("""
+                SELECT EXISTS (
+                    SELECT 1 FROM usernames WHERE username = :username COLLATE "C"
+                )
+                """).param("username", normalized).query(Boolean.class).single());
+        if (reserved) {
+            throw new UsernameUnavailableException();
+        }
 
         jdbcClient.sql("""
                 UPDATE usernames SET valid_to = :now WHERE id = :currentId
                 """).param("now", now).param("currentId", currentUsernameId).update();
-        if (reused) {
+        try {
             jdbcClient.sql("""
-                    UPDATE usernames
-                       SET valid_from = :now, valid_to = NULL,
-                           changed_by_user_id = :userId,
-                           change_reason = 'USERNAME_REUSE_HISTORICAL'
-                     WHERE id = :historicalId
-                    """).param("now", now).param("userId", userId)
-                    .param("historicalId", historicalId).update();
-        } else {
-            try {
-                jdbcClient.sql("""
-                        INSERT INTO usernames
-                            (id, user_id, username, valid_from,
-                             changed_by_user_id, change_reason)
-                        VALUES (:id, :userId, :username, :now, :userId, 'USERNAME_CHANGE')
-                        """).param("id", uuidGenerator.generate())
-                        .param("userId", userId).param("username", normalized)
-                        .param("now", now).update();
-            } catch (DuplicateKeyException exception) {
-                throw new UsernameUnavailableException();
-            }
+                    INSERT INTO usernames
+                        (id, user_id, username, valid_from,
+                         changed_by_user_id, change_reason)
+                    VALUES (:id, :userId, :username, :now, :userId, 'SELF_SERVICE')
+                    """).param("id", uuidGenerator.generate())
+                    .param("userId", userId).param("username", normalized)
+                    .param("now", now).update();
+        } catch (DuplicateKeyException exception) {
+            throw new UsernameUnavailableException();
         }
         jdbcClient.sql("""
                 UPDATE users
@@ -157,18 +158,19 @@ public class ProfileService {
                 """).param("now", now).param("userId", userId).update();
         securityEvent(userId, "USERNAME_CHANGED", "WARNING", requestId, now,
                 jdbcClient.sql("""
-                        SELECT jsonb_build_object('username', :username, 'reused', :reused)
-                        """).param("username", normalized).param("reused", reused)
+                        SELECT jsonb_build_object('username', :username)
+                        """).param("username", normalized)
                         .query(String.class).single());
         return queryView(userId);
     }
 
     private View queryView(UUID userId) {
         return jdbcClient.sql("""
-                SELECT u.display_name, un.username,
+                SELECT u.display_name, u.avatar_resource_id, un.username,
                        (SELECT MAX(valid_from) FROM usernames
                          WHERE user_id = u.id
-                           AND change_reason IN ('USERNAME_CHANGE', 'USERNAME_REUSE_HISTORICAL'))
+                           AND change_reason IN ('SELF_SERVICE', 'USERNAME_CHANGE',
+                                                 'USERNAME_REUSE_HISTORICAL'))
                          AS last_name_change
                   FROM users u
                   JOIN usernames un ON un.user_id = u.id AND un.valid_to IS NULL
@@ -183,9 +185,13 @@ public class ProfileService {
                     return new View(
                             rs.getString("username"),
                             rs.getString("display_name"),
-                            null,
+                            avatarUrl(rs.getString("avatar_resource_id")),
                             availableAt);
                 }).single();
+    }
+
+    private static String avatarUrl(String avatarResourceId) {
+        return avatarResourceId == null ? null : "/assets/avatars/" + avatarResourceId + ".svg";
     }
 
     private void securityEvent(

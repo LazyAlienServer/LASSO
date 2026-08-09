@@ -8,11 +8,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 import org.las.sso.api.RequestIdFilter;
-import org.las.sso.identity.LasUserPrincipal;
-import org.las.sso.security.RecentAuthenticationException;
-import org.las.sso.security.RecentAuthenticationService;
-import org.las.sso.security.SameOriginVerifier;
-import org.las.sso.session.UserSessionService;
+import org.las.sso.account.OperationIdempotencyService;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -21,6 +17,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -30,21 +27,18 @@ public class AdminUserController {
 
     private final AdminUserManagementService users;
     private final AdminRecoveryCredentialService recoveryCredentials;
-    private final RecentAuthenticationService recentAuthentication;
-    private final SameOriginVerifier sameOriginVerifier;
-    private final UserSessionService userSessions;
+    private final AdminOperationGuard adminGuard;
+    private final OperationIdempotencyService idempotency;
 
     public AdminUserController(
             AdminUserManagementService users,
             AdminRecoveryCredentialService recoveryCredentials,
-            RecentAuthenticationService recentAuthentication,
-            SameOriginVerifier sameOriginVerifier,
-            UserSessionService userSessions) {
+            AdminOperationGuard adminGuard,
+            OperationIdempotencyService idempotency) {
         this.users = users;
         this.recoveryCredentials = recoveryCredentials;
-        this.recentAuthentication = recentAuthentication;
-        this.sameOriginVerifier = sameOriginVerifier;
-        this.userSessions = userSessions;
+        this.adminGuard = adminGuard;
+        this.idempotency = idempotency;
     }
 
     @GetMapping
@@ -66,11 +60,18 @@ public class AdminUserController {
     ResponseEntity<Void> freeze(
             Authentication authentication,
             @PathVariable UUID userId,
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
             @Valid @RequestBody ActionRequest body,
             HttpServletRequest request) {
-        LasUserPrincipal principal = authorizeWrite(authentication, request);
-        users.freeze(principal.userId(), userSessions.currentSid(request), userId,
-                body.reason(), requestId(request));
+        AdminOperationGuard.Context context = adminGuard.authorizeWrite(authentication, request);
+        idempotency.executeWithoutResult(
+                context.principal().userId(), "ADMIN_USER_FREEZE", idempotencyKey,
+                userId + "\u0000" + body.reason(),
+                () -> {
+                    users.freeze(context.principal().userId(), context.sid(), userId,
+                            body.reason(), requestId(request));
+                    return Boolean.TRUE;
+                }, () -> Boolean.TRUE);
         return ResponseEntity.noContent().build();
     }
 
@@ -78,11 +79,18 @@ public class AdminUserController {
     ResponseEntity<Void> unfreeze(
             Authentication authentication,
             @PathVariable UUID userId,
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
             @Valid @RequestBody ActionRequest body,
             HttpServletRequest request) {
-        LasUserPrincipal principal = authorizeWrite(authentication, request);
-        users.unfreeze(principal.userId(), userSessions.currentSid(request), userId,
-                body.reason(), requestId(request));
+        AdminOperationGuard.Context context = adminGuard.authorizeWrite(authentication, request);
+        idempotency.executeWithoutResult(
+                context.principal().userId(), "ADMIN_USER_UNFREEZE", idempotencyKey,
+                userId + "\u0000" + body.reason(),
+                () -> {
+                    users.unfreeze(context.principal().userId(), context.sid(), userId,
+                            body.reason(), requestId(request));
+                    return Boolean.TRUE;
+                }, () -> Boolean.TRUE);
         return ResponseEntity.noContent().build();
     }
 
@@ -90,11 +98,18 @@ public class AdminUserController {
     ResponseEntity<Void> revokeSessions(
             Authentication authentication,
             @PathVariable UUID userId,
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
             @Valid @RequestBody ActionRequest body,
             HttpServletRequest request) {
-        LasUserPrincipal principal = authorizeWrite(authentication, request);
-        users.revokeSessions(principal.userId(), userSessions.currentSid(request), userId,
-                body.reason(), requestId(request));
+        AdminOperationGuard.Context context = adminGuard.authorizeWrite(authentication, request);
+        idempotency.executeWithoutResult(
+                context.principal().userId(), "ADMIN_USER_REVOKE_SESSIONS", idempotencyKey,
+                userId + "\u0000" + body.reason(),
+                () -> {
+                    users.revokeSessions(context.principal().userId(), context.sid(), userId,
+                            body.reason(), requestId(request));
+                    return Boolean.TRUE;
+                }, () -> Boolean.TRUE);
         return ResponseEntity.noContent().build();
     }
 
@@ -102,29 +117,21 @@ public class AdminUserController {
     ResponseEntity<AdminRecoveryCredentialService.IssuedCredential> issueRecoveryCredential(
             Authentication authentication,
             @PathVariable UUID userId,
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
             @Valid @RequestBody ActionRequest body,
             HttpServletRequest request) {
-        LasUserPrincipal principal = authorizeWrite(authentication, request);
-        AdminRecoveryCredentialService.IssuedCredential issued = recoveryCredentials.issue(
-                principal.userId(), userSessions.currentSid(request), userId,
-                body.reason(), requestId(request));
+        AdminOperationGuard.Context context = adminGuard.authorizeWrite(authentication, request);
+        AdminRecoveryCredentialService.IssuedCredential issued = idempotency.execute(
+                context.principal().userId(), "ADMIN_RECOVERY_CREDENTIAL_ISSUE",
+                idempotencyKey, userId + "\u0000" + body.reason(),
+                () -> recoveryCredentials.issue(
+                        context.principal().userId(), context.sid(), userId,
+                        body.reason(), requestId(request)),
+                result -> new OperationIdempotencyService.StoredResult(
+                        userId.toString(), result.expiresAt()),
+                stored -> new AdminRecoveryCredentialService.IssuedCredential(
+                        null, stored.resultTime(), false, true));
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(issued);
-    }
-
-    private LasUserPrincipal authorizeWrite(
-            Authentication authentication,
-            HttpServletRequest request) {
-        sameOriginVerifier.verify(request);
-        if (authentication == null
-                || !(authentication.getPrincipal() instanceof LasUserPrincipal principal)
-                || principal.getAuthorities().stream()
-                        .noneMatch(authority -> "ROLE_SSO_ADMIN".equals(authority.getAuthority()))) {
-            throw new AdminUserManagementException("ADMIN_ACCESS_DENIED");
-        }
-        if (!recentAuthentication.isRecent(request)) {
-            throw new RecentAuthenticationException("RECENT_AUTHENTICATION_REQUIRED");
-        }
-        return principal;
     }
 
     private static UUID requestId(HttpServletRequest request) {

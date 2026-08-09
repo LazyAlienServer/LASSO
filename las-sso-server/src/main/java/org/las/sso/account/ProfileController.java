@@ -10,6 +10,7 @@ import jakarta.validation.constraints.Size;
 import org.las.sso.api.RequestIdFilter;
 import org.las.sso.identity.LasUserPrincipal;
 import org.las.sso.security.RecentAuthenticationException;
+import org.las.sso.security.SameOriginVerifier;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -25,9 +26,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class ProfileController {
 
     private final ProfileService profiles;
+    private final SameOriginVerifier sameOriginVerifier;
 
-    public ProfileController(ProfileService profiles) {
+    public ProfileController(ProfileService profiles, SameOriginVerifier sameOriginVerifier) {
         this.profiles = profiles;
+        this.sameOriginVerifier = sameOriginVerifier;
     }
 
     @GetMapping("/profile")
@@ -39,11 +42,13 @@ public class ProfileController {
     @PatchMapping("/profile")
     ResponseEntity<ProfileService.View> updateProfile(
             Authentication authentication,
-            @Valid @RequestBody DisplayNameRequest body,
+            @Valid @RequestBody ProfileUpdateRequest body,
             HttpServletRequest request) {
+        sameOriginVerifier.verify(request);
         return ResponseEntity.ok().cacheControl(CacheControl.noStore())
-                .body(profiles.updateDisplayName(
+                .body(profiles.updateProfile(
                         principal(authentication).userId(), body.displayName(),
+                        body.avatarResourceId(),
                         requestId(request)));
     }
 
@@ -53,6 +58,7 @@ public class ProfileController {
             @Valid @RequestBody UsernameChangeRequest body,
             HttpServletRequest request) {
         LasUserPrincipal principal = principal(authentication);
+        sameOriginVerifier.verify(request);
         ProfileService.View view = profiles.changeUsername(
                 principal.userId(),
                 body.newUsername(),
@@ -93,8 +99,9 @@ public class ProfileController {
         throw new IllegalStateException("Request ID filter must run before profile operations");
     }
 
-    public record DisplayNameRequest(
-            @NotBlank @Size(max = 512) String displayName) {
+    public record ProfileUpdateRequest(
+            @NotBlank @Size(max = 512) String displayName,
+            @Size(max = 128) String avatarResourceId) {
     }
 
     public record UsernameChangeRequest(

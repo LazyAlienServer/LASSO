@@ -25,15 +25,17 @@
   };
   let pending = null;
 
-  async function request(url, body) {
+  async function request(url, body, idempotencyKey) {
+    const headers = {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      [csrf.dataset.header]: csrf.value
+    };
+    if (idempotencyKey) headers["Idempotency-Key"] = idempotencyKey;
     const response = await fetch(url, {
       method: "POST",
       credentials: "same-origin",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-        [csrf.dataset.header]: csrf.value
-      },
+      headers,
       body: JSON.stringify(body)
     });
     if (response.ok) return response.status === 204 ? null : response.json();
@@ -46,7 +48,11 @@
 
   document.querySelectorAll(".admin-action").forEach((button) => {
     button.addEventListener("click", () => {
-      pending = { action: button.dataset.action, userId: button.dataset.userId };
+      pending = {
+        action: button.dataset.action,
+        userId: button.dataset.userId,
+        idempotencyKey: crypto.randomUUID()
+      };
       document.getElementById("admin-dialog-title").textContent = titles[pending.action];
       document.getElementById("admin-dialog-description").textContent = descriptions[pending.action];
       document.getElementById("admin-dialog-error").textContent = "";
@@ -69,9 +75,12 @@
     try {
       await request("/api/v1/me/reauthentication", { password: form.elements.password.value });
       const result = await request(`/api/v1/admin/users/${encodeURIComponent(pending.userId)}/${pending.action}`,
-        { reason: form.elements.reason.value.trim() });
+        { reason: form.elements.reason.value.trim() }, pending.idempotencyKey);
       dialog.close();
       if (pending.action === "recovery-credentials") {
+        if (!result.secretsAvailable) {
+          throw new Error("该操作已经完成，一次性凭据不能再次显示。若未保存，请重新签发。");
+        }
         showCredential(result.credential);
       } else {
         window.location.reload();

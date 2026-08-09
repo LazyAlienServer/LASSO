@@ -75,7 +75,7 @@ public class AdminRecoveryCredentialService {
         insertSecurityEvent(targetUserId, requestId, now);
         insertAudit(actorUserId, actorSid, targetUserId, expiresAt, reason,
                 target.status(), requestId, now);
-        return new IssuedCredential(credential.plaintext(), expiresAt);
+        return new IssuedCredential(credential.plaintext(), expiresAt, true, false);
     }
 
     private TargetState lockTarget(UUID actorUserId, UUID targetUserId) {
@@ -144,7 +144,11 @@ public class AdminRecoveryCredentialService {
         return OffsetDateTime.ofInstant(clock.instant(), ZoneOffset.UTC);
     }
 
-    public record IssuedCredential(String credential, OffsetDateTime expiresAt) {
+    public record IssuedCredential(
+            String credential,
+            OffsetDateTime expiresAt,
+            boolean secretsAvailable,
+            boolean idempotentReplay) {
     }
 
     private record TargetState(String status, boolean administrator) {

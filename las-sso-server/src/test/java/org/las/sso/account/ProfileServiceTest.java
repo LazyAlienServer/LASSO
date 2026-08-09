@@ -59,10 +59,11 @@ class ProfileServiceTest {
                 "ProfileNameUser", "Old Name", "profile name passphrase");
         long before = profileVersion(account.userId());
 
-        ProfileService.View view = profiles.updateDisplayName(
-                account.userId(), "New Name", UUID.randomUUID());
+        ProfileService.View view = profiles.updateProfile(
+                account.userId(), "New Name", "default-alien-01", UUID.randomUUID());
 
         assertThat(view.displayName()).isEqualTo("New Name");
+        assertThat(view.avatarUrl()).isEqualTo("/assets/avatars/default-alien-01.svg");
         assertThat(profileVersion(account.userId())).isEqualTo(before + 1);
         assertThat(jdbcClient.sql("""
                 SELECT COUNT(*) FROM security_events
@@ -74,12 +75,12 @@ class ProfileServiceTest {
     void updateDisplayNameRejectsBlankAndOverlong() {
         var account = registrationService.register(
                 "ProfileLongUser", "Long Name", "profile long passphrase");
-        assertThatThrownBy(() -> profiles.updateDisplayName(
-                account.userId(), "   ", UUID.randomUUID()))
+        assertThatThrownBy(() -> profiles.updateProfile(
+                account.userId(), "   ", null, UUID.randomUUID()))
                 .isInstanceOf(IllegalArgumentException.class);
         String overlong = "长".repeat(65);
-        assertThatThrownBy(() -> profiles.updateDisplayName(
-                account.userId(), overlong, UUID.randomUUID()))
+        assertThatThrownBy(() -> profiles.updateProfile(
+                account.userId(), overlong, null, UUID.randomUUID()))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -122,7 +123,8 @@ class ProfileServiceTest {
         OffsetDateTime availableAt = jdbcClient.sql("""
                 SELECT MAX(valid_from) + INTERVAL '90 days' FROM usernames
                  WHERE user_id = :userId
-                   AND change_reason IN ('USERNAME_CHANGE', 'USERNAME_REUSE_HISTORICAL')
+                   AND change_reason IN ('SELF_SERVICE', 'USERNAME_CHANGE',
+                                         'USERNAME_REUSE_HISTORICAL')
                 """).param("userId", account.userId())
                 .query(OffsetDateTime.class).single();
         assertThatThrownBy(() -> profiles.changeUsername(
@@ -146,7 +148,7 @@ class ProfileServiceTest {
     }
 
     @Test
-    void ownerCanReuseOwnHistoricalNameButOthersCannot() {
+    void historicalNamesCannotBeReusedEvenByTheirPreviousOwner() {
         var account = registrationService.register(
                 "ReuseOwnerUser", "Reuse Owner", "reuse owner passphrase");
         var other = registrationService.register(
@@ -157,16 +159,10 @@ class ProfileServiceTest {
         profiles.changeUsername(account.userId(), "TemporaryName",
                 "reuse owner passphrase", UUID.randomUUID());
         backdateUsernameChange(account.userId());
-        ProfileService.View reused = profiles.changeUsername(
+        assertThatThrownBy(() -> profiles.changeUsername(
                 account.userId(), "ReuseOwnerUser", "reuse owner passphrase",
-                UUID.randomUUID());
-        assertThat(reused.username()).isEqualTo("ReuseOwnerUser");
-
-        String reuseReason = jdbcClient.sql("""
-                SELECT change_reason FROM usernames
-                 WHERE user_id = :userId AND username = 'ReuseOwnerUser' AND valid_to IS NULL
-                """).param("userId", account.userId()).query(String.class).single();
-        assertThat(reuseReason).isEqualTo("USERNAME_REUSE_HISTORICAL");
+                UUID.randomUUID()))
+                .isInstanceOf(UsernameUnavailableException.class);
 
         assertThatThrownBy(() -> profiles.changeUsername(
                 other.userId(), "TemporaryName", "reuse other passphrase",
@@ -206,7 +202,8 @@ class ProfileServiceTest {
         jdbcClient.sql("""
                 UPDATE usernames SET valid_from = :past
                  WHERE user_id = :userId AND valid_to IS NULL
-                   AND change_reason IN ('USERNAME_CHANGE', 'USERNAME_REUSE_HISTORICAL')
+                   AND change_reason IN ('SELF_SERVICE', 'USERNAME_CHANGE',
+                                         'USERNAME_REUSE_HISTORICAL')
                 """).param("past", OffsetDateTime.now(ZoneOffset.UTC).minusDays(91))
                 .param("userId", userId).update();
     }

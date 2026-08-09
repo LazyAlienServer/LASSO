@@ -10,11 +10,6 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 import org.las.sso.api.RequestIdFilter;
-import org.las.sso.identity.LasUserPrincipal;
-import org.las.sso.security.RecentAuthenticationException;
-import org.las.sso.security.RecentAuthenticationService;
-import org.las.sso.security.SameOriginVerifier;
-import org.las.sso.session.UserSessionService;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -31,19 +26,13 @@ import org.springframework.web.bind.annotation.RestController;
 public class AdminDeletionRequestController {
 
     private final AdminDeletionRequestService deletions;
-    private final RecentAuthenticationService recentAuthentication;
-    private final SameOriginVerifier sameOriginVerifier;
-    private final UserSessionService userSessions;
+    private final AdminOperationGuard adminGuard;
 
     public AdminDeletionRequestController(
             AdminDeletionRequestService deletions,
-            RecentAuthenticationService recentAuthentication,
-            SameOriginVerifier sameOriginVerifier,
-            UserSessionService userSessions) {
+            AdminOperationGuard adminGuard) {
         this.deletions = deletions;
-        this.recentAuthentication = recentAuthentication;
-        this.sameOriginVerifier = sameOriginVerifier;
-        this.userSessions = userSessions;
+        this.adminGuard = adminGuard;
     }
 
     @GetMapping
@@ -61,8 +50,8 @@ public class AdminDeletionRequestController {
             @PathVariable UUID requestId,
             @Valid @RequestBody HoldRequest body,
             HttpServletRequest request) {
-        LasUserPrincipal principal = authorizeWrite(authentication, request);
-        deletions.hold(principal.userId(), userSessions.currentSid(request), requestId,
+        AdminOperationGuard.Context context = adminGuard.authorizeWrite(authentication, request);
+        deletions.hold(context.principal().userId(), context.sid(), requestId,
                 body.reason(), body.holdUntil(), requestId(request));
         return ResponseEntity.noContent().build();
     }
@@ -73,26 +62,10 @@ public class AdminDeletionRequestController {
             @PathVariable UUID requestId,
             @Valid @RequestBody ReleaseRequest body,
             HttpServletRequest request) {
-        LasUserPrincipal principal = authorizeWrite(authentication, request);
-        deletions.release(principal.userId(), userSessions.currentSid(request), requestId,
+        AdminOperationGuard.Context context = adminGuard.authorizeWrite(authentication, request);
+        deletions.release(context.principal().userId(), context.sid(), requestId,
                 body.reason(), requestId(request));
         return ResponseEntity.noContent().build();
-    }
-
-    private LasUserPrincipal authorizeWrite(
-            Authentication authentication,
-            HttpServletRequest request) {
-        sameOriginVerifier.verify(request);
-        if (authentication == null
-                || !(authentication.getPrincipal() instanceof LasUserPrincipal principal)
-                || principal.getAuthorities().stream()
-                        .noneMatch(authority -> "ROLE_SSO_ADMIN".equals(authority.getAuthority()))) {
-            throw new AdminUserManagementException("ADMIN_ACCESS_DENIED");
-        }
-        if (!recentAuthentication.isRecent(request)) {
-            throw new RecentAuthenticationException("RECENT_AUTHENTICATION_REQUIRED");
-        }
-        return principal;
     }
 
     private static UUID requestId(HttpServletRequest request) {

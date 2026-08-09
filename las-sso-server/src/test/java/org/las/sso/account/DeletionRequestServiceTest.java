@@ -22,12 +22,15 @@ import org.las.sso.identity.LasUserPrincipal;
 import org.las.sso.maintenance.AdminBootstrapService;
 import org.las.sso.maintenance.DeletionExecutionJob;
 import org.las.sso.security.RecentAuthenticationService;
+import org.las.sso.session.UserSessionService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpSession;
+import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
@@ -66,6 +69,9 @@ class DeletionRequestServiceTest {
 
     @Autowired
     MockMvc mockMvc;
+
+    @Autowired
+    UserSessionService userSessions;
 
     @Test
     void requestCreatesPendingRequestWithGlobalLogoutAndSecurityEvent() throws Exception {
@@ -187,6 +193,7 @@ class DeletionRequestServiceTest {
                 "DelScopeUser", "Del Scope User", "del scope passphrase");
         var targetSession = login("DelScopeUser", "del scope passphrase");
         deletions.request(account.userId(), UUID.randomUUID());
+        targetSession = login("DelScopeUser", "del scope passphrase");
 
         mockMvc.perform(get("/account/delete").session(targetSession)
                         .with(user(lasPrincipal(account.userId(), "DelScopeUser"))))
@@ -198,7 +205,11 @@ class DeletionRequestServiceTest {
                         .with(user(lasPrincipal(account.userId(), "DelScopeUser"))))
                 .andExpect(status().isForbidden());
         mockMvc.perform(delete("/api/v1/me/deletion-request").session(targetSession)
-                        .with(user(lasPrincipal(account.userId(), "DelScopeUser"))).with(csrf()))
+                        .with(user(lasPrincipal(account.userId(), "DelScopeUser"))).with(csrf())
+                        .header("Origin", "http://127.0.0.1:9000")
+                        .header("Idempotency-Key", UUID.randomUUID().toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"password\":\"del scope passphrase\"}"))
                 .andExpect(status().isNoContent());
     }
 
@@ -213,8 +224,13 @@ class DeletionRequestServiceTest {
         var actor = registrationService.register(
                 "DelActorUser", "Del Actor User", "del actor passphrase");
         LasUserPrincipal admin = lasPrincipal(actor.userId(), "DelActorUser");
+        jdbcClient.sql("UPDATE users SET is_sso_admin = false WHERE is_sso_admin = true").update();
+        jdbcClient.sql("UPDATE users SET is_sso_admin = true WHERE id = :userId")
+                .param("userId", actor.userId()).update();
 
-        var adminSession = new MockHttpSession();
+        var loginRequest = new MockHttpServletRequest();
+        var adminSession = (MockHttpSession) loginRequest.getSession(true);
+        userSessions.registerLogin(admin, loginRequest);
         mockMvc.perform(post("/api/v1/admin/deletion-requests/{id}/hold", requestId)
                         .session(adminSession).with(user(admin)).with(csrf())
                         .header("Origin", "http://127.0.0.1:9000")
@@ -271,7 +287,7 @@ class DeletionRequestServiceTest {
                 SELECT account_status::text FROM users WHERE id = :userId
                 """).param("userId", account.userId()).query(String.class).single())
                 .isEqualTo("ACTIVE");
-        assertThat(deletions.status(account.userId()).status()).isEqualTo("PENDING");
+        assertThat(deletions.status(account.userId()).status()).isEqualTo("CANCELLED");
         assertThat(jdbcClient.sql("""
                 SELECT COUNT(*) FROM security_events
                  WHERE user_id = :userId AND event_type = 'DELETION_SKIPPED_ADMIN_PROMOTED'

@@ -20,7 +20,10 @@
       <div class="overview-grid">
         <article class="passport-panel profile-panel">
           <div class="profile-visual" aria-hidden="true">
-            <span th:text="${#strings.substring(username, 0, 1)}">L</span>
+            <img th:if="${profile.avatarResourceId != null}"
+                 th:src="${'/assets/avatars/' + profile.avatarResourceId + '.svg'}" alt="">
+            <span th:unless="${profile.avatarResourceId != null}"
+                  th:text="${#strings.substring(username, 0, 1)}">L</span>
           </div>
           <div class="profile-copy">
             <p class="passport-kicker">通行证信息</p>
@@ -91,6 +94,13 @@
       <div class="dialog-heading"><p>PROFILE</p><h2 id="display-name-title">编辑资料</h2></div>
       <label class="field-group"><span>显示名称</span>
         <input name="displayName" type="text" maxlength="64" required>
+      </label>
+      <label class="field-group"><span>头像</span>
+        <select name="avatarResourceId">
+          <option value="">使用用户名首字母</option>
+          <option value="default-alien-01"
+                  th:selected="${profile.avatarResourceId == 'default-alien-01'}">LAS Alien</option>
+        </select>
       </label>
       <p id="display-name-error" class="field-error" aria-live="polite"></p>
       <div class="dialog-actions">

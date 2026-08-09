@@ -121,6 +121,9 @@ class AuthorizationPersistenceTest {
     PasswordRecoveryService passwordRecoveryService;
 
     @Autowired
+    org.las.sso.session.UserSessionService userSessions;
+
+    @Autowired
     LoginAttemptService loginAttemptService;
 
     @Autowired
@@ -2236,11 +2239,16 @@ class AuthorizationPersistenceTest {
                 actorUser.credentialsVersion(), true, false,
                 List.of(new SimpleGrantedAuthority("ROLE_SSO_ADMIN")));
         var ordinaryPrincipal = (LasUserPrincipal) userDetailsService.loadUserByUsername("AdminManagedUser");
+        jdbcClient.sql("UPDATE users SET is_sso_admin = false WHERE is_sso_admin = true").update();
+        jdbcClient.sql("UPDATE users SET is_sso_admin = true WHERE id = :userId")
+                .param("userId", actorAccount.userId()).update();
 
         mockMvc.perform(get("/api/v1/admin/users").with(user(ordinaryPrincipal)))
                 .andExpect(status().isForbidden());
 
-        var adminSession = new MockHttpSession();
+        var adminLoginRequest = new MockHttpServletRequest();
+        var adminSession = (MockHttpSession) adminLoginRequest.getSession(true);
+        userSessions.registerLogin(adminPrincipal, adminLoginRequest);
         mockMvc.perform(get("/admin/users")
                         .session(adminSession)
                         .with(user(adminPrincipal)))
@@ -2255,6 +2263,7 @@ class AuthorizationPersistenceTest {
                         .with(user(adminPrincipal))
                         .with(csrf())
                         .header("Origin", "http://127.0.0.1:9000")
+                        .header("Idempotency-Key", UUID.randomUUID().toString())
                         .contentType("application/json")
                         .content("{\"reason\":\"missing recent authentication\"}"))
                 .andExpect(status().isForbidden());
@@ -2275,6 +2284,7 @@ class AuthorizationPersistenceTest {
                         .with(user(adminPrincipal))
                         .with(csrf())
                         .header("Origin", "http://127.0.0.1:9000")
+                        .header("Idempotency-Key", UUID.randomUUID().toString())
                         .contentType("application/json")
                         .content("{\"reason\":\"confirmed security incident\"}"))
                 .andExpect(status().isNoContent());
@@ -2290,6 +2300,7 @@ class AuthorizationPersistenceTest {
                         .with(user(adminPrincipal))
                         .with(csrf())
                         .header("Origin", "http://127.0.0.1:9000")
+                        .header("Idempotency-Key", UUID.randomUUID().toString())
                         .contentType("application/json")
                         .content("{\"reason\":\"incident review completed\"}"))
                 .andExpect(status().isNoContent());
@@ -2299,6 +2310,7 @@ class AuthorizationPersistenceTest {
                         .with(user(adminPrincipal))
                         .with(csrf())
                         .header("Origin", "http://127.0.0.1:9000")
+                        .header("Idempotency-Key", UUID.randomUUID().toString())
                         .contentType("application/json")
                         .content("{\"reason\":\"routine access reset\"}"))
                 .andExpect(status().isNoContent());
@@ -2334,6 +2346,7 @@ class AuthorizationPersistenceTest {
                         .with(user(adminPrincipal))
                         .with(csrf())
                         .header("Origin", "http://127.0.0.1:9000")
+                        .header("Idempotency-Key", UUID.randomUUID().toString())
                         .contentType("application/json")
                         .content("{\"reason\":\"self action must fail\"}"))
                 .andExpect(status().isForbidden());

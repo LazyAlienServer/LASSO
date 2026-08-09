@@ -149,6 +149,14 @@ public class DeletionRequestService {
                 SELECT is_sso_admin FROM users WHERE id = :userId FOR UPDATE
                 """).param("userId", userId).query(Boolean.class).single();
         if (Boolean.TRUE.equals(isAdmin)) {
+            int cancelled = jdbcClient.sql("""
+                    UPDATE account_deletion_requests
+                       SET status = 'CANCELLED', cancelled_at = :now
+                     WHERE id = :requestId AND status = 'PENDING'
+                    """).param("now", now).param("requestId", requestId).update();
+            if (cancelled == 0) {
+                return;
+            }
             jdbcClient.sql("""
                     INSERT INTO security_events
                         (id, occurred_at, user_id, event_type, severity, request_id, details_json)
@@ -183,7 +191,9 @@ public class DeletionRequestService {
                 .param("userId", userId).update();
         jdbcClient.sql("""
                 UPDATE users
-                   SET account_status = 'DELETED', deleted_at = :now, updated_at = :now
+                   SET account_status = 'DELETED', deleted_at = :now,
+                       display_name = '已注销用户', avatar_resource_id = NULL,
+                       profile_version = profile_version + 1, updated_at = :now
                  WHERE id = :userId
                 """).param("now", now).param("userId", userId).update();
         backChannelLogout.enqueueForUser(userId, "ACCOUNT_DELETED", now);
