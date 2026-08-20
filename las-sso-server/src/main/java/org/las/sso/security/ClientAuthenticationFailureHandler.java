@@ -42,6 +42,10 @@ public final class ClientAuthenticationFailureHandler implements AuthenticationF
             HttpServletRequest request,
             HttpServletResponse response,
             AuthenticationException exception) throws IOException, ServletException {
+        if (exception instanceof ClientAuthenticationRateLimitException rateLimited) {
+            writeRateLimited(response, rateLimited.resetsAt());
+            return;
+        }
         String clientId = clientId(request);
         var clientDecision = rateLimiter.consume(
                 "CLIENT_SECRET_FAILURE_CLIENT", clientId, CLIENT_LIMIT, WINDOW);
@@ -54,12 +58,7 @@ public final class ClientAuthenticationFailureHandler implements AuthenticationF
             OffsetDateTime resetsAt = clientDecision.resetsAt().isAfter(ipDecision.resetsAt())
                     ? clientDecision.resetsAt()
                     : ipDecision.resetsAt();
-            long retryAfter = Math.max(1, Duration.between(
-                    OffsetDateTime.now(ZoneOffset.UTC), resetsAt).toSeconds());
-            response.setStatus(429);
-            response.setHeader("Retry-After", Long.toString(retryAfter));
-            response.setContentType("application/json;charset=UTF-8");
-            response.getWriter().write("{\"error\":\"temporarily_unavailable\"}");
+            writeRateLimited(response, resetsAt);
             LOGGER.warn(
                     "Client authentication failure threshold exceeded: clientId={}, clientFailures={}, ipFailures={}",
                     clientId, clientDecision.count(), ipDecision.count());
@@ -68,7 +67,18 @@ public final class ClientAuthenticationFailureHandler implements AuthenticationF
         delegate.onAuthenticationFailure(request, response, exception);
     }
 
-    private static String clientId(HttpServletRequest request) {
+    private static void writeRateLimited(
+            HttpServletResponse response,
+            OffsetDateTime resetsAt) throws IOException {
+        long retryAfter = Math.max(1, Duration.between(
+                OffsetDateTime.now(ZoneOffset.UTC), resetsAt).toSeconds());
+        response.setStatus(429);
+        response.setHeader("Retry-After", Long.toString(retryAfter));
+        response.setContentType("application/json;charset=UTF-8");
+        response.getWriter().write("{\"error\":\"temporarily_unavailable\"}");
+    }
+
+    static String clientId(HttpServletRequest request) {
         String authorization = request.getHeader("Authorization");
         if (authorization != null && authorization.regionMatches(true, 0, "Basic ", 0, 6)) {
             try {

@@ -25,6 +25,9 @@ import org.las.sso.session.UserSessionService;
 import org.las.sso.identity.JdbcLasUserDetailsService;
 import org.las.sso.security.LasAuthenticationFailureHandler;
 import org.las.sso.security.ClientAuthenticationFailureHandler;
+import org.las.sso.security.ClientAuthenticationRateLimitConverter;
+import org.las.sso.security.ClientNetworkKey;
+import org.las.sso.security.PostgresRateLimiter;
 import org.las.sso.security.LasAuthenticationSuccessHandler;
 import org.las.sso.security.AccountSessionValidationFilter;
 import org.las.sso.security.LoginRiskAuthenticationFilter;
@@ -93,6 +96,7 @@ public class AuthorizationServerConfiguration {
             PasswordChangeRequiredFilter passwordChangeRequiredFilter,
             RefreshTokenFamilyService tokenFamilies,
             ClientAuthenticationFailureHandler clientAuthenticationFailureHandler,
+            ClientAuthenticationRateLimitConverter clientAuthenticationRateLimitConverter,
             PlatformTransactionManager transactionManager,
             SsoGlobalLogoutHandler globalLogoutHandler) throws Exception {
         OAuth2AuthorizationServerConfigurer authorizationServerConfigurer =
@@ -101,6 +105,8 @@ public class AuthorizationServerConfiguration {
         http.securityMatcher(authorizationServerConfigurer.getEndpointsMatcher())
                 .with(authorizationServerConfigurer, authorizationServer -> authorizationServer
                         .clientAuthentication(client -> client
+                                .authenticationConverters(converters ->
+                                        converters.addFirst(clientAuthenticationRateLimitConverter))
                                 .errorResponseHandler(clientAuthenticationFailureHandler))
                         .tokenEndpoint(tokenEndpoint -> tokenEndpoint.authenticationProviders(providers -> {
                             boolean refreshProviderWrapped = false;
@@ -137,6 +143,13 @@ public class AuthorizationServerConfiguration {
                 .addFilterAfter(accountSessionValidationFilter, SecurityContextHolderFilter.class)
                 .addFilterAfter(passwordChangeRequiredFilter, AccountSessionValidationFilter.class);
         return http.build();
+    }
+
+    @Bean
+    ClientAuthenticationRateLimitConverter clientAuthenticationRateLimitConverter(
+            PostgresRateLimiter rateLimiter,
+            ClientNetworkKey clientNetworkKey) {
+        return new ClientAuthenticationRateLimitConverter(rateLimiter, clientNetworkKey);
     }
 
     @Bean
