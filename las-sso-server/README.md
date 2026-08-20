@@ -84,7 +84,7 @@ docker compose up -d
 
 恢复码轮换要求当前 SSO Session 在 15 分钟内完成过密码认证。重新认证只解除门禁，不会自动重放此前失败的轮换请求；用户必须再次确认生成。近期认证时间同时保存在 Spring Session JDBC 和 `user_sessions.last_password_auth_at` 中。
 
-HTTP Session 已通过 Spring Session JDBC 持久化到 PostgreSQL，并关联 `user_sessions` 安全元数据。普通会话采用 24 小时滑动闲置期/14 天绝对上限，勾选“信任此设备”后为 30 天滑动闲置期/90 天绝对上限；管理员会话固定为 45 分钟闲置期/10 小时绝对上限。`/account/sessions` 可撤销单个会话或退出所有设备。
+HTTP Session 已通过 Spring Session JDBC 持久化到 PostgreSQL，并关联 `user_sessions` 安全元数据。普通会话采用 24 小时滑动闲置期/14 天绝对上限，勾选“信任此设备”后为 14 天滑动闲置期/90 天绝对上限；管理员会话固定为 45 分钟闲置期/10 小时绝对上限。`/account/sessions` 可撤销单个会话或退出所有设备。
 
 管理员可从 `/admin/users` 查询账号并查看凭据、会话和授权摘要；冻结、解冻和强制下线要求重新输入管理员密码、填写审计原因，并在同一事务写入管理员审计与安全事件。冻结和强制下线会撤销目标账号的 SSO 会话、Authorization，并通过 outbox 通知业务 BFF。
 
@@ -120,7 +120,7 @@ LAS 自营系统另见[第一方网站接入指南](../docs/integration/first-pa
 
 访问 `http://localhost:8088` 或 `http://127.0.0.1:8088`。`local` profile 会登记这两个主机名对应的精确回调地址；开发时不要在一次授权流程中途切换主机名。
 
-当前 starter 已支持单 JVM 内的 AT 自动续期、同 Session 刷新合并、刷新失败失效处理、每请求 `auth_fresh_until` 强制检查、RP-Initiated Logout，以及 Back-Channel Logout Token 校验、重放防护和本地 Session 失效。SSO 全局退出和单会话撤销会通过 PostgreSQL outbox 可靠投递 Back-Channel Logout。它还不是生产完整 SDK：PostgreSQL 持久化授权客户端、跨实例刷新锁及会话索引/重放缓存仍待实现。
+当前 starter 已支持单 JVM 内的 AT 自动续期、同 Session 刷新合并、刷新失败失效处理、每请求 `auth_fresh_until` 强制检查、当前应用退出后的后台 Token 撤销重试、RP-Initiated Logout，以及 Back-Channel Logout Token 校验、重放防护和本地 Session 失效。SSO 全局退出和单会话撤销会通过 PostgreSQL outbox 可靠投递 Back-Channel Logout。它还不是生产完整 SDK：当前应用退出的撤销队列仍是进程内实现，PostgreSQL 持久化授权客户端、持久化撤销 outbox、跨实例刷新锁及会话索引/重放缓存仍待实现。
 
 个人中心的“已授权应用”按 OIDC `client_id` 聚合显示授权范围。用户撤销某个应用时，只删除本人对该客户端的 Authorization 和 Consent，写入安全事件，并通过 PostgreSQL outbox 向该客户端投递 Back-Channel Logout；其他客户端授权和 SSO 主会话不受影响。
 

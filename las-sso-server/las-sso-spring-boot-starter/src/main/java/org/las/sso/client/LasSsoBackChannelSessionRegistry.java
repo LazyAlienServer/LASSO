@@ -25,8 +25,11 @@ public final class LasSsoBackChannelSessionRegistry {
 
     public int invalidate(String sid, String subject) {
         var sessions = new ConcurrentHashMap<String, HttpSession>();
-        collect(sessions, sid == null ? null : bySid.remove(sid));
-        collect(sessions, subject == null ? null : bySubject.remove(subject));
+        if (sid != null && !sid.isBlank()) {
+            collect(sessions, bySid.remove(sid));
+        } else if (subject != null && !subject.isBlank()) {
+            collect(sessions, bySubject.remove(subject));
+        }
         int invalidated = 0;
         for (HttpSession session : sessions.values()) {
             try {
@@ -41,7 +44,10 @@ public final class LasSsoBackChannelSessionRegistry {
         return invalidated;
     }
 
-    private void removeSession(String sessionId) {
+    public void unregister(String sessionId) {
+        if (sessionId == null || sessionId.isBlank()) {
+            return;
+        }
         for (var entry : Set.copyOf(bySid.entrySet())) {
             entry.getValue().remove(sessionId);
             if (entry.getValue().isEmpty()) bySid.remove(entry.getKey(), entry.getValue());
@@ -50,6 +56,10 @@ public final class LasSsoBackChannelSessionRegistry {
             entry.getValue().remove(sessionId);
             if (entry.getValue().isEmpty()) bySubject.remove(entry.getKey(), entry.getValue());
         }
+    }
+
+    private void removeSession(String sessionId) {
+        unregister(sessionId);
     }
 
     private static void collect(

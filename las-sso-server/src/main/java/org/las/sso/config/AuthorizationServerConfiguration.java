@@ -3,6 +3,7 @@ package org.las.sso.config;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -23,6 +24,7 @@ import org.las.sso.oidc.RefreshTokenFamilyService;
 import org.las.sso.session.UserSessionService;
 import org.las.sso.identity.JdbcLasUserDetailsService;
 import org.las.sso.security.LasAuthenticationFailureHandler;
+import org.las.sso.security.ClientAuthenticationFailureHandler;
 import org.las.sso.security.LasAuthenticationSuccessHandler;
 import org.las.sso.security.AccountSessionValidationFilter;
 import org.las.sso.security.LoginRiskAuthenticationFilter;
@@ -49,10 +51,12 @@ import org.springframework.security.authentication.dao.DaoAuthenticationProvider
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
+import org.springframework.security.oauth2.core.oidc.endpoint.OidcParameterNames;
 import org.springframework.security.oauth2.server.authorization.JdbcOAuth2AuthorizationConsentService;
 import org.springframework.security.oauth2.server.authorization.JdbcOAuth2AuthorizationService;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationConsentService;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
+import org.springframework.security.oauth2.server.authorization.OAuth2TokenType;
 import org.springframework.security.oauth2.server.authorization.client.JdbcRegisteredClientRepository;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
 import org.springframework.security.config.annotation.web.configuration.OAuth2AuthorizationServerConfiguration;
@@ -88,6 +92,7 @@ public class AuthorizationServerConfiguration {
             AccountSessionValidationFilter accountSessionValidationFilter,
             PasswordChangeRequiredFilter passwordChangeRequiredFilter,
             RefreshTokenFamilyService tokenFamilies,
+            ClientAuthenticationFailureHandler clientAuthenticationFailureHandler,
             PlatformTransactionManager transactionManager,
             SsoGlobalLogoutHandler globalLogoutHandler) throws Exception {
         OAuth2AuthorizationServerConfigurer authorizationServerConfigurer =
@@ -95,6 +100,8 @@ public class AuthorizationServerConfiguration {
 
         http.securityMatcher(authorizationServerConfigurer.getEndpointsMatcher())
                 .with(authorizationServerConfigurer, authorizationServer -> authorizationServer
+                        .clientAuthentication(client -> client
+                                .errorResponseHandler(clientAuthenticationFailureHandler))
                         .tokenEndpoint(tokenEndpoint -> tokenEndpoint.authenticationProviders(providers -> {
                             boolean refreshProviderWrapped = false;
                             for (int index = 0; index < providers.size(); index++) {
@@ -205,7 +212,7 @@ public class AuthorizationServerConfiguration {
     SpringSessionRememberMeServices rememberMeServices() {
         var services = new SpringSessionRememberMeServices();
         services.setRememberMeParameterName("rememberDevice");
-        services.setValiditySeconds(Math.toIntExact(Duration.ofDays(30).toSeconds()));
+        services.setValiditySeconds(Math.toIntExact(Duration.ofDays(14).toSeconds()));
         return services;
     }
 
@@ -314,9 +321,28 @@ public class AuthorizationServerConfiguration {
     OAuth2TokenCustomizer<JwtEncodingContext> identityClaimsCustomizer(JdbcClient jdbcClient) {
         return context -> {
             if (context.getPrincipal().getPrincipal() instanceof LasUserPrincipal principal) {
-                context.getClaims()
-                        .subject(principal.getName())
-                        .claim("preferred_username", principal.loginUsername());
+                context.getClaims().subject(principal.getName());
+                if (OidcParameterNames.ID_TOKEN.equals(context.getTokenType().getValue())) {
+                    context.getClaims()
+                            .claim("acr", "urn:las:loa:1")
+                            .claim("amr", List.of("pwd"));
+                    if (context.getAuthorizedScopes().contains("profile")) {
+                        context.getClaims().claim("preferred_username", principal.loginUsername());
+                    }
+                }
+            }
+            if (OAuth2TokenType.ACCESS_TOKEN.equals(context.getTokenType())) {
+                List<String> audiences = jdbcClient.sql("""
+                        SELECT unnest(resource_audiences) AS audience
+                          FROM registered_client_metadata
+                         WHERE registered_client_id = :registeredClientId
+                        """).param("registeredClientId", context.getRegisteredClient().getId())
+                        .query(String.class).list();
+                if (audiences.isEmpty()) {
+                    throw new IllegalStateException(
+                            "No resource audience configured for registered client");
+                }
+                context.getClaims().audience(audiences);
             }
             if (context.getAuthorization() != null) {
                 jdbcClient.sql("""

@@ -92,6 +92,32 @@ class LasSsoAuthorizedClientRefreshFilterTest {
     }
 
     @Test
+    void fourteenDayAbsoluteSessionBoundaryExpiresBeforeTokenRefresh() throws Exception {
+        var session = new MockHttpSession();
+        Instant now = Instant.ofEpochMilli(session.getCreationTime())
+                .plus(java.time.Duration.ofDays(14));
+        var refreshed = new AtomicBoolean();
+        var repository = mock(OAuth2AuthorizedClientRepository.class);
+        var authentication = authentication();
+        var filter = new LasSsoAuthorizedClientRefreshFilter(
+                new LasSsoClientProperties("las-sso", null),
+                (ignoredAuthentication, request, response) -> refreshed.set(true),
+                repository,
+                Clock.fixed(now, ZoneOffset.UTC));
+        SecurityContextHolder.getContext().setAuthentication(authentication);
+        var request = new MockHttpServletRequest("GET", "/api/private-data");
+        request.setSession(session);
+        var response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, new MockFilterChain());
+
+        assertThat(refreshed).isFalse();
+        verify(repository).removeAuthorizedClient("las-sso", authentication, request, response);
+        assertThat(session.isInvalid()).isTrue();
+        assertThat(response.getStatus()).isEqualTo(401);
+    }
+
+    @Test
     void apiRefreshFailureRemovesTheClientInvalidatesTheSessionAndReturnsNoStore401()
             throws Exception {
         var repository = mock(OAuth2AuthorizedClientRepository.class);

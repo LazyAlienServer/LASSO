@@ -78,7 +78,7 @@
 - 本地 `laslog-bff` 同时登记 `localhost:8088` 与 `127.0.0.1:8088` 的精确回调，避免开发主机名不同导致授权入口 `400`。
 - JDBC Authorization 使用同一套受限 Jackson mapper 读写 LAS principal，避免授权码兑换时因自定义主体无法反序列化而返回 `500`。
 - 已使用 Spring Session JDBC 将 HTTP Session 持久化到 PostgreSQL，并将其与 `user_sessions` 安全元数据关联；个人中心支持会话列表、逐个撤销和退出所有设备，`last_password_auth_at` 也会持久化。
-- 普通会话为 24 小时滑动闲置期/14 天绝对上限；受信任设备为 30 天滑动闲置期/90 天绝对上限；管理员会话保持 45 分钟闲置期/10 小时绝对上限且不能选择信任设备。
+- 普通会话为 24 小时滑动闲置期/14 天绝对上限；受信任设备为 14 天滑动闲置期/90 天绝对上限；管理员会话保持 45 分钟闲置期/10 小时绝对上限且不能选择信任设备。
 - Authorization 已关联 SSO `sid`，ID Token/AT 会携带 `sid`；全局退出、单会话撤销、改密和管理员重置会写入可认领、可重试的 Back-Channel Logout outbox。
 - Flyway V9 以带独立 pepper 的 HMAC 保存 Refresh Token 历史，不额外保存明文；SSO 刷新事务使用 PostgreSQL 行锁执行 14 天 family 绝对期限和安全版本检查。成功刷新原子轮换 Token；旧 Token 重用会撤销整条 family、写 `CRITICAL` 安全事件并投递 Back-Channel Logout，安全状态不匹配会写 `WARNING` 事件并投递退出。
 - starter 已实现 `POST /api/auth/logout/global`：从 Discovery 读取 `end_session_endpoint`，服务端携带 `id_token_hint`、精确登记的退出回调和随机 `state` 发起 RP-Initiated Logout；业务会话立即失效，回调 `state` 短期、单次校验，ID Token 不进入前端脚本。SSO 使用标准 OIDC Logout 校验，并在成功后撤销该主体全部会话和 Authorization。

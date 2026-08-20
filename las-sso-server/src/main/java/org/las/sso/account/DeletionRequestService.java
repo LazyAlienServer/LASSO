@@ -93,9 +93,11 @@ public class DeletionRequestService {
         OffsetDateTime now = now();
         int updated = jdbcClient.sql("""
                 UPDATE account_deletion_requests
-                   SET status = 'CANCELLED', cancelled_at = :now
+                   SET status = 'CANCELLED', cancelled_at = :now,
+                       hold_until = NULL, held_by_user_id = NULL, hold_reason = NULL,
+                       hold_public_summary = NULL
                  WHERE user_id = :userId
-                   AND status = 'PENDING'
+                   AND status IN ('PENDING', 'HELD')
                 """).param("now", now).param("userId", userId).update();
         if (updated == 0) {
             throw new AccountDeletionConflictException("ACCOUNT_STATE_CONFLICT");
@@ -106,7 +108,7 @@ public class DeletionRequestService {
     @Transactional(readOnly = true)
     public RequestView status(UUID userId) {
         return jdbcClient.sql("""
-                SELECT status::text, requested_at, execute_after, hold_until, hold_reason
+                SELECT status::text, requested_at, execute_after, hold_until, hold_public_summary
                   FROM account_deletion_requests
                  WHERE user_id = :userId
                  ORDER BY requested_at DESC
@@ -117,7 +119,7 @@ public class DeletionRequestService {
                         rs.getObject("requested_at", OffsetDateTime.class),
                         rs.getObject("execute_after", OffsetDateTime.class),
                         rs.getObject("hold_until", OffsetDateTime.class),
-                        rs.getString("hold_reason")))
+                        rs.getString("hold_public_summary")))
                 .optional()
                 .orElseGet(() -> new RequestView("NONE", null, null, null, null));
     }
@@ -220,7 +222,7 @@ public class DeletionRequestService {
             OffsetDateTime requestedAt,
             OffsetDateTime executeAfter,
             OffsetDateTime holdUntil,
-            String holdReason) {
+            String holdPublicSummary) {
     }
 
     private record ExecutionTarget(UUID requestId, UUID userId) {

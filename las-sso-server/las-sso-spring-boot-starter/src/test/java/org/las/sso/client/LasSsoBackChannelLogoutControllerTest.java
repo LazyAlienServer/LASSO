@@ -31,6 +31,35 @@ class LasSsoBackChannelLogoutControllerTest {
     }
 
     @Test
+    void sidLogoutDoesNotInvalidateAnotherSessionForTheSameSubject() {
+        var registry = new LasSsoBackChannelSessionRegistry();
+        var targetedSession = new MockHttpSession();
+        var otherSession = new MockHttpSession();
+        registry.register("sid-1", "subject-1", targetedSession);
+        registry.register("sid-2", "subject-1", otherSession);
+        var controller = new LasSsoBackChannelLogoutController(
+                token -> logoutToken(token, "jti-sid", "client-1"),
+                "client-1",
+                registry);
+
+        assertThat(controller.logout("token-sid").getStatusCode().value()).isEqualTo(204);
+        assertThat(targetedSession.isInvalid()).isTrue();
+        assertThat(otherSession.isInvalid()).isFalse();
+    }
+
+    @Test
+    void unregisteredSessionIsNotRetainedForLaterSubjectLogout() {
+        var registry = new LasSsoBackChannelSessionRegistry();
+        var destroyedSession = new MockHttpSession();
+        registry.register("sid-destroyed", "subject-1", destroyedSession);
+
+        registry.unregister(destroyedSession.getId());
+
+        assertThat(registry.invalidate(null, "subject-1")).isZero();
+        assertThat(destroyedSession.isInvalid()).isFalse();
+    }
+
+    @Test
     void sameJtiWithDifferentTokenAndWrongAudienceAreRejected() {
         var registry = new LasSsoBackChannelSessionRegistry();
         Jwt valid = logoutToken("token-1", "jti-1", "client-1");

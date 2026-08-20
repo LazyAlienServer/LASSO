@@ -35,3 +35,5 @@ las:
       post-logout-redirect-uri: "{baseUrl}/logged-out"
       logout-success-uri: /
       logout-state-ttl: 5m
+      session-cookie-name: las_reference_session
+      session-absolute-lifetime: 14d

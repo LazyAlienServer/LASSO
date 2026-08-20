@@ -59,6 +59,16 @@ public final class LasSsoAuthorizedClientRefreshFilter extends OncePerRequestFil
             return;
         }
 
+        var session = request.getSession(false);
+        if (session != null
+                && !java.time.Instant.ofEpochMilli(session.getCreationTime())
+                        .plus(properties.sessionAbsoluteLifetime())
+                        .isAfter(clock.instant())) {
+            expireLocalSession(oauth2, request, response);
+            writeExpiredResponse(request, response);
+            return;
+        }
+
         try {
             refresher.refresh(authentication, request, response);
             OAuth2AuthorizedClient authorizedClient = authorizedClients.loadAuthorizedClient(

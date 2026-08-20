@@ -52,7 +52,7 @@ public class AdminDeletionRequestController {
             HttpServletRequest request) {
         AdminOperationGuard.Context context = adminGuard.authorizeWrite(authentication, request);
         deletions.hold(context.principal().userId(), context.sid(), requestId,
-                body.reason(), body.holdUntil(), requestId(request));
+                body.reason(), body.publicSummary(), body.holdUntil(), requestId(request));
         return ResponseEntity.noContent().build();
     }
 
@@ -76,6 +76,7 @@ public class AdminDeletionRequestController {
 
     public record HoldRequest(
             @NotBlank @Size(max = 500) String reason,
+            @NotBlank @Size(max = 500) String publicSummary,
             @NotNull OffsetDateTime holdUntil) {
     }
 

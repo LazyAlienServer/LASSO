@@ -1,9 +1,14 @@
 spring:
   main:
     banner-mode: off
+  session:
+    jdbc:
+      cleanup-cron: "-"
 
 las:
   sso:
+    scheduling:
+      enabled: false
     issuer: http://127.0.0.1:9000
     signing-key:
       key-id: las-test-ephemeral

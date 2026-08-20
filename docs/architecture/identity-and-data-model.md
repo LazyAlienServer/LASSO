@@ -248,7 +248,8 @@ Refresh Token 轮换必须在单个事务中：
 | `status` | `deletion_status` | 非空 |
 | `hold_until` | `TIMESTAMPTZ` | 可空；管理员暂缓最长 90 天 |
 | `held_by_user_id` | `UUID` | 可空；唯一管理员 |
-| `hold_reason` | `TEXT` | 可空；只有明确保留依据时使用 |
+| `hold_reason` | `TEXT` | 可空；管理员内部依据，仅供管理和审计使用 |
+| `hold_public_summary` | `VARCHAR(500)` | 可空；暂缓时展示给用户的安全摘要 |
 
 申请、取消、暂缓、释放和执行都必须写安全事件。暂缓到期自动回到 `PENDING`，不能成为无限期保留开关。执行时先撤销所有会话和授权，再删除凭据与个人资料，最后将 `users.account_status` 设为 `DELETED`、申请状态设为 `EXECUTED`。
 

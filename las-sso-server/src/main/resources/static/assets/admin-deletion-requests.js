@@ -39,7 +39,9 @@
       document.getElementById("admin-dialog-description").textContent = descriptions[pending.action];
       document.getElementById("admin-dialog-error").textContent = "";
       document.getElementById("hold-until-group").hidden = pending.action !== "hold";
+      document.getElementById("hold-public-summary-group").hidden = pending.action !== "hold";
       form.elements.holdUntil.required = pending.action === "hold";
+      form.elements.publicSummary.required = pending.action === "hold";
       form.reset();
       dialog.showModal();
       form.elements.reason.focus({ preventScroll: true });
@@ -56,6 +58,7 @@
     const body = { reason: form.elements.reason.value.trim() };
     if (pending.action === "hold") {
       body.holdUntil = new Date(form.elements.holdUntil.value).toISOString();
+      body.publicSummary = form.elements.publicSummary.value.trim();
     }
     submit.disabled = true;
     submit.textContent = "处理中…";

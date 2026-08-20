@@ -38,8 +38,10 @@ dependencies {
     testRuntimeOnly(libs.junit.platform.launcher)
 }
 
-dependencyLocking {
-    lockAllConfigurations()
+allprojects {
+    dependencyLocking {
+        lockAllConfigurations()
+    }
 }
 
 tasks.withType<Test>().configureEach {

@@ -103,7 +103,7 @@ class DeletionRequestServiceTest {
     }
 
     @Test
-    void cancelRestoresAccountAndHeldRequestsCannotBeCancelled() {
+    void cancelRestoresAccountForPendingAndHeldRequests() {
         var account = registrationService.register(
                 "DelCancelUser", "Del Cancel User", "del cancel passphrase");
         deletions.request(account.userId(), UUID.randomUUID());
@@ -117,10 +117,10 @@ class DeletionRequestServiceTest {
                  WHERE user_id = :userId AND status = 'PENDING'
                 """).param("userId", account.userId()).query(UUID.class).single();
         UUID actorId = administrator("DelSvcAdminCancel");
-        adminDeletions.hold(actorId, null, requestId, "dispute",
+        adminDeletions.hold(actorId, null, requestId, "dispute", "正在核实申请",
                 OffsetDateTime.now(ZoneOffset.UTC).plusDays(10), UUID.randomUUID());
-        assertThatThrownBy(() -> deletions.cancel(account.userId(), UUID.randomUUID()))
-                .isInstanceOf(AccountDeletionConflictException.class);
+        deletions.cancel(account.userId(), UUID.randomUUID());
+        assertThat(deletions.status(account.userId()).status()).isEqualTo("CANCELLED");
     }
 
     @Test
@@ -173,11 +173,12 @@ class DeletionRequestServiceTest {
                 """).param("userId", account.userId()).query(UUID.class).single();
         backdateExecution(account.userId());
         UUID actorId = administrator("DelSvcAdminHold");
-        adminDeletions.hold(actorId, null, requestId, "ownership dispute",
+        adminDeletions.hold(actorId, null, requestId, "ownership dispute", "正在核实账号状态",
                 OffsetDateTime.now(ZoneOffset.UTC).plusDays(10), UUID.randomUUID());
 
         deletions.executeDue(100);
         assertThat(deletions.status(account.userId()).status()).isEqualTo("HELD");
+        assertThat(deletions.status(account.userId()).holdPublicSummary()).isEqualTo("正在核实账号状态");
 
         deletionJob.releaseExpiredHolds(OffsetDateTime.now(ZoneOffset.UTC).plusDays(11));
         assertThat(deletions.status(account.userId()).status()).isEqualTo("PENDING");
@@ -186,6 +187,29 @@ class DeletionRequestServiceTest {
                 SELECT account_status::text FROM users WHERE id = :userId
                 """).param("userId", account.userId()).query(String.class).single())
                 .isEqualTo("DELETED");
+    }
+
+    @Test
+    void userCanCancelHeldRequest() {
+        var account = registrationService.register(
+                "DelCancelHoldUser", "Del Cancel Hold User", "del cancel hold passphrase");
+        deletions.request(account.userId(), UUID.randomUUID());
+        UUID requestId = jdbcClient.sql("""
+                SELECT id FROM account_deletion_requests
+                 WHERE user_id = :userId AND status = 'PENDING'
+                """).param("userId", account.userId()).query(UUID.class).single();
+        UUID actorId = administrator("DelSvcAdminCancelHold");
+        adminDeletions.hold(actorId, null, requestId, "ownership dispute", "正在核实账号状态",
+                OffsetDateTime.now(ZoneOffset.UTC).plusDays(10), UUID.randomUUID());
+
+        deletions.cancel(account.userId(), UUID.randomUUID());
+
+        assertThat(deletions.status(account.userId()).status()).isEqualTo("CANCELLED");
+        assertThat(jdbcClient.sql("""
+                SELECT hold_until IS NULL AND held_by_user_id IS NULL
+                       AND hold_reason IS NULL AND hold_public_summary IS NULL
+                  FROM account_deletion_requests WHERE id = :requestId
+                """).param("requestId", requestId).query(Boolean.class).single()).isTrue();
     }
 
     @Test
@@ -236,7 +260,7 @@ class DeletionRequestServiceTest {
                         .session(adminSession).with(user(admin)).with(csrf())
                         .header("Origin", "http://127.0.0.1:9000")
                         .contentType("application/json")
-                        .content("{\"reason\":\"dispute\",\"holdUntil\":\"" +
+                        .content("{\"reason\":\"dispute\",\"publicSummary\":\"正在核实账号状态\",\"holdUntil\":\"" +
                                 OffsetDateTime.now(ZoneOffset.UTC).plusDays(10) + "\"}"))
                 .andExpect(status().isForbidden());
 
@@ -245,14 +269,14 @@ class DeletionRequestServiceTest {
                         .session(adminSession).with(user(admin)).with(csrf())
                         .header("Origin", "http://127.0.0.1:9000")
                         .contentType("application/json")
-                        .content("{\"reason\":\"dispute\",\"holdUntil\":\"" +
+                        .content("{\"reason\":\"dispute\",\"publicSummary\":\"正在核实账号状态\",\"holdUntil\":\"" +
                                 OffsetDateTime.now(ZoneOffset.UTC).plusDays(200) + "\"}"))
                 .andExpect(status().isBadRequest());
         mockMvc.perform(post("/api/v1/admin/deletion-requests/{id}/hold", requestId)
                         .session(adminSession).with(user(admin)).with(csrf())
                         .header("Origin", "http://127.0.0.1:9000")
                         .contentType("application/json")
-                        .content("{\"reason\":\"dispute\",\"holdUntil\":\"" +
+                        .content("{\"reason\":\"dispute\",\"publicSummary\":\"正在核实账号状态\",\"holdUntil\":\"" +
                                 OffsetDateTime.now(ZoneOffset.UTC).plusDays(10) + "\"}"))
                 .andExpect(status().isNoContent());
         mockMvc.perform(post("/api/v1/admin/deletion-requests/{id}/release", requestId)

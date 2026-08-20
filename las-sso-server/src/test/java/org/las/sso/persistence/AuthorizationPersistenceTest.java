@@ -892,12 +892,22 @@ class AuthorizationPersistenceTest {
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
                         .jsonPath("$[0].userAgentSummary").value("Chrome · Windows"));
 
+        String logoutIdempotencyKey = UUID.randomUUID().toString();
         mockMvc.perform(post("/api/v1/me/logout-all")
                         .session(session)
                         .with(csrf())
                         .header("Origin", "http://127.0.0.1:9000")
-                        .header("Idempotency-Key", UUID.randomUUID().toString()))
+                        .header("Idempotency-Key", logoutIdempotencyKey))
                 .andExpect(status().isNoContent());
+
+        assertThat(jdbcClient.sql("""
+                SELECT COUNT(*) FROM operation_idempotency
+                 WHERE actor_user_id = :userId
+                   AND operation = 'USER_GLOBAL_LOGOUT'
+                   AND idempotency_key = :idempotencyKey
+                """).param("userId", account.userId())
+                .param("idempotencyKey", logoutIdempotencyKey)
+                .query(Long.class).single()).isOne();
 
         assertThat(jdbcClient.sql("""
                 SELECT status::text FROM user_sessions WHERE sid = :sid
@@ -921,7 +931,7 @@ class AuthorizationPersistenceTest {
     }
 
     @Test
-    void trustedDeviceCreatesSlidingThirtyDaySessionWithNinetyDayAbsoluteLimit() throws Exception {
+    void trustedDeviceCreatesSlidingFourteenDaySessionWithNinetyDayAbsoluteLimit() throws Exception {
         var account = registrationService.register(
                 "TrustedDeviceUser", "Trusted Device User", "trusted device passphrase");
         var session = new MockHttpSession();
@@ -949,11 +959,11 @@ class AuthorizationPersistenceTest {
         assertThat(persisted.get("remembered")).isEqualTo(true);
         assertThat(java.time.Duration.between(
                 (OffsetDateTime) persisted.get("createdAt"),
-                (OffsetDateTime) persisted.get("idleExpiresAt"))).isEqualTo(java.time.Duration.ofDays(30));
+                (OffsetDateTime) persisted.get("idleExpiresAt"))).isEqualTo(java.time.Duration.ofDays(14));
         assertThat(java.time.Duration.between(
                 (OffsetDateTime) persisted.get("createdAt"),
                 (OffsetDateTime) persisted.get("absoluteExpiresAt"))).isEqualTo(java.time.Duration.ofDays(90));
-        assertThat(session.getMaxInactiveInterval()).isEqualTo(Math.toIntExact(java.time.Duration.ofDays(30).toSeconds()));
+        assertThat(session.getMaxInactiveInterval()).isEqualTo(Math.toIntExact(java.time.Duration.ofDays(14).toSeconds()));
     }
 
     @Test
@@ -1094,6 +1104,32 @@ class AuthorizationPersistenceTest {
         } finally {
             server.stop(0);
         }
+    }
+
+    @Test
+    void backChannelLogoutMovesExhaustedDeliveryToDeadLetterState() {
+        UUID eventId = UUID.randomUUID();
+        String userId = "019c10a5-b800-7000-8000-000000000098";
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        jdbcClient.sql("""
+                INSERT INTO outbox_events
+                    (id, aggregate_type, aggregate_id, event_type, payload_json,
+                     created_at, available_at, attempt_count)
+                VALUES (:id, 'USER', :userId, 'BACKCHANNEL_LOGOUT_REQUESTED',
+                        jsonb_build_object('userId', :userId,
+                                           'clientId', 'dead-letter-test-client',
+                                           'uri', 'http://127.0.0.1:1/backchannel',
+                                           'sid', 'dead-letter-test-sid'),
+                        :now, :now, 7)
+                """).param("id", eventId).param("userId", userId)
+                .param("now", now.minusMinutes(1)).update();
+
+        backChannelLogoutDelivery.deliverPending();
+
+        assertThat(jdbcClient.sql("""
+                SELECT dead_lettered_at IS NOT NULL AND processed_at IS NULL
+                  FROM outbox_events WHERE id = :id
+                """).param("id", eventId).query(Boolean.class).single()).isTrue();
     }
 
     @Test

@@ -12,7 +12,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * 注销申请执行任务：每 5 分钟抢占一次执行权，先释放已到期的暂缓申请，
@@ -28,35 +29,44 @@ public class DeletionExecutionJob {
     private final DeletionRequestService deletions;
     private final UuidV7Generator uuidGenerator;
     private final Clock clock;
+    private final TransactionTemplate transactions;
 
     @Autowired
     public DeletionExecutionJob(
             JdbcClient jdbcClient,
             DeletionRequestService deletions,
-            UuidV7Generator uuidGenerator) {
-        this(jdbcClient, deletions, uuidGenerator, Clock.systemUTC());
+            UuidV7Generator uuidGenerator,
+            PlatformTransactionManager transactionManager) {
+        this(jdbcClient, deletions, uuidGenerator, Clock.systemUTC(),
+                new TransactionTemplate(transactionManager));
     }
 
     DeletionExecutionJob(
             JdbcClient jdbcClient,
             DeletionRequestService deletions,
             UuidV7Generator uuidGenerator,
-            Clock clock) {
+            Clock clock,
+            TransactionTemplate transactions) {
         this.jdbcClient = jdbcClient;
         this.deletions = deletions;
         this.uuidGenerator = uuidGenerator;
         this.clock = clock;
+        this.transactions = transactions;
     }
 
     @Scheduled(
             initialDelayString = "${las.sso.deletion-job.initial-delay:PT1M}",
             fixedDelayString = "${las.sso.deletion-job.interval:PT5M}")
     public void scheduledRun() {
-        run();
+        transactions.executeWithoutResult(status -> runWithinTransaction());
     }
 
-    @Transactional
     public int run() {
+        Integer result = transactions.execute(status -> runWithinTransaction());
+        return result == null ? 0 : result;
+    }
+
+    private int runWithinTransaction() {
         boolean lockAcquired = jdbcClient.sql("SELECT pg_try_advisory_xact_lock(:lockId)")
                 .param("lockId", ADVISORY_LOCK_ID)
                 .query(Boolean.class)
@@ -65,13 +75,17 @@ public class DeletionExecutionJob {
             return 0;
         }
         OffsetDateTime now = OffsetDateTime.ofInstant(clock.instant(), ZoneOffset.UTC);
-        int released = releaseExpiredHolds(now);
+        int released = releaseExpiredHoldsWithinTransaction(now);
         int executed = deletions.executeDue(BATCH_SIZE);
         return released + executed;
     }
 
-    @Transactional
     public int releaseExpiredHolds(OffsetDateTime now) {
+        Integer result = transactions.execute(status -> releaseExpiredHoldsWithinTransaction(now));
+        return result == null ? 0 : result;
+    }
+
+    private int releaseExpiredHoldsWithinTransaction(OffsetDateTime now) {
         List<UUID> expired = jdbcClient.sql("""
                 WITH selected AS (
                     SELECT id
@@ -85,7 +99,8 @@ public class DeletionExecutionJob {
                 )
                 UPDATE account_deletion_requests request
                    SET status = 'PENDING', hold_until = NULL,
-                       held_by_user_id = NULL, hold_reason = NULL
+                       held_by_user_id = NULL, hold_reason = NULL,
+                       hold_public_summary = NULL
                   FROM selected
                  WHERE request.id = selected.id
                 RETURNING request.user_id

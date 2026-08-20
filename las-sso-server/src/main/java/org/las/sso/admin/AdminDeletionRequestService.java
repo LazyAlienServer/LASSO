@@ -46,7 +46,7 @@ public class AdminDeletionRequestService {
         AdminAuditQueryService.Cursor position = AdminAuditQueryService.decodeCursor(cursor);
         List<DeletionRequest> rows = jdbcClient.sql("""
                 SELECT r.id, r.user_id, un.username, r.status::text, r.requested_at,
-                       r.execute_after, r.hold_until, r.hold_reason,
+                       r.execute_after, r.hold_until, r.hold_reason, r.hold_public_summary,
                        u.account_status::text AS account_status
                   FROM account_deletion_requests r
                   JOIN users u ON u.id = r.user_id
@@ -70,6 +70,7 @@ public class AdminDeletionRequestService {
                         rs.getObject("execute_after", OffsetDateTime.class),
                         rs.getObject("hold_until", OffsetDateTime.class),
                         rs.getString("hold_reason"),
+                        rs.getString("hold_public_summary"),
                         rs.getString("account_status")))
                 .list();
         boolean hasMore = rows.size() > limit;
@@ -89,6 +90,7 @@ public class AdminDeletionRequestService {
             String actorSid,
             UUID requestId,
             String reason,
+            String publicSummary,
             OffsetDateTime holdUntil,
             UUID requestRequestId) {
         if (holdUntil == null || holdUntil.isBefore(now())) {
@@ -100,12 +102,14 @@ public class AdminDeletionRequestService {
         int updated = jdbcClient.sql("""
                 UPDATE account_deletion_requests
                    SET status = 'HELD', hold_until = :holdUntil,
-                       held_by_user_id = :actorUserId, hold_reason = :reason
+                       held_by_user_id = :actorUserId, hold_reason = :reason,
+                       hold_public_summary = :publicSummary
                  WHERE id = :requestId
                    AND status = 'PENDING'
                 """).param("holdUntil", holdUntil)
                 .param("actorUserId", actorUserId)
                 .param("reason", reason)
+                .param("publicSummary", publicSummary)
                 .param("requestId", requestId).update();
         if (updated == 0) {
             throw new AdminUserManagementException("ACCOUNT_STATE_CONFLICT");
@@ -126,7 +130,8 @@ public class AdminDeletionRequestService {
         int updated = jdbcClient.sql("""
                 UPDATE account_deletion_requests
                    SET status = 'PENDING', hold_until = NULL,
-                       held_by_user_id = NULL, hold_reason = NULL
+                       held_by_user_id = NULL, hold_reason = NULL,
+                       hold_public_summary = NULL
                  WHERE id = :requestId
                    AND status = 'HELD'
                 """).param("requestId", requestId).update();
@@ -206,6 +211,7 @@ public class AdminDeletionRequestService {
             OffsetDateTime executeAfter,
             OffsetDateTime holdUntil,
             String holdReason,
+            String holdPublicSummary,
             String accountStatus) {
     }
 

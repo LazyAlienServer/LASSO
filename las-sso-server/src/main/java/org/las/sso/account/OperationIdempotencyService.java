@@ -88,6 +88,7 @@ public class OperationIdempotencyService {
         return result;
     }
 
+    @Transactional
     public <T> T executeWithoutResult(
             UUID actorUserId,
             String operation,

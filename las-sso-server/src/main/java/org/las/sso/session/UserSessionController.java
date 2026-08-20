@@ -4,6 +4,7 @@ import java.util.List;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
+import org.las.sso.account.OperationIdempotencyService;
 import org.las.sso.identity.LasUserPrincipal;
 import org.las.sso.security.SameOriginVerifier;
 import org.springframework.http.CacheControl;
@@ -24,10 +25,15 @@ public class UserSessionController {
 
     private final UserSessionService sessions;
     private final SameOriginVerifier sameOriginVerifier;
+    private final OperationIdempotencyService idempotency;
 
-    public UserSessionController(UserSessionService sessions, SameOriginVerifier sameOriginVerifier) {
+    public UserSessionController(
+            UserSessionService sessions,
+            SameOriginVerifier sameOriginVerifier,
+            OperationIdempotencyService idempotency) {
         this.sessions = sessions;
         this.sameOriginVerifier = sameOriginVerifier;
+        this.idempotency = idempotency;
     }
 
     @GetMapping("/sessions")
@@ -67,7 +73,16 @@ public class UserSessionController {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
         }
         LasUserPrincipal principal = principal(authentication);
-        sessions.logoutAll(principal.userId(), "USER_GLOBAL_LOGOUT");
+        idempotency.executeWithoutResult(
+                principal.userId(),
+                "USER_GLOBAL_LOGOUT",
+                idempotencyKey,
+                "all-sessions",
+                () -> {
+                    sessions.logoutAll(principal.userId(), "USER_GLOBAL_LOGOUT");
+                    return null;
+                },
+                () -> null);
         invalidate(request);
         return ResponseEntity.noContent().build();
     }

@@ -72,8 +72,16 @@
         <div class="feature-state compact" th:if="${deletion.status == 'HELD'}">
           <span class="feature-state-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 5 6v5c0 5 3 8 7 10 4-2 7-5 7-10V6l-7-3Z"></path><path d="M9 12h6"></path></svg></span>
           <h2>注销申请正在人工处理</h2>
-          <p th:if="${deletion.holdReason != null}" th:text="${'处理原因：' + deletion.holdReason}">处理原因：账号存在业务争议。</p>
-          <p>请等待人工处理完成。暂缓期间不能取消申请，处理结束后会恢复等待期。</p>
+          <p th:if="${deletion.holdPublicSummary != null}" th:text="${'处理说明：' + deletion.holdPublicSummary}">处理说明：正在核实账号状态。</p>
+          <p>你仍可取消注销申请；取消后账号恢复正常，人工暂缓同时结束。</p>
+          <form id="deletion-cancel-form" class="deletion-request-form" novalidate>
+            <div class="deletion-password-field">
+              <label class="field-group"><span>当前密码</span>
+                <input name="password" type="password" autocomplete="current-password" maxlength="512" required>
+              </label>
+            </div>
+            <button class="secondary-button" type="submit">取消注销申请</button>
+          </form>
           <a href="/logout" th:href="@{/logout}">退出登录</a>
         </div>
 

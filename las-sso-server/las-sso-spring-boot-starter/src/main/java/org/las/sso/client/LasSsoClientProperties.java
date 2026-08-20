@@ -11,10 +11,22 @@ public record LasSsoClientProperties(
         Duration refreshBeforeExpiry,
         String postLogoutRedirectUri,
         String logoutSuccessUri,
-        Duration logoutStateTtl) {
+        Duration logoutStateTtl,
+        String sessionCookieName,
+        Duration sessionAbsoluteLifetime) {
 
     public LasSsoClientProperties(String registrationId, Duration refreshBeforeExpiry) {
-        this(registrationId, refreshBeforeExpiry, null, null, null);
+        this(registrationId, refreshBeforeExpiry, null, null, null, null, null);
+    }
+
+    public LasSsoClientProperties(
+            String registrationId,
+            Duration refreshBeforeExpiry,
+            String postLogoutRedirectUri,
+            String logoutSuccessUri,
+            Duration logoutStateTtl) {
+        this(registrationId, refreshBeforeExpiry, postLogoutRedirectUri,
+                logoutSuccessUri, logoutStateTtl, null, null);
     }
 
     @ConstructorBinding
@@ -32,6 +44,12 @@ public record LasSsoClientProperties(
                 ? "/"
                 : logoutSuccessUri;
         logoutStateTtl = logoutStateTtl == null ? Duration.ofMinutes(5) : logoutStateTtl;
+        sessionCookieName = sessionCookieName == null || sessionCookieName.isBlank()
+                ? "JSESSIONID"
+                : sessionCookieName;
+        sessionAbsoluteLifetime = sessionAbsoluteLifetime == null
+                ? Duration.ofDays(14)
+                : sessionAbsoluteLifetime;
         if (refreshBeforeExpiry.isNegative()) {
             throw new IllegalArgumentException("refreshBeforeExpiry must not be negative");
         }
@@ -42,6 +60,15 @@ public record LasSsoClientProperties(
                 || logoutStateTtl.isNegative()
                 || logoutStateTtl.compareTo(Duration.ofMinutes(15)) > 0) {
             throw new IllegalArgumentException("logoutStateTtl must be between 0 and 15 minutes");
+        }
+        if (!sessionCookieName.matches("[!#$%&'*+.^_`|~0-9A-Za-z-]+")) {
+            throw new IllegalArgumentException("sessionCookieName is not a valid cookie name");
+        }
+        if (sessionAbsoluteLifetime.isZero()
+                || sessionAbsoluteLifetime.isNegative()
+                || sessionAbsoluteLifetime.compareTo(Duration.ofDays(14)) > 0) {
+            throw new IllegalArgumentException(
+                    "sessionAbsoluteLifetime must be between 0 and 14 days");
         }
     }
 }

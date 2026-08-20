@@ -562,7 +562,7 @@ POST /api/v1/admin/deletion-requests/{requestId}/release
 - `limit` 默认 50，最大 200。
 - 使用不透明 cursor，不使用可被大范围跳页滥用的 offset。
 - 导出功能不在第一阶段；日志页面不显示秘密或完整 IP。
-- 注销任务默认自动执行，不需要管理员逐个批准。只有已记录的安全事件、账号归属争议或明确保留依据才能暂缓；`hold` 必须填写原因和最长 90 天的 `holdUntil`，到期自动释放。业务系统自己的稿件、处罚、Minecraft 数据保留不通过 SSO hold 解决。
+- 注销任务默认自动执行，不需要管理员逐个批准。只有已记录的安全事件、账号归属争议或明确保留依据才能暂缓；`hold` 必须填写仅供管理审计的 `reason`、面向用户的 `publicSummary` 和最长 90 天的 `holdUntil`，到期自动释放。业务系统自己的稿件、处罚、Minecraft 数据保留不通过 SSO hold 解决。
 
 ## 8. 权限与近期认证矩阵
 

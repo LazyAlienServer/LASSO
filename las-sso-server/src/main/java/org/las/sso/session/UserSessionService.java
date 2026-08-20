@@ -32,7 +32,7 @@ public class UserSessionService {
             UserSessionService.class.getName() + ".SID";
     private static final Duration USER_IDLE = Duration.ofHours(24);
     private static final Duration USER_ABSOLUTE = Duration.ofDays(14);
-    private static final Duration REMEMBERED_IDLE = Duration.ofDays(30);
+    private static final Duration REMEMBERED_IDLE = Duration.ofDays(14);
     private static final Duration REMEMBERED_ABSOLUTE = Duration.ofDays(90);
     private static final Duration ADMIN_IDLE = Duration.ofMinutes(45);
     private static final Duration ADMIN_ABSOLUTE = Duration.ofHours(10);

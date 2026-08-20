@@ -61,6 +61,7 @@
                 <div th:if="${request.holdUntil != null}"><dt>暂缓截止</dt><dd><time class="audit-time" th:datetime="${request.holdUntil}" th:text="${request.holdUntil}">2026-10-01T00:00:00Z</time></dd></div>
               </dl>
               <p class="audit-item-reason" th:if="${request.holdReason != null}" th:text="${'暂缓原因：' + request.holdReason}">暂缓原因</p>
+              <p class="audit-item-reason" th:if="${request.holdPublicSummary != null}" th:text="${'用户可见摘要：' + request.holdPublicSummary}">用户可见摘要</p>
             </div>
             <div class="audit-item-actions" th:if="${request.status == 'PENDING' or request.status == 'HELD'}">
               <button th:if="${request.status == 'PENDING'}" class="admin-action secondary-button" type="button" data-action="hold" th:data-request-id="${request.id}" th:data-username="${request.username}">暂缓</button>
@@ -83,7 +84,8 @@
       <div class="dialog-heading"><p>ADMIN CONFIRMATION</p><h2 id="admin-dialog-title">确认管理操作</h2></div>
       <p id="admin-dialog-description" class="admin-dialog-description"></p>
       <input name="username" type="hidden" autocomplete="username" aria-hidden="true" tabindex="-1">
-      <label class="field-group"><span>操作原因</span><textarea name="reason" maxlength="500" required placeholder="填写可审计的处理原因"></textarea></label>
+      <label class="field-group"><span>操作原因</span><textarea name="reason" maxlength="500" required placeholder="填写仅管理员和审计可见的处理原因"></textarea></label>
+      <label class="field-group" id="hold-public-summary-group"><span>用户可见摘要</span><textarea name="publicSummary" maxlength="500" placeholder="简要说明暂缓状态，不包含内部调查信息"></textarea></label>
       <label class="field-group" id="hold-until-group"><span>暂缓截止时间</span><input name="holdUntil" type="datetime-local" maxlength="32"></label>
       <label class="field-group"><span>当前管理员密码</span><input name="password" type="password" maxlength="512" autocomplete="current-password" required></label>
       <p id="admin-dialog-error" class="field-error" aria-live="polite"></p>
