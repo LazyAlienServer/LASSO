@@ -12,13 +12,19 @@ import jakarta.servlet.http.HttpSession;
 import org.las.sso.identity.LasUserPrincipal;
 import org.las.sso.session.UserSessionService;
 import org.springframework.http.MediaType;
+import org.springframework.http.HttpMethod;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
+import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
+import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 @Component
 public final class AccountSessionValidationFilter extends OncePerRequestFilter {
+
+    private static final RequestMatcher AUTHORIZATION_REQUEST =
+            PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/oauth2/authorize");
 
     private final JdbcClient jdbcClient;
     private final UserSessionService userSessions;
@@ -41,24 +47,11 @@ public final class AccountSessionValidationFilter extends OncePerRequestFilter {
             return;
         }
         if (!isCurrent(principal)) {
-            SecurityContextHolder.clearContext();
-            HttpSession session = request.getSession(false);
-            if (session != null) {
-                session.invalidate();
-            }
-            if (request.getRequestURI().startsWith("/api/")) {
-                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-                response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-                response.setCharacterEncoding(StandardCharsets.UTF_8.name());
-                response.setHeader("Cache-Control", "no-store");
-                response.getWriter().write("{\"code\":\"SESSION_EXPIRED\"}");
-            } else {
-                response.sendRedirect(request.getContextPath() + "/login?sessionExpired");
-            }
+            expireOrRestartAuthorization(request, response, filterChain);
             return;
         }
         if (!userSessions.validateOrRegister(principal, request)) {
-            expireSession(request, response);
+            expireOrRestartAuthorization(request, response, filterChain);
             return;
         }
         if (!isDeletionRestricted(principal.userId())
@@ -77,13 +70,21 @@ public final class AccountSessionValidationFilter extends OncePerRequestFilter {
         }
     }
 
-    private static void expireSession(
+    private static void expireOrRestartAuthorization(
             HttpServletRequest request,
-            HttpServletResponse response) throws IOException {
+            HttpServletResponse response,
+            FilterChain filterChain) throws IOException, ServletException {
         SecurityContextHolder.clearContext();
         HttpSession session = request.getSession(false);
         if (session != null) {
             session.invalidate();
+        }
+        if (AUTHORIZATION_REQUEST.matches(request)) {
+            // Continue anonymously: Spring validates client/redirect/scopes/PKCE before
+            // OidcPasswordAuthenticationFilter creates a NEW browser-bound login transaction.
+            // Never copy an old saved request/password challenge or cache an unvalidated URL here.
+            filterChain.doFilter(request, response);
+            return;
         }
         if (request.getRequestURI().startsWith("/api/")) {
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);

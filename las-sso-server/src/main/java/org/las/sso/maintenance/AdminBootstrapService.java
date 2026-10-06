@@ -6,6 +6,7 @@ import java.time.ZoneOffset;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
+import org.las.sso.access.ServiceAccessEligibilityService;
 import org.las.sso.account.PasswordPolicy;
 import org.las.sso.identity.UuidV7Generator;
 import org.las.sso.logout.BackChannelLogoutOutbox;
@@ -27,6 +28,7 @@ public class AdminBootstrapService {
     private final PasswordEncoder passwordEncoder;
     private final PasswordPolicy passwordPolicy;
     private final BackChannelLogoutOutbox backChannelLogout;
+    private final ServiceAccessEligibilityService serviceAccess;
     private final Clock clock;
 
     @Autowired
@@ -35,9 +37,10 @@ public class AdminBootstrapService {
             UuidV7Generator uuidGenerator,
             PasswordEncoder passwordEncoder,
             PasswordPolicy passwordPolicy,
-            BackChannelLogoutOutbox backChannelLogout) {
+            BackChannelLogoutOutbox backChannelLogout,
+            ServiceAccessEligibilityService serviceAccess) {
         this(jdbcClient, uuidGenerator, passwordEncoder, passwordPolicy,
-                backChannelLogout, Clock.systemUTC());
+                backChannelLogout, serviceAccess, Clock.systemUTC());
     }
 
     AdminBootstrapService(
@@ -46,12 +49,14 @@ public class AdminBootstrapService {
             PasswordEncoder passwordEncoder,
             PasswordPolicy passwordPolicy,
             BackChannelLogoutOutbox backChannelLogout,
+            ServiceAccessEligibilityService serviceAccess,
             Clock clock) {
         this.jdbcClient = jdbcClient;
         this.uuidGenerator = uuidGenerator;
         this.passwordEncoder = passwordEncoder;
         this.passwordPolicy = passwordPolicy;
         this.backChannelLogout = backChannelLogout;
+        this.serviceAccess = serviceAccess;
         this.clock = clock;
     }
 
@@ -93,12 +98,23 @@ public class AdminBootstrapService {
     @Transactional
     public BootstrapResult promoteExistingUser(UUID userId, String temporaryPassword) {
         acquireLockAndRequireNoAdmin();
+        jdbcClient.sql("SELECT id FROM users WHERE id = :userId AND account_status = 'ACTIVE' FOR UPDATE")
+                .param("userId", userId).query(UUID.class).optional()
+                .orElseThrow(() -> new AdminBootstrapException("USER_NOT_FOUND"));
+        // Deletion writers serialize on the same user first. Never promote then cancel its request later.
+        var effectiveDeletion = jdbcClient.sql("""
+                SELECT id FROM account_deletion_requests
+                 WHERE user_id = :userId AND status IN ('PENDING', 'HELD') FOR UPDATE
+                """).param("userId", userId).query(UUID.class).list();
+        if (!effectiveDeletion.isEmpty()) {
+            throw new AdminBootstrapException("DELETION_CANCELLATION_REQUIRED");
+        }
         String username = jdbcClient.sql("""
                 SELECT un.username
                   FROM users u
                   JOIN usernames un ON un.user_id = u.id AND un.valid_to IS NULL
                  WHERE u.id = :userId AND u.account_status = 'ACTIVE'
-                 FOR UPDATE OF u, un
+                  FOR UPDATE OF un
                 """).param("userId", userId).query(String.class).optional()
                 .orElseThrow(() -> new AdminBootstrapException("USER_NOT_FOUND"));
         passwordPolicy.validate(username, temporaryPassword);
@@ -120,6 +136,7 @@ public class AdminBootstrapService {
                  WHERE user_id = :userId
                 """).param("passwordHash", passwordEncoder.encode(temporaryPassword))
                 .param("now", now).param("expiresAt", expiresAt).param("userId", userId).update();
+        serviceAccess.advanceStateVersion(userId, now);
         revokeExistingSecurityState(userId, now);
         UUID auditId = insertAudit(userId, now, "ADMIN_BOOTSTRAP_PROMOTE");
         return new BootstrapResult(userId, username, expiresAt, auditId);
@@ -156,6 +173,14 @@ public class AdminBootstrapService {
         jdbcClient.sql("""
                 UPDATE recovery_codes SET revoked_at = :now
                  WHERE user_id = :userId AND revoked_at IS NULL
+                """).param("now", now).param("userId", userId).update();
+        jdbcClient.sql("""
+                UPDATE recovery_sessions SET consumed_at = :now
+                 WHERE user_id = :userId AND consumed_at IS NULL
+                """).param("now", now).param("userId", userId).update();
+        jdbcClient.sql("""
+                UPDATE admin_recovery_credentials SET revoked_at = :now
+                 WHERE target_user_id = :userId AND revoked_at IS NULL
                 """).param("now", now).param("userId", userId).update();
         jdbcClient.sql("""
                 UPDATE user_sessions

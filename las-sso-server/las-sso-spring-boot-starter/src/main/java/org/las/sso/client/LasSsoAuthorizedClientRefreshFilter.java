@@ -17,17 +17,11 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 public final class LasSsoAuthorizedClientRefreshFilter extends OncePerRequestFilter {
 
-    private static final String SESSION_EXPIRED_PROBLEM = """
-            {"type":"https://auth.las.example/problems/session-expired",\
-            "title":"登录会话已失效","status":401,"code":"SESSION_EXPIRED"}""";
-    private static final String SSO_UNAVAILABLE_PROBLEM = """
-            {"type":"https://auth.las.example/problems/sso-unavailable",\
-            "title":"身份中心暂时不可用","status":503,"code":"SSO_UNAVAILABLE"}""";
-
     private final LasSsoClientProperties properties;
     private final LasSsoAuthorizedClientRefresher refresher;
     private final OAuth2AuthorizedClientRepository authorizedClients;
     private final Clock clock;
+    private final LasSsoClientErrorHandler errors;
 
     public LasSsoAuthorizedClientRefreshFilter(
             LasSsoClientProperties properties,
@@ -36,15 +30,33 @@ public final class LasSsoAuthorizedClientRefreshFilter extends OncePerRequestFil
         this(properties, refresher, authorizedClients, Clock.systemUTC());
     }
 
+    public LasSsoAuthorizedClientRefreshFilter(
+            LasSsoClientProperties properties,
+            LasSsoAuthorizedClientRefresher refresher,
+            OAuth2AuthorizedClientRepository authorizedClients,
+            LasSsoClientErrorHandler errors) {
+        this(properties, refresher, authorizedClients, Clock.systemUTC(), errors);
+    }
+
     LasSsoAuthorizedClientRefreshFilter(
             LasSsoClientProperties properties,
             LasSsoAuthorizedClientRefresher refresher,
             OAuth2AuthorizedClientRepository authorizedClients,
             Clock clock) {
+        this(properties, refresher, authorizedClients, clock, new DefaultLasSsoClientErrorHandler());
+    }
+
+    private LasSsoAuthorizedClientRefreshFilter(
+            LasSsoClientProperties properties,
+            LasSsoAuthorizedClientRefresher refresher,
+            OAuth2AuthorizedClientRepository authorizedClients,
+            Clock clock,
+            LasSsoClientErrorHandler errors) {
         this.properties = properties;
         this.refresher = refresher;
         this.authorizedClients = authorizedClients;
         this.clock = clock;
+        this.errors = errors;
     }
 
     @Override
@@ -65,7 +77,7 @@ public final class LasSsoAuthorizedClientRefreshFilter extends OncePerRequestFil
                         .plus(properties.sessionAbsoluteLifetime())
                         .isAfter(clock.instant())) {
             expireLocalSession(oauth2, request, response);
-            writeExpiredResponse(request, response);
+            errors.handle(request, response, LasSsoClientErrorHandler.Failure.SESSION_EXPIRED);
             return;
         }
 
@@ -78,9 +90,9 @@ public final class LasSsoAuthorizedClientRefreshFilter extends OncePerRequestFil
         } catch (OAuth2AuthorizationException exception) {
             if (isTerminalAuthorizationFailure(exception)) {
                 expireLocalSession(oauth2, request, response);
-                writeExpiredResponse(request, response);
+                errors.handle(request, response, LasSsoClientErrorHandler.Failure.SESSION_EXPIRED);
             } else {
-                writeUnavailableResponse(response);
+                errors.handle(request, response, LasSsoClientErrorHandler.Failure.SSO_UNAVAILABLE);
             }
         }
     }
@@ -115,21 +127,6 @@ public final class LasSsoAuthorizedClientRefreshFilter extends OncePerRequestFil
         }
     }
 
-    private static void writeExpiredResponse(
-            HttpServletRequest request,
-            HttpServletResponse response) throws IOException {
-        String path = request.getRequestURI().substring(request.getContextPath().length());
-        if (path.startsWith("/api/")) {
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.setContentType("application/problem+json");
-            response.setCharacterEncoding("UTF-8");
-            response.setHeader("Cache-Control", "no-store");
-            response.getWriter().write(SESSION_EXPIRED_PROBLEM);
-            return;
-        }
-        response.sendRedirect(request.getContextPath() + "/api/auth/login");
-    }
-
     private static boolean isTerminalAuthorizationFailure(OAuth2AuthorizationException exception) {
         return switch (exception.getError().getErrorCode()) {
             case "invalid_grant", "invalid_token", "unauthorized_client", "authorized_client_missing",
@@ -150,11 +147,4 @@ public final class LasSsoAuthorizedClientRefreshFilter extends OncePerRequestFil
         }
     }
 
-    private static void writeUnavailableResponse(HttpServletResponse response) throws IOException {
-        response.setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
-        response.setContentType("application/problem+json");
-        response.setCharacterEncoding("UTF-8");
-        response.setHeader("Cache-Control", "no-store");
-        response.getWriter().write(SSO_UNAVAILABLE_PROBLEM);
-    }
 }

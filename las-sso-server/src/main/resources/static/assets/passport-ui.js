@@ -13,7 +13,7 @@
     });
   });
 
-  const loginForm = document.querySelector('form[action="/login"]');
+  const loginForm = document.querySelector('form[action="/login"], form[data-password-verification]');
   loginForm?.addEventListener("submit", () => {
     const button = loginForm.querySelector('button[type="submit"]');
     if (button) {

@@ -3,9 +3,12 @@ package org.las.sso.client;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doAnswer;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
@@ -66,5 +69,47 @@ class LasSsoCurrentApplicationLogoutHandlerTest {
         verify(revocations).enqueue(registration, "refresh-a", "refresh_token");
         verify(authorizedClients).removeAuthorizedClient(
                 "las-sso", authentication, request, response);
+    }
+
+    @Test
+    void customRevocationSinkReceivesWorkAfterLocalAuthorizationRemoval() {
+        var registration = ClientRegistration.withRegistrationId("las-sso")
+                .clientId("client-a")
+                .clientSecret("secret-a")
+                .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
+                .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
+                .redirectUri("https://client.example/callback")
+                .authorizationUri("https://sso.example/oauth2/authorize")
+                .tokenUri("https://sso.example/oauth2/token")
+                .jwkSetUri("https://sso.example/oauth2/jwks")
+                .providerConfigurationMetadata(java.util.Map.of(
+                        "revocation_endpoint", "https://sso.example/oauth2/revoke"))
+                .build();
+        var registrations = mock(ClientRegistrationRepository.class);
+        var authorizedClients = mock(OAuth2AuthorizedClientRepository.class);
+        var order = new ArrayList<String>();
+        LasSsoRevocationTaskSink sink = (ignored, token, hint) -> order.add("remote:" + token);
+        var authentication = UsernamePasswordAuthenticationToken.authenticated(
+                "user-a", "n/a", java.util.List.of());
+        var request = new MockHttpServletRequest();
+        var response = new MockHttpServletResponse();
+        doAnswer(invocation -> {
+            order.add("local:removed");
+            return null;
+        }).when(authorizedClients).removeAuthorizedClient("las-sso", authentication, request, response);
+        var accessToken = new OAuth2AccessToken(
+                OAuth2AccessToken.TokenType.BEARER, "access-a", Instant.now(), Instant.now().plusSeconds(900));
+        var refreshToken = new OAuth2RefreshToken(
+                "refresh-a", Instant.now(), Instant.now().plusSeconds(3600));
+        when(registrations.findByRegistrationId("las-sso")).thenReturn(registration);
+        when(authorizedClients.loadAuthorizedClient("las-sso", authentication, request))
+                .thenReturn(new OAuth2AuthorizedClient(registration, authentication.getName(), accessToken, refreshToken));
+        var handler = new LasSsoCurrentApplicationLogoutHandler(
+                registrations, authorizedClients, new LasSsoClientProperties("las-sso", Duration.ofSeconds(60)), sink);
+
+        handler.logout(request, response, authentication);
+
+        verify(authorizedClients).removeAuthorizedClient("las-sso", authentication, request, response);
+        assertThat(order).containsExactly("local:removed", "remote:refresh-a");
     }
 }

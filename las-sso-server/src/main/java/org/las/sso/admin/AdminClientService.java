@@ -245,7 +245,7 @@ public class AdminClientService {
             String reason,
             UUID requestId) {
         OffsetDateTime now = now();
-        RegisteredClient current = requireClient(clientId);
+        RegisteredClient current = requireClientForMutation(clientId);
         String currentType = clientType(clientId);
         boolean partner = "REVIEWED_PARTNER".equals(currentType);
 
@@ -353,7 +353,7 @@ public class AdminClientService {
     public long disable(
             String clientId, UUID actorUserId, String actorSid, String reason, UUID requestId) {
         OffsetDateTime now = now();
-        RegisteredClient client = requireClient(clientId);
+        RegisteredClient client = requireClientForMutation(clientId);
         jdbcClient.sql("""
                 UPDATE registered_client_metadata
                    SET status = 'DISABLED', config_version = config_version + 1, updated_at = :now
@@ -385,7 +385,7 @@ public class AdminClientService {
     public RotationResult rotateSecret(
             String clientId, UUID actorUserId, String actorSid, String reason, UUID requestId) {
         OffsetDateTime now = now();
-        RegisteredClient client = requireClient(clientId);
+        RegisteredClient client = requireClientForMutation(clientId);
         String plainSecret = generateClientSecret();
         RegisteredClient rotated = RegisteredClient.from(client)
                 .clientSecret(passwordEncoder.encode(plainSecret))
@@ -429,6 +429,27 @@ public class AdminClientService {
         RegisteredClient client = registeredClients.findByClientId(clientId);
         if (client == null) {
             throw new AdminClientException("CLIENT_NOT_FOUND");
+        }
+        return client;
+    }
+
+    private RegisteredClient requireClientForMutation(String clientId) {
+        String registeredClientId = jdbcClient.sql("""
+                SELECT registered_client_id
+                  FROM registered_client_metadata m
+                  JOIN oauth2_registered_client rc ON rc.id = m.registered_client_id
+                 WHERE rc.client_id = :clientId
+                 FOR UPDATE OF m
+                """).param("clientId", clientId)
+                .query(String.class).optional()
+                .orElseThrow(() -> new AdminClientException("CLIENT_NOT_FOUND"));
+        return requireClientAfterLock(clientId, registeredClientId);
+    }
+
+    private RegisteredClient requireClientAfterLock(String clientId, String registeredClientId) {
+        RegisteredClient client = requireClient(clientId);
+        if (!registeredClientId.equals(client.getId())) {
+            throw new AdminClientException("CLIENT_STATE_CONFLICT");
         }
         return client;
     }

@@ -11,6 +11,8 @@ import org.springframework.security.oauth2.client.authentication.OAuth2Authentic
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
+import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.web.util.UriComponentsBuilder;
 
 @RestController
 public class LasSsoSessionController {
@@ -22,10 +24,18 @@ public class LasSsoSessionController {
     }
 
     @GetMapping("/api/auth/login")
-    ResponseEntity<Void> login() {
-        return ResponseEntity.status(HttpStatus.FOUND)
-                .location(URI.create("/oauth2/authorization/" + properties.registrationId()))
-                .build();
+    ResponseEntity<Void> login(HttpServletRequest request) {
+        try {
+            String target = LasSsoReturnTo.parameter(request);
+            var location = UriComponentsBuilder.fromPath(request.getContextPath()
+                    + "/oauth2/authorization/" + properties.registrationId());
+            if (target != null) location.queryParam("returnTo", "{target}");
+            URI uri = target == null ? location.build().toUri()
+                    : location.encode().buildAndExpand(target).toUri();
+            return ResponseEntity.status(HttpStatus.FOUND).location(uri).cacheControl(CacheControl.noStore()).build();
+        } catch (IllegalArgumentException exception) {
+            return ResponseEntity.badRequest().cacheControl(CacheControl.noStore()).build();
+        }
     }
 
     @GetMapping("/api/auth/session")

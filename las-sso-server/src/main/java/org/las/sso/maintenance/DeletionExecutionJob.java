@@ -3,9 +3,8 @@ package org.las.sso.maintenance;
 import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
-import java.util.List;
-import java.util.UUID;
 
+import org.las.sso.access.ServiceAccessEligibilityService;
 import org.las.sso.account.DeletionRequestService;
 import org.las.sso.identity.UuidV7Generator;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,7 +26,6 @@ public class DeletionExecutionJob {
 
     private final JdbcClient jdbcClient;
     private final DeletionRequestService deletions;
-    private final UuidV7Generator uuidGenerator;
     private final Clock clock;
     private final TransactionTemplate transactions;
 
@@ -35,21 +33,22 @@ public class DeletionExecutionJob {
     public DeletionExecutionJob(
             JdbcClient jdbcClient,
             DeletionRequestService deletions,
+            ServiceAccessEligibilityService serviceAccess,
             UuidV7Generator uuidGenerator,
             PlatformTransactionManager transactionManager) {
-        this(jdbcClient, deletions, uuidGenerator, Clock.systemUTC(),
+        this(jdbcClient, deletions, serviceAccess, uuidGenerator, Clock.systemUTC(),
                 new TransactionTemplate(transactionManager));
     }
 
     DeletionExecutionJob(
             JdbcClient jdbcClient,
             DeletionRequestService deletions,
+            ServiceAccessEligibilityService serviceAccess,
             UuidV7Generator uuidGenerator,
             Clock clock,
             TransactionTemplate transactions) {
         this.jdbcClient = jdbcClient;
         this.deletions = deletions;
-        this.uuidGenerator = uuidGenerator;
         this.clock = clock;
         this.transactions = transactions;
     }
@@ -74,50 +73,12 @@ public class DeletionExecutionJob {
         if (!lockAcquired) {
             return 0;
         }
-        OffsetDateTime now = OffsetDateTime.ofInstant(clock.instant(), ZoneOffset.UTC);
-        int released = releaseExpiredHoldsWithinTransaction(now);
-        int executed = deletions.executeDue(BATCH_SIZE);
-        return released + executed;
+        return deletions.processDueBatch(OffsetDateTime.ofInstant(clock.instant(), ZoneOffset.UTC), BATCH_SIZE);
     }
 
     public int releaseExpiredHolds(OffsetDateTime now) {
-        Integer result = transactions.execute(status -> releaseExpiredHoldsWithinTransaction(now));
+        Integer result = transactions.execute(status -> deletions.releaseExpiredHolds(now, BATCH_SIZE));
         return result == null ? 0 : result;
     }
 
-    private int releaseExpiredHoldsWithinTransaction(OffsetDateTime now) {
-        List<UUID> expired = jdbcClient.sql("""
-                WITH selected AS (
-                    SELECT id
-                      FROM account_deletion_requests
-                     WHERE status = 'HELD'
-                       AND hold_until IS NOT NULL
-                       AND hold_until < :now
-                     ORDER BY hold_until, id
-                     LIMIT :limit
-                     FOR UPDATE SKIP LOCKED
-                )
-                UPDATE account_deletion_requests request
-                   SET status = 'PENDING', hold_until = NULL,
-                       held_by_user_id = NULL, hold_reason = NULL,
-                       hold_public_summary = NULL
-                  FROM selected
-                 WHERE request.id = selected.id
-                RETURNING request.user_id
-                """).param("now", now).param("limit", BATCH_SIZE)
-                .query(UUID.class).list();
-        if (expired.isEmpty()) {
-            return 0;
-        }
-        for (UUID userId : expired) {
-            jdbcClient.sql("""
-                    INSERT INTO security_events
-                        (id, occurred_at, user_id, event_type, severity, request_id, details_json)
-                    VALUES (:id, :now, :userId, 'DELETION_HOLD_EXPIRED',
-                            'INFO', :requestId, '{}'::jsonb)
-                    """).param("id", uuidGenerator.generate()).param("now", now)
-                    .param("userId", userId).param("requestId", uuidGenerator.generate()).update();
-        }
-        return expired.size();
-    }
 }

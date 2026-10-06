@@ -1,0 +1,29 @@
+# Explicit TLS-proxy example: all identity settings come from the chosen environment.
+# Upstream HTTP must be private; the edge replaces forwarding headers (see deploy/nginx).
+server:
+  forward-headers-strategy: framework
+  servlet:
+    session:
+      cookie:
+        name: __Host-las_reference
+        secure: true
+        http-only: true
+        same-site: lax
+        path: /
+
+spring:
+  security:
+    oauth2:
+      client:
+        registration:
+          las-sso:
+            client-id: ${LAS_SSO_CLIENT_ID}
+            client-secret: ${LAS_SSO_CLIENT_SECRET}
+        provider:
+          las-sso:
+            issuer-uri: ${LAS_SSO_ISSUER}
+
+las:
+  sso:
+    client:
+      session-cookie-name: __Host-las_reference

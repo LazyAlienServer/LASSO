@@ -3,6 +3,7 @@ package org.las.sso.security;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Optional;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
@@ -51,12 +52,16 @@ public final class RecentAuthenticationService {
     }
 
     public boolean isRecent(HttpServletRequest request) {
+        return passwordAuthenticatedAt(request)
+                .filter(at -> at.plus(FRESHNESS).isAfter(clock.instant())).isPresent();
+    }
+
+    public Optional<Instant> passwordAuthenticatedAt(HttpServletRequest request) {
         HttpSession session = request.getSession(false);
         if (session == null || !(session.getAttribute(SESSION_ATTRIBUTE) instanceof Instant authenticatedAt)) {
-            return false;
+            return Optional.empty();
         }
-        Instant now = clock.instant();
-        return !authenticatedAt.isAfter(now) && authenticatedAt.plus(FRESHNESS).isAfter(now);
+        return authenticatedAt.isAfter(clock.instant()) ? Optional.empty() : Optional.of(authenticatedAt);
     }
 
     public void reauthenticate(
@@ -74,6 +79,7 @@ public final class RecentAuthenticationService {
         }
         if (!current.userId().equals(principal.userId())
                 || !current.isEnabled()
+                || current.credentialsVersion() != principal.credentialsVersion()
                 || current.passwordChangeRequired()
                 || password == null
                 || !passwordEncoder.matches(password, current.getPassword())) {

@@ -297,15 +297,16 @@ class DeletionRequestServiceTest {
     }
 
     @Test
-    void executionSkipsRequestWhenUserBecameAdministrator() {
+    void executionProtectsAdministratorInLegacyInconsistentDeletionState() {
         var account = registrationService.register(
                 "DelPromotedUser", "Del Promoted User", "del promoted passphrase");
         deletions.request(account.userId(), UUID.randomUUID());
         backdateExecution(account.userId());
         jdbcClient.sql("UPDATE users SET is_sso_admin = false WHERE is_sso_admin = true")
                 .update();
-        adminBootstrapService.promoteExistingUser(account.userId(),
-                "temporary admin passphrase");
+        // Historical/corrupt state fixture only: supported promotion now rejects an effective request (S4).
+        jdbcClient.sql("UPDATE users SET is_sso_admin = true WHERE id = :userId")
+                .param("userId", account.userId()).update();
 
         deletions.executeDue(100);
         assertThat(jdbcClient.sql("""

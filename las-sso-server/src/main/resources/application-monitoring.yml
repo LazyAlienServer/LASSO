@@ -1,0 +1,15 @@
+management:
+  server:
+    port: ${LAS_SSO_MONITORING_PORT:9091}
+    address: ${LAS_SSO_MONITORING_ADDRESS:127.0.0.1}
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+
+las:
+  sso:
+    monitoring:
+      enabled: true
+      password-hash: ${LAS_SSO_MONITORING_PASSWORD_HASH:}
+      snapshot-interval: PT15S

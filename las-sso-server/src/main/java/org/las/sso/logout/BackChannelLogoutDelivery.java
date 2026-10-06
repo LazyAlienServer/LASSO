@@ -1,5 +1,7 @@
 package org.las.sso.logout;
 
+import java.io.IOException;
+import java.net.HttpURLConnection;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -31,18 +33,27 @@ public class BackChannelLogoutDelivery {
     private final TransactionTemplate transactions;
     private final RestClient restClient;
     private final LogoutTokenIssuer tokenIssuer;
+    private final org.las.sso.observability.SsoMetrics metrics;
 
     public BackChannelLogoutDelivery(
             JdbcClient jdbcClient,
             TransactionTemplate transactions,
-            LogoutTokenIssuer tokenIssuer) {
+            LogoutTokenIssuer tokenIssuer,
+            org.las.sso.observability.SsoMetrics metrics) {
         this.jdbcClient = jdbcClient;
         this.transactions = transactions;
-        var requestFactory = new SimpleClientHttpRequestFactory();
+        var requestFactory = new SimpleClientHttpRequestFactory() {
+            @Override
+            protected void prepareConnection(HttpURLConnection connection, String method) throws IOException {
+                super.prepareConnection(connection, method);
+                connection.setInstanceFollowRedirects(false);
+            }
+        };
         requestFactory.setConnectTimeout(Duration.ofSeconds(3));
         requestFactory.setReadTimeout(Duration.ofSeconds(5));
         this.restClient = RestClient.builder().requestFactory(requestFactory).build();
         this.tokenIssuer = tokenIssuer;
+        this.metrics = metrics;
     }
 
     @Scheduled(initialDelayString = "PT5S", fixedDelayString = "PT5S")
@@ -58,7 +69,8 @@ public class BackChannelLogoutDelivery {
                     Thread.currentThread().interrupt();
                     return;
                 } catch (java.util.concurrent.ExecutionException exception) {
-                    LOGGER.error("Unexpected back-channel delivery worker failure", exception.getCause());
+                    LOGGER.error("Unexpected back-channel delivery worker failure: failureType={}",
+                            exception.getCause().getClass().getSimpleName());
                 }
             }
         }
@@ -78,8 +90,13 @@ public class BackChannelLogoutDelivery {
                     .uri(event.uri())
                     .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                     .body(form)
-                    .retrieve()
-                    .toBodilessEntity();
+                    .exchange((request, response) -> {
+                        int status = response.getStatusCode().value();
+                        if (status != 200 && status != 204) {
+                            throw new DeliveryResponseException(status);
+                        }
+                        return null;
+                    });
             complete(event);
         } catch (RuntimeException exception) {
             retry(event, exception);
@@ -132,29 +149,33 @@ public class BackChannelLogoutDelivery {
     }
 
     private void complete(ClaimedEvent event) {
-        jdbcClient.sql("""
+        int updated = jdbcClient.sql("""
                 UPDATE outbox_events
                    SET processed_at = :now, claim_token = NULL, claimed_at = NULL,
                        last_error_code = NULL
                  WHERE id = :id AND claim_token = :claimToken AND processed_at IS NULL
                 """).param("now", now()).param("id", event.id())
                 .param("claimToken", event.claimToken()).update();
+        if (updated == 1 && "BACKCHANNEL_LOGOUT_REQUESTED".equals(event.eventType())) {
+            metrics.delivery(org.las.sso.observability.SsoMetrics.DeliveryResult.SUCCESS);
+        }
     }
 
     private void retry(ClaimedEvent event, RuntimeException exception) {
         int nextAttempt = event.attemptCount() + 1;
-        String errorCode = exception.getClass().getSimpleName();
+        String errorCode = exception instanceof DeliveryResponseException rejected
+                ? "HTTP_" + rejected.status : exception.getClass().getSimpleName();
         if (errorCode.length() > 128) {
             errorCode = errorCode.substring(0, 128);
         }
         OffsetDateTime now = now();
         if (nextAttempt >= MAX_ATTEMPTS) {
-            deadLetter(event, nextAttempt, errorCode, now, exception);
+            deadLetter(event, nextAttempt, errorCode, now);
             return;
         }
         long delayCapSeconds = Math.min(300L, 1L << Math.min(nextAttempt, 8));
         long delaySeconds = ThreadLocalRandom.current().nextLong(1L, delayCapSeconds + 1L);
-        jdbcClient.sql("""
+        int updated = jdbcClient.sql("""
                 UPDATE outbox_events
                    SET attempt_count = :attemptCount,
                        available_at = :availableAt,
@@ -167,15 +188,15 @@ public class BackChannelLogoutDelivery {
                 .param("errorCode", errorCode)
                 .param("id", event.id())
                 .param("claimToken", event.claimToken()).update();
+        if (updated == 1) metrics.delivery(org.las.sso.observability.SsoMetrics.DeliveryResult.RETRY);
     }
 
     private void deadLetter(
             ClaimedEvent event,
             int attemptCount,
             String errorCode,
-            OffsetDateTime now,
-            RuntimeException exception) {
-        jdbcClient.sql("""
+            OffsetDateTime now) {
+        int updated = jdbcClient.sql("""
                 UPDATE outbox_events
                    SET attempt_count = :attemptCount,
                        dead_lettered_at = :now,
@@ -189,13 +210,24 @@ public class BackChannelLogoutDelivery {
                 .param("errorCode", errorCode)
                 .param("id", event.id())
                 .param("claimToken", event.claimToken()).update();
+        if (updated == 1) metrics.delivery(org.las.sso.observability.SsoMetrics.DeliveryResult.DEAD);
         LOGGER.error(
-                "Back-channel logout delivery exhausted retries: eventId={}, clientId={}",
-                event.id(), event.clientId(), exception);
+                "Back-channel logout delivery exhausted retries: eventId={}, clientId={}, errorCode={}",
+                event.id(), event.clientId(), errorCode);
     }
 
     private static OffsetDateTime now() {
         return OffsetDateTime.now(ZoneOffset.UTC);
+    }
+
+    /** Only the status is retained; response bodies and transport exception text may contain secrets. */
+    private static final class DeliveryResponseException extends RuntimeException {
+        private final int status;
+
+        private DeliveryResponseException(int status) {
+            super("Back-channel endpoint did not acknowledge delivery");
+            this.status = status;
+        }
     }
 
     private record ClaimedEvent(

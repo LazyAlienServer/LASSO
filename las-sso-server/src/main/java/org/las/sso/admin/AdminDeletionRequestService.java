@@ -7,6 +7,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 
+import org.las.sso.access.ServiceAccessEligibilityService;
 import org.las.sso.identity.UuidV7Generator;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -21,21 +22,25 @@ public class AdminDeletionRequestService {
 
     private final JdbcClient jdbcClient;
     private final UuidV7Generator uuidGenerator;
+    private final ServiceAccessEligibilityService serviceAccess;
     private final Clock clock;
 
     @Autowired
     public AdminDeletionRequestService(
             JdbcClient jdbcClient,
-            UuidV7Generator uuidGenerator) {
-        this(jdbcClient, uuidGenerator, Clock.systemUTC());
+            UuidV7Generator uuidGenerator,
+            ServiceAccessEligibilityService serviceAccess) {
+        this(jdbcClient, uuidGenerator, serviceAccess, Clock.systemUTC());
     }
 
     AdminDeletionRequestService(
             JdbcClient jdbcClient,
             UuidV7Generator uuidGenerator,
+            ServiceAccessEligibilityService serviceAccess,
             Clock clock) {
         this.jdbcClient = jdbcClient;
         this.uuidGenerator = uuidGenerator;
+        this.serviceAccess = serviceAccess;
         this.clock = clock;
     }
 
@@ -99,25 +104,32 @@ public class AdminDeletionRequestService {
         if (holdUntil.isAfter(now().plus(HOLD_MAX))) {
             throw new AdminUserManagementException("INVALID_HOLD_UNTIL");
         }
+        UUID userId = lockUserId(requestId);
+        OffsetDateTime now = now();
+        // Lock waits may outlive the initial deadline validation.
+        if (holdUntil.isBefore(now) || holdUntil.isAfter(now.plus(HOLD_MAX))) {
+            throw new AdminUserManagementException("INVALID_HOLD_UNTIL");
+        }
         int updated = jdbcClient.sql("""
                 UPDATE account_deletion_requests
                    SET status = 'HELD', hold_until = :holdUntil,
                        held_by_user_id = :actorUserId, hold_reason = :reason,
                        hold_public_summary = :publicSummary
-                 WHERE id = :requestId
-                   AND status = 'PENDING'
+                  WHERE id = :requestId
+                    AND user_id = :userId
+                    AND status = 'PENDING'
                 """).param("holdUntil", holdUntil)
                 .param("actorUserId", actorUserId)
                 .param("reason", reason)
                 .param("publicSummary", publicSummary)
-                .param("requestId", requestId).update();
+                .param("requestId", requestId).param("userId", userId).update();
         if (updated == 0) {
             throw new AdminUserManagementException("ACCOUNT_STATE_CONFLICT");
         }
-        UUID userId = userIdOf(requestId);
-        securityEvent(userId, "DELETION_HELD_BY_ADMIN", "HIGH", requestRequestId, now());
+        serviceAccess.advanceStateVersion(userId, now);
+        securityEvent(userId, "DELETION_HELD_BY_ADMIN", "HIGH", requestRequestId, now);
         insertAudit(actorUserId, actorSid, userId, "ADMIN_DELETION_HOLD",
-                reason, requestRequestId, now());
+                reason, requestRequestId, now);
     }
 
     @Transactional
@@ -127,28 +139,40 @@ public class AdminDeletionRequestService {
             UUID requestId,
             String reason,
             UUID requestRequestId) {
+        UUID userId = lockUserId(requestId);
+        OffsetDateTime now = now();
         int updated = jdbcClient.sql("""
                 UPDATE account_deletion_requests
                    SET status = 'PENDING', hold_until = NULL,
                        held_by_user_id = NULL, hold_reason = NULL,
                        hold_public_summary = NULL
-                 WHERE id = :requestId
-                   AND status = 'HELD'
-                """).param("requestId", requestId).update();
+                  WHERE id = :requestId
+                    AND user_id = :userId
+                    AND status = 'HELD'
+                """).param("requestId", requestId).param("userId", userId).update();
         if (updated == 0) {
             throw new AdminUserManagementException("ACCOUNT_STATE_CONFLICT");
         }
-        UUID userId = userIdOf(requestId);
-        securityEvent(userId, "DELETION_RELEASED_BY_ADMIN", "INFO", requestRequestId, now());
+        serviceAccess.advanceStateVersion(userId, now);
+        securityEvent(userId, "DELETION_RELEASED_BY_ADMIN", "INFO", requestRequestId, now);
         insertAudit(actorUserId, actorSid, userId, "ADMIN_DELETION_RELEASE",
-                reason, requestRequestId, now());
+                reason, requestRequestId, now);
     }
 
-    private UUID userIdOf(UUID requestId) {
-        return jdbcClient.sql("""
+    private UUID lockUserId(UUID requestId) {
+        UUID candidate = jdbcClient.sql("""
                 SELECT user_id FROM account_deletion_requests WHERE id = :requestId
                 """).param("requestId", requestId)
                 .query(UUID.class).optional()
+                .orElseThrow(() -> new AdminUserManagementException("ADMIN_TARGET_NOT_FOUND"));
+        jdbcClient.sql("SELECT id FROM users WHERE id = :id FOR UPDATE")
+                .param("id", candidate).query(UUID.class).optional()
+                .orElseThrow(() -> new AdminUserManagementException("ADMIN_TARGET_NOT_FOUND"));
+        // Candidate lookup was not authorization or a lock; recheck ownership after user serialization.
+        return jdbcClient.sql("""
+                SELECT user_id FROM account_deletion_requests
+                 WHERE id = :requestId AND user_id = :userId FOR UPDATE
+                """).param("requestId", requestId).param("userId", candidate).query(UUID.class).optional()
                 .orElseThrow(() -> new AdminUserManagementException("ADMIN_TARGET_NOT_FOUND"));
     }
 

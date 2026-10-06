@@ -32,16 +32,19 @@ public class RegistrationController {
     private final RegistrationApplicationService registrations;
     private final ClientNetworkKey clientNetworkKey;
     private final SameOriginVerifier sameOriginVerifier;
+    private final org.las.sso.observability.SsoMetrics metrics;
 
     public RegistrationController(
             AltchaChallengeService captcha,
             RegistrationApplicationService registrations,
             ClientNetworkKey clientNetworkKey,
-            SameOriginVerifier sameOriginVerifier) {
+            SameOriginVerifier sameOriginVerifier,
+            org.las.sso.observability.SsoMetrics metrics) {
         this.captcha = captcha;
         this.registrations = registrations;
         this.clientNetworkKey = clientNetworkKey;
         this.sameOriginVerifier = sameOriginVerifier;
+        this.metrics = metrics;
     }
 
     @GetMapping("/csrf")
@@ -75,6 +78,7 @@ public class RegistrationController {
                 body.captcha().challengeId(),
                 body.captcha().payload(),
                 clientNetworkKey.fromRemoteAddress(request.getRemoteAddr()));
+        if (!result.idempotentReplay()) metrics.committedRegistrationSuccess();
         var response = new RegistrationResponse(
                 new RegisteredUser(result.userId(), result.username(), result.displayName()),
                 result.recoveryCodes(),

@@ -9,40 +9,55 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.las.sso.identity.LasUserPrincipal;
 import org.las.sso.identity.UuidV7Generator;
 import org.las.sso.session.UserSessionService;
+import org.las.sso.security.RecentAuthenticationService;
+import org.las.sso.security.TransientSecurityKeyHasher;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.server.authorization.OAuth2Authorization;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
 import org.springframework.security.oauth2.server.authorization.OAuth2TokenType;
+import org.springframework.security.oauth2.core.oidc.OidcIdToken;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 public final class SecurityAwareAuthorizationService implements OAuth2AuthorizationService {
 
+    private static final OAuth2TokenType ID_TOKEN_TYPE = new OAuth2TokenType("id_token");
+
+    public static final String PASSWORD_AUTH_TIME_ATTRIBUTE =
+            SecurityAwareAuthorizationService.class.getName() + ".PASSWORD_AUTH_TIME";
+
     private final OAuth2AuthorizationService delegate;
     private final JdbcClient jdbcClient;
     private final UserSessionService sessions;
+    private final RecentAuthenticationService recentAuthentication;
     private final UuidV7Generator uuidGenerator;
     private final RefreshTokenFamilyService tokenFamilies;
     private final org.springframework.transaction.support.TransactionOperations transactions;
+    private final TransientSecurityKeyHasher keyHasher;
 
     public SecurityAwareAuthorizationService(
             OAuth2AuthorizationService delegate,
             JdbcClient jdbcClient,
             UserSessionService sessions,
+            RecentAuthenticationService recentAuthentication,
             UuidV7Generator uuidGenerator,
             RefreshTokenFamilyService tokenFamilies,
-            org.springframework.transaction.support.TransactionOperations transactions) {
+            org.springframework.transaction.support.TransactionOperations transactions,
+            TransientSecurityKeyHasher keyHasher) {
         this.delegate = delegate;
         this.jdbcClient = jdbcClient;
         this.sessions = sessions;
+        this.recentAuthentication = recentAuthentication;
         this.uuidGenerator = uuidGenerator;
         this.tokenFamilies = tokenFamilies;
         this.transactions = transactions;
+        this.keyHasher = keyHasher;
     }
 
     @Override
     public void save(OAuth2Authorization authorization) {
+        OAuth2Authorization withEvidence = capturePasswordEvidence(authorization);
         transactions.executeWithoutResult(status -> {
             String clientStatus = jdbcClient.sql("""
                     SELECT status::text FROM registered_client_metadata
@@ -57,10 +72,35 @@ public final class SecurityAwareAuthorizationService implements OAuth2Authorizat
                                 null),
                         "Client is disabled");
             }
-            delegate.save(authorization);
-            persistSecurityMetadata(authorization);
-            tokenFamilies.recordCurrent(authorization);
+            // Preserve the currently stored hint before refresh replaces it, including pre-V15 authorizations.
+            OAuth2Authorization previous = delegate.findById(withEvidence.getId());
+            if (previous != null) persistIdTokenHint(previous);
+            delegate.save(withEvidence);
+            persistSecurityMetadata(withEvidence);
+            tokenFamilies.recordCurrent(withEvidence);
+            persistIdTokenHint(withEvidence);
         });
+    }
+
+    private OAuth2Authorization capturePasswordEvidence(OAuth2Authorization authorization) {
+        // Only the initial browser authorization may snapshot evidence. Never consult a
+        // live session at code exchange/refresh or retroactively upgrade old authorizations.
+        if (authorization.getAttribute(PASSWORD_AUTH_TIME_ATTRIBUTE) != null
+                || delegate.findById(authorization.getId()) != null
+                || !(RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attributes)
+                || !(authorization.getAttribute(Principal.class.getName()) instanceof Authentication authentication)
+                || !(authentication.getPrincipal() instanceof LasUserPrincipal principal)
+                || !principal.getName().equals(authorization.getPrincipalName())) {
+            return authorization;
+        }
+        var current = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        if (current == null || !current.isAuthenticated() || !principal.getName().equals(current.getName())) {
+            return authorization;
+        }
+        return recentAuthentication.passwordAuthenticatedAt(attributes.getRequest())
+                .map(at -> OAuth2Authorization.from(authorization)
+                        .attribute(PASSWORD_AUTH_TIME_ATTRIBUTE, at.getEpochSecond()).build())
+                .orElse(authorization);
     }
 
     @Override
@@ -75,7 +115,31 @@ public final class SecurityAwareAuthorizationService implements OAuth2Authorizat
 
     @Override
     public OAuth2Authorization findByToken(String token, OAuth2TokenType tokenType) {
-        return delegate.findByToken(token, tokenType);
+        OAuth2Authorization authorization = delegate.findByToken(token, tokenType);
+        // Only the logout provider requests this type. Never broaden Bearer, code or refresh lookup.
+        if (authorization != null || !ID_TOKEN_TYPE.equals(tokenType)) {
+            return authorization;
+        }
+        String authorizationId = jdbcClient.sql("""
+                SELECT authorization_id
+                  FROM oauth2_id_token_hint_history
+                 WHERE token_hash = :tokenHash
+                """).param("tokenHash", keyHasher.hash("oidc-id-token-hint", token))
+                .query(String.class).optional().orElse(null);
+        return authorizationId == null ? null : delegate.findById(authorizationId);
+    }
+
+    private void persistIdTokenHint(OAuth2Authorization authorization) {
+        OAuth2Authorization.Token<OidcIdToken> idToken = authorization.getToken(OidcIdToken.class);
+        if (idToken == null || idToken.getToken().getTokenValue() == null) {
+            return;
+        }
+        jdbcClient.sql("""
+                INSERT INTO oauth2_id_token_hint_history(token_hash, authorization_id, created_at)
+                VALUES (:tokenHash, :authorizationId, CURRENT_TIMESTAMP)
+                ON CONFLICT (token_hash) DO NOTHING
+                """).param("tokenHash", keyHasher.hash("oidc-id-token-hint", idToken.getToken().getTokenValue()))
+                .param("authorizationId", authorization.getId()).update();
     }
 
     private void persistSecurityMetadata(OAuth2Authorization authorization) {

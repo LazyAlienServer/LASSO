@@ -186,6 +186,58 @@ class LasSsoAuthorizedClientRefreshFilterTest {
         assertThat(response.getContentAsString()).contains("SSO_UNAVAILABLE");
     }
 
+    @Test
+    void customErrorHandlerRunsAfterTerminalCleanup() throws Exception {
+        var repository = mock(OAuth2AuthorizedClientRepository.class);
+        var session = new MockHttpSession();
+        var authentication = authentication();
+        var request = new MockHttpServletRequest("GET", "/api/private-data");
+        request.setSession(session);
+        SecurityContextHolder.getContext().setAuthentication(authentication);
+        var filter = new LasSsoAuthorizedClientRefreshFilter(new LasSsoClientProperties("las-sso", null),
+                (principal, req, res) -> { throw new OAuth2AuthorizationException(new OAuth2Error("invalid_grant")); },
+                repository, (req, res, failure) -> {
+                    assertThat(failure).isEqualTo(LasSsoClientErrorHandler.Failure.SESSION_EXPIRED);
+                    assertThat(session.isInvalid()).isTrue();
+                    assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+                    verify(repository).removeAuthorizedClient("las-sso", authentication, request, res);
+                    res.setStatus(401);
+                    res.setHeader("X-Application-Error", "expired");
+                });
+        var response = new MockHttpServletResponse();
+        var chain = new MockFilterChain();
+
+        filter.doFilter(request, response, chain);
+
+        assertThat(response.getHeader("X-Application-Error")).isEqualTo("expired");
+        assertThat(chain.getRequest()).isNull();
+    }
+
+    @Test
+    void customErrorHandlerForTemporaryFailurePreservesSessionAndStopsProtectedRequest() throws Exception {
+        var repository = mock(OAuth2AuthorizedClientRepository.class);
+        var filter = new LasSsoAuthorizedClientRefreshFilter(new LasSsoClientProperties("las-sso", null),
+                (principal, req, res) -> { throw new OAuth2AuthorizationException(new OAuth2Error("server_error")); },
+                repository, (req, res, failure) -> {
+                    assertThat(failure).isEqualTo(LasSsoClientErrorHandler.Failure.SSO_UNAVAILABLE);
+                    res.setStatus(503);
+                    res.setHeader("X-Application-Error", "unavailable");
+                });
+        var request = new MockHttpServletRequest("GET", "/api/private-data");
+        var session = new MockHttpSession();
+        request.setSession(session);
+        SecurityContextHolder.getContext().setAuthentication(authentication());
+        var response = new MockHttpServletResponse();
+        var chain = new MockFilterChain();
+
+        filter.doFilter(request, response, chain);
+
+        assertThat(chain.getRequest()).isNull();
+        assertThat(response.getHeader("X-Application-Error")).isEqualTo("unavailable");
+        assertThat(session.isInvalid()).isFalse();
+        verifyNoInteractions(repository);
+    }
+
     private static OAuth2AuthenticationToken authentication() {
         Instant now = Instant.now();
         var idToken = new OidcIdToken("server-side-only", now, now.plusSeconds(600), Map.of(

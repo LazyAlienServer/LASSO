@@ -11,6 +11,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -82,6 +83,38 @@ class SingleFlightLasSsoAuthorizedClientRefresherTest {
         verify(manager, times(1)).authorize(any());
     }
 
+    @Test
+    void concurrentRequestsForDifferentSessionsDoNotShareARefreshAttempt() throws Exception {
+        var manager = mock(OAuth2AuthorizedClientManager.class);
+        var bothRefreshesEntered = new CountDownLatch(2);
+        var calls = new AtomicInteger();
+        when(manager.authorize(any())).thenAnswer(invocation -> {
+            calls.incrementAndGet();
+            bothRefreshesEntered.countDown();
+            assertThat(bothRefreshesEntered.await(5, TimeUnit.SECONDS)).isTrue();
+            return mock(OAuth2AuthorizedClient.class);
+        });
+        var refresher = new SingleFlightLasSsoAuthorizedClientRefresher(
+                manager, new LasSsoClientProperties("las-sso", null));
+        var authentication = UsernamePasswordAuthenticationToken.authenticated(
+                "same-subject", null, java.util.List.of());
+        var firstRequest = new MockHttpServletRequest();
+        firstRequest.setSession(new NamedSession("session-a"));
+        var secondRequest = new MockHttpServletRequest();
+        secondRequest.setSession(new NamedSession("session-b"));
+
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var first = executor.submit(() -> refresher.refresh(
+                    authentication, firstRequest, new MockHttpServletResponse()));
+            var second = executor.submit(() -> refresher.refresh(
+                    authentication, secondRequest, new MockHttpServletResponse()));
+            first.get(10, TimeUnit.SECONDS);
+            second.get(10, TimeUnit.SECONDS);
+        }
+
+        assertThat(calls).hasValue(2);
+    }
+
     private static final class CoordinatedSession extends MockHttpSession {
 
         private final CountDownLatch keyReads;
@@ -94,6 +127,20 @@ class SingleFlightLasSsoAuthorizedClientRefresherTest {
         public String getId() {
             keyReads.countDown();
             return super.getId();
+        }
+    }
+
+    private static final class NamedSession extends MockHttpSession {
+
+        private final String id;
+
+        private NamedSession(String id) {
+            this.id = id;
+        }
+
+        @Override
+        public String getId() {
+            return id;
         }
     }
 }

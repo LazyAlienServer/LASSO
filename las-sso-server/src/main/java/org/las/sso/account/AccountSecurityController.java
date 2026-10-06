@@ -1,16 +1,12 @@
 package org.las.sso.account;
 
-import java.time.Duration;
-
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 import org.las.sso.identity.LasUserPrincipal;
-import org.las.sso.security.ClientNetworkKey;
-import org.las.sso.security.PostgresRateLimiter;
-import org.las.sso.security.RateLimitExceededException;
+import org.las.sso.security.PasswordReauthenticationLimiter;
 import org.las.sso.security.RecentAuthenticationException;
 import org.las.sso.security.RecentAuthenticationService;
 import org.las.sso.security.SameOriginVerifier;
@@ -30,20 +26,17 @@ public final class AccountSecurityController {
     private final RecentAuthenticationService recentAuthentication;
     private final RecoveryCodeRotationService recoveryCodeRotation;
     private final SameOriginVerifier sameOriginVerifier;
-    private final PostgresRateLimiter rateLimiter;
-    private final ClientNetworkKey clientNetworkKey;
+    private final PasswordReauthenticationLimiter reauthenticationLimiter;
 
     public AccountSecurityController(
             RecentAuthenticationService recentAuthentication,
             RecoveryCodeRotationService recoveryCodeRotation,
             SameOriginVerifier sameOriginVerifier,
-            PostgresRateLimiter rateLimiter,
-            ClientNetworkKey clientNetworkKey) {
+            PasswordReauthenticationLimiter reauthenticationLimiter) {
         this.recentAuthentication = recentAuthentication;
         this.recoveryCodeRotation = recoveryCodeRotation;
         this.sameOriginVerifier = sameOriginVerifier;
-        this.rateLimiter = rateLimiter;
-        this.clientNetworkKey = clientNetworkKey;
+        this.reauthenticationLimiter = reauthenticationLimiter;
     }
 
     @PostMapping("/reauthentication")
@@ -53,7 +46,7 @@ public final class AccountSecurityController {
             HttpServletRequest request) {
         sameOriginVerifier.verify(request);
         LasUserPrincipal principal = principal(authentication);
-        consumeReauthenticationLimit(principal, request);
+        reauthenticationLimiter.consume(principal, request);
         recentAuthentication.reauthenticate(principal, body.password(), request);
         return ResponseEntity.noContent().build();
     }
@@ -78,19 +71,6 @@ public final class AccountSecurityController {
         return ResponseEntity.ok()
                 .cacheControl(CacheControl.noStore())
                 .body(recoveryCodeRotation.rotate(principal.userId()));
-    }
-
-    private void consumeReauthenticationLimit(
-            LasUserPrincipal principal,
-            HttpServletRequest request) {
-        String networkKey = clientNetworkKey.fromRemoteAddress(request.getRemoteAddr());
-        var ip = rateLimiter.consume("REAUTHENTICATION_IP", networkKey, 10, Duration.ofMinutes(15));
-        var user = rateLimiter.consume(
-                "REAUTHENTICATION_USER", principal.userId().toString(), 10, Duration.ofMinutes(15));
-        if (!ip.allowed() || !user.allowed()) {
-            throw new RateLimitExceededException(
-                    ip.resetsAt().isAfter(user.resetsAt()) ? ip.resetsAt() : user.resetsAt());
-        }
     }
 
     private static LasUserPrincipal principal(Authentication authentication) {

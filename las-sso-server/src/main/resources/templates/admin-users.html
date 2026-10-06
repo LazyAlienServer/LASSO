@@ -78,12 +78,12 @@
           </header>
 
           <dl class="admin-detail-grid">
-            <div><dt>凭据状态</dt><dd th:text="${selectedUser.credentialState}">ACTIVE</dd></div>
+            <div><dt>凭据状态</dt><dd th:text="${selectedUser.credentialState == null ? '无凭据' : selectedUser.credentialState}">ACTIVE</dd></div>
             <div><dt>活动会话</dt><dd th:text="${selectedUser.activeSessionCount}">0</dd></div>
             <div><dt>活动授权</dt><dd th:text="${selectedUser.activeAuthorizationCount}">0</dd></div>
             <div><dt>注册时间</dt><dd th:text="${#temporals.format(selectedUser.createdAt, 'yyyy-MM-dd HH:mm')}">2026-08-04</dd></div>
-            <div><dt>密码更新</dt><dd th:text="${#temporals.format(selectedUser.passwordChangedAt, 'yyyy-MM-dd HH:mm')}">2026-08-04</dd></div>
-            <div><dt>锁定到期</dt><dd th:text="${selectedUser.lockedUntil == null ? '未锁定' : #temporals.format(selectedUser.lockedUntil, 'yyyy-MM-dd HH:mm')}">未锁定</dd></div>
+            <div><dt>密码更新</dt><dd th:text="${selectedUser.passwordChangedAt == null ? '不适用' : #temporals.format(selectedUser.passwordChangedAt, 'yyyy-MM-dd HH:mm')}">2026-08-04</dd></div>
+            <div><dt>锁定到期</dt><dd th:text="${selectedUser.credentialState == null ? '不适用' : (selectedUser.lockedUntil == null ? '未锁定' : #temporals.format(selectedUser.lockedUntil, 'yyyy-MM-dd HH:mm'))}">未锁定</dd></div>
           </dl>
 
           <div id="admin-message" class="status-message" role="status" tabindex="-1" hidden><strong></strong><span></span></div>

@@ -9,12 +9,20 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.Instant;
+import java.time.Clock;
+import java.security.SecureRandom;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import org.junit.jupiter.api.Test;
 import org.las.sso.account.AccountRegistrationService;
 import org.las.sso.identity.LasUserPrincipal;
+import org.las.sso.identity.UuidV7Generator;
+import org.las.sso.logout.BackChannelLogoutOutbox;
 import org.las.sso.maintenance.AdminBootstrapService;
 import org.las.sso.security.RecentAuthenticationService;
 import org.las.sso.session.UserSessionService;
@@ -23,6 +31,9 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.security.oauth2.server.authorization.settings.TokenSettings;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -31,6 +42,7 @@ import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.server.authorization.OAuth2Authorization;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
+import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -57,6 +69,21 @@ class AdminClientServiceTest {
 
     @Autowired
     AdminClientService clients;
+
+    @Autowired
+    RegisteredClientRepository registeredClients;
+
+    @Autowired
+    TokenSettings tokenSettings;
+
+    @Autowired
+    BackChannelLogoutOutbox backChannelLogout;
+
+    @Autowired
+    UuidV7Generator uuidGenerator;
+
+    @Autowired
+    PlatformTransactionManager transactionManager;
 
     @Autowired
     JdbcClient jdbcClient;
@@ -280,6 +307,50 @@ class AdminClientServiceTest {
     }
 
     @Test
+    void clientPatchCannotRestoreSecretAfterConcurrentRotation() throws Exception {
+        UUID adminId = administrator("ClientAdminConcurrent");
+        AdminClientService.CreateResult created = clients.create(
+                new AdminClientService.CreateRequest(
+                        "concurrent-client", "Concurrent", "FIRST_PARTY",
+                        List.of("https://concurrent.example/callback"), List.of(),
+                        List.of("openid", "profile"), List.of("urn:las:resource:concurrent"), null),
+                adminId, null, "r", UUID.randomUUID());
+        BlockingRegisteredClientRepository blocking =
+                new BlockingRegisteredClientRepository(registeredClients, "concurrent-client");
+        AdminClientService stalePatchService = new AdminClientService(
+                jdbcClient, blocking, tokenSettings, passwordEncoder, backChannelLogout,
+                uuidGenerator, new SecureRandom(), Clock.systemUTC(), true);
+        TransactionTemplate transaction = new TransactionTemplate(transactionManager);
+
+        try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            var patch = executor.submit(() -> transaction.executeWithoutResult(status ->
+                    stalePatchService.patch(
+                            "concurrent-client",
+                            new AdminClientService.PatchRequest(
+                                    "Edited", "FIRST_PARTY",
+                                    List.of("https://concurrent.example/callback"), List.of(),
+                                    List.of("openid", "profile"),
+                                    List.of("urn:las:resource:concurrent"), null),
+                            adminId, null, "edit", UUID.randomUUID())));
+            assertThat(blocking.readStarted.await(5, TimeUnit.SECONDS)).isTrue();
+
+            var rotation = executor.submit(() -> clients.rotateSecret(
+                    "concurrent-client", adminId, null, "rotate during edit", UUID.randomUUID()));
+            assertThatThrownBy(() -> rotation.get(250, TimeUnit.MILLISECONDS))
+                    .isInstanceOf(TimeoutException.class);
+
+            blocking.releaseRead.countDown();
+            patch.get(5, TimeUnit.SECONDS);
+            AdminClientService.RotationResult rotated = rotation.get(5, TimeUnit.SECONDS);
+            String storedSecret = jdbcClient.sql("""
+                    SELECT client_secret FROM oauth2_registered_client WHERE client_id = 'concurrent-client'
+                    """).query(String.class).single();
+            assertThat(passwordEncoder.matches(rotated.clientSecret(), storedSecret)).isTrue();
+            assertThat(passwordEncoder.matches(created.clientSecret(), storedSecret)).isFalse();
+        }
+    }
+
+    @Test
     void clientsPageRendersForAdmin() throws Exception {
         UUID adminId = administrator("ClientAdminPage");
         clients.create(new AdminClientService.CreateRequest(
@@ -438,5 +509,47 @@ class AdminClientServiceTest {
         return new LasUserPrincipal(
                 userId, username, "{noop}irrelevant", 1, ssoAdmin, false,
                 List.of(new SimpleGrantedAuthority(ssoAdmin ? "ROLE_SSO_ADMIN" : "ROLE_USER")));
+    }
+
+    private static final class BlockingRegisteredClientRepository
+            implements RegisteredClientRepository {
+        private final RegisteredClientRepository delegate;
+        private final String blockedClientId;
+        private final CountDownLatch readStarted = new CountDownLatch(1);
+        private final CountDownLatch releaseRead = new CountDownLatch(1);
+
+        private BlockingRegisteredClientRepository(
+                RegisteredClientRepository delegate, String blockedClientId) {
+            this.delegate = delegate;
+            this.blockedClientId = blockedClientId;
+        }
+
+        @Override
+        public void save(RegisteredClient registeredClient) {
+            delegate.save(registeredClient);
+        }
+
+        @Override
+        public RegisteredClient findById(String id) {
+            return delegate.findById(id);
+        }
+
+        @Override
+        public RegisteredClient findByClientId(String clientId) {
+            RegisteredClient result = delegate.findByClientId(clientId);
+            if (blockedClientId.equals(clientId)) {
+                readStarted.countDown();
+                try {
+                    if (!releaseRead.await(5, TimeUnit.SECONDS)) {
+                        throw new IllegalStateException("Timed out waiting to release stale client read");
+                    }
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException(
+                            "Interrupted waiting to release stale client read", exception);
+                }
+            }
+            return result;
+        }
     }
 }

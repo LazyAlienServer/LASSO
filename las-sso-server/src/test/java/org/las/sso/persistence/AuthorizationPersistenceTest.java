@@ -15,6 +15,7 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.Duration;
+import org.springframework.security.oauth2.server.authorization.OAuth2TokenType;
 import java.security.Principal;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -23,6 +24,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.UUID;
 import java.util.Base64;
 import java.util.Map;
+import java.net.URI;
 
 import jakarta.servlet.http.Cookie;
 
@@ -43,6 +45,7 @@ import org.las.sso.security.LoginAttemptService;
 import org.las.sso.security.RecentAuthenticationService;
 import org.las.sso.security.PostgresCaptchaChallengeStore;
 import org.las.sso.security.PostgresRateLimiter;
+import org.las.sso.security.ClientNetworkKey;
 import org.las.sso.security.PostgresTransientStateCleanup;
 import org.las.sso.security.TransientSecurityKeyHasher;
 import org.las.sso.security.AltchaChallengeService;
@@ -101,6 +104,12 @@ class AuthorizationPersistenceTest {
     JdbcClient jdbcClient;
 
     @Autowired
+    PostgresRateLimiter rateLimiter;
+
+    @Autowired
+    ClientNetworkKey clientNetworkKey;
+
+    @Autowired
     JdbcLasUserDetailsService userDetailsService;
 
     @Autowired
@@ -108,6 +117,9 @@ class AuthorizationPersistenceTest {
 
     @Autowired
     PasswordEncoder passwordEncoder;
+
+    @Autowired
+    io.micrometer.core.instrument.MeterRegistry meters;
 
     @Autowired
     AdminBootstrapService adminBootstrapService;
@@ -132,9 +144,6 @@ class AuthorizationPersistenceTest {
 
     @Autowired
     BackChannelLogoutDelivery backChannelLogoutDelivery;
-
-    @Autowired
-    PostgresRateLimiter rateLimiter;
 
     @Autowired
     PostgresCaptchaChallengeStore challengeStore;
@@ -1197,6 +1206,34 @@ class AuthorizationPersistenceTest {
     }
 
     @Test
+    void encodedLoginPathCannotBypassIpFailureLimit() throws Exception {
+        registrationService.register(
+                "EncodedRiskUser", "Encoded Risk User", "encoded risk passphrase");
+        for (int attempt = 0; attempt < 3; attempt++) {
+            rateLimiter.consume(
+                "LOGIN_FAILURE_IP_BLOCK", clientNetworkKey.fromRemoteAddress("198.51.100.44"),
+                3, Duration.ofMinutes(30));
+        }
+
+        assertThat(rateLimiter.current(
+                "LOGIN_FAILURE_IP_BLOCK", clientNetworkKey.fromRemoteAddress("198.51.100.44"),
+                3, Duration.ofMinutes(30))
+                .count()).isGreaterThanOrEqualTo(3);
+
+        mockMvc.perform(post(URI.create("/log%69n"))
+                        .with(csrf())
+                        .with(request -> {
+                            request.setRemoteAddr("198.51.100.44");
+                            return request;
+                        })
+                        .param("username", "EncodedRiskUser")
+                        .param("password", "encoded risk passphrase"))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .header().exists("Retry-After"));
+    }
+
+    @Test
     void formLoginRequiresLoginRiskCaptchaAfterIpFailureThreshold() throws Exception {
         registrationService.register(
                 "RiskCaptchaUser", "Risk Captcha User", "risk captcha passphrase");
@@ -1927,10 +1964,13 @@ class AuthorizationPersistenceTest {
     @Test
     void refreshTokenRotatesAndReuseRevokesTheWholeFamily() throws Exception {
         RefreshFixture fixture = createRefreshFixture("RefreshRotationUser");
+        double successes = meters.get("las.sso.token.refresh").tag("result", "success").counter().count();
+        double reuses = meters.get("las.sso.refresh.reuse").counter().count();
 
         MvcResult refreshed = refresh(fixture, fixture.refreshToken());
 
         assertThat(refreshed.getResponse().getStatus()).isEqualTo(200);
+        assertThat(meters.get("las.sso.token.refresh").tag("result", "success").counter().count()).isEqualTo(successes + 1);
         String rotatedToken = objectMapper.readTree(refreshed.getResponse().getContentAsString())
                 .get("refresh_token").asText();
         assertThat(rotatedToken).isNotEqualTo(fixture.refreshToken());
@@ -1940,6 +1980,7 @@ class AuthorizationPersistenceTest {
         MvcResult reused = refresh(fixture, fixture.refreshToken());
 
         assertThat(reused.getResponse().getStatus()).isEqualTo(400);
+        assertThat(meters.get("las.sso.refresh.reuse").counter().count()).isEqualTo(reuses + 1);
         assertThat(objectMapper.readTree(reused.getResponse().getContentAsString())
                 .get("error").asText()).isEqualTo("invalid_grant");
         assertThat(authorizations.findById(fixture.authorizationId())).isNull();
@@ -1960,6 +2001,7 @@ class AuthorizationPersistenceTest {
 
         MvcResult rotatedAfterReuse = refresh(fixture, rotatedToken);
         assertThat(rotatedAfterReuse.getResponse().getStatus()).isEqualTo(400);
+        assertThat(meters.get("las.sso.refresh.reuse").counter().count()).isEqualTo(reuses + 1);
     }
 
     @Test
@@ -2059,6 +2101,52 @@ class AuthorizationPersistenceTest {
                    AND payload_json ->> 'reason' = 'SSO_LOGOUT'
                 """).param("userId", account.userId().toString())
                 .query(Long.class).single()).isEqualTo(1);
+    }
+
+    @Test
+    void originalIdTokenHintStillLogsOutAfterRealRefreshReplacesTheStoredIdToken() throws Exception {
+        RefreshFixture fixture = createRefreshFixture("LogoutAfterRefresh");
+        RegisteredClient client = RegisteredClient.from(registeredClients.findByClientId(fixture.clientId()))
+                .scope(OidcScopes.OPENID)
+                .postLogoutRedirectUri("https://client.example/logged-out").build();
+        registeredClients.save(client);
+        OAuth2Authorization original = authorizations.findById(fixture.authorizationId());
+        Instant issuedAt = Instant.now().minusSeconds(10);
+        var hint = new OidcIdToken("initial-id-token-" + UUID.randomUUID(), issuedAt, issuedAt.plusSeconds(300),
+                Map.of("iss", "http://127.0.0.1:9000", "sub", fixture.userId().toString(), "aud", List.of(fixture.clientId()),
+                        "iat", issuedAt, "exp", issuedAt.plusSeconds(300)));
+        authorizations.save(OAuth2Authorization.from(original).authorizedScopes(java.util.Set.of(OidcScopes.OPENID, OidcScopes.PROFILE))
+                .token(hint, metadata -> metadata.put(OAuth2Authorization.Token.CLAIMS_METADATA_NAME, hint.getClaims())).build());
+        // Existing current ID Tokens must be captured before the first post-upgrade refresh replaces them.
+        jdbcClient.sql("DELETE FROM oauth2_id_token_hint_history WHERE authorization_id=:id")
+                .param("id", fixture.authorizationId()).update();
+
+        MvcResult refreshed = refresh(fixture, fixture.refreshToken());
+        assertThat(refreshed.getResponse().getStatus()).isEqualTo(200);
+        assertThat(objectMapper.readTree(refreshed.getResponse().getContentAsString()).has("id_token")).isTrue();
+        assertThat(authorizations.findById(fixture.authorizationId()).getToken(OidcIdToken.class).getToken().getTokenValue())
+                .isNotEqualTo(hint.getTokenValue());
+        assertThat(jdbcClient.sql("SELECT count(*) FROM oauth2_id_token_hint_history WHERE authorization_id=:id AND octet_length(token_hash)=32")
+                .param("id", fixture.authorizationId()).query(Long.class).single()).isEqualTo(2);
+        assertThat(authorizations.findByToken(hint.getTokenValue(), OAuth2TokenType.ACCESS_TOKEN)).isNull();
+        assertThat(authorizations.findByToken(hint.getTokenValue(), OAuth2TokenType.REFRESH_TOKEN)).isNull();
+        mockMvc.perform(get("/connect/logout").queryParam("id_token_hint", hint.getTokenValue())
+                        .queryParam("post_logout_redirect_uri", "https://unregistered.example/logout"))
+                .andExpect(status().isBadRequest());
+        assertThat(authorizations.findById(fixture.authorizationId())).isNotNull();
+        mockMvc.perform(get("/connect/logout")
+                        .queryParam("id_token_hint", hint.getTokenValue())
+                        .queryParam("post_logout_redirect_uri", "https://client.example/logged-out")
+                        .queryParam("state", "after-refresh-state"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("https://client.example/logged-out?state=after-refresh-state"));
+        assertThat(authorizations.findById(fixture.authorizationId())).isNull();
+        assertThat(jdbcClient.sql("SELECT count(*) FROM oauth2_id_token_hint_history WHERE authorization_id=:id")
+                .param("id", fixture.authorizationId()).query(Long.class).single()).isZero();
+        assertThat(authorizations.findByToken(hint.getTokenValue(), new OAuth2TokenType("id_token"))).isNull();
+        mockMvc.perform(get("/connect/logout").queryParam("id_token_hint", hint.getTokenValue())
+                        .queryParam("post_logout_redirect_uri", "https://client.example/logged-out"))
+                .andExpect(status().isBadRequest());
     }
 
     @Test

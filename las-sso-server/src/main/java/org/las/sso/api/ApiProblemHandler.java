@@ -148,6 +148,9 @@ public class ApiProblemHandler {
             case "PASSWORD_CHANGE_REQUIRED" -> problem(
                     HttpStatus.FORBIDDEN, exception.code(),
                     "必须先修改密码", "临时密码会话只能完成首次改密。", request, null);
+            case "REAUTHENTICATION_CHALLENGE_EXPIRED" -> problem(
+                    HttpStatus.UNAUTHORIZED, exception.code(),
+                    "密码验证请求已失效", "请返回应用重新发起验证。", request, null);
             default -> problem(
                     HttpStatus.UNAUTHORIZED, "REAUTHENTICATION_FAILED",
                     "认证失败", "当前密码不正确。", request, null);

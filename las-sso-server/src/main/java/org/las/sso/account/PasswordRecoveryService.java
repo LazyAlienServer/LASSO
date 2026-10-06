@@ -9,6 +9,7 @@ import java.util.Base64;
 import java.util.List;
 import java.util.UUID;
 
+import org.las.sso.access.ServiceAccessEligibilityService;
 import org.las.sso.identity.UuidV7Generator;
 import org.las.sso.logout.BackChannelLogoutOutbox;
 import org.las.sso.security.AltchaChallengeService;
@@ -42,6 +43,7 @@ public class PasswordRecoveryService {
     private final PasswordPolicy passwordPolicy;
     private final UuidV7Generator uuidGenerator;
     private final BackChannelLogoutOutbox backChannelLogout;
+    private final ServiceAccessEligibilityService serviceAccess;
     private final SecureRandom secureRandom;
     private final Clock clock;
     private final AdminRecoveryFailureAuditService failureAudit;
@@ -57,10 +59,11 @@ public class PasswordRecoveryService {
             PasswordPolicy passwordPolicy,
             UuidV7Generator uuidGenerator,
             BackChannelLogoutOutbox backChannelLogout,
+            ServiceAccessEligibilityService serviceAccess,
             AdminRecoveryFailureAuditService failureAudit) {
         this(jdbcClient, recoveryCodes, keyHasher, rateLimiter, captcha, passwordEncoder,
                 passwordPolicy, uuidGenerator, backChannelLogout,
-                new SecureRandom(), Clock.systemUTC(), failureAudit);
+                serviceAccess, new SecureRandom(), Clock.systemUTC(), failureAudit);
     }
 
     PasswordRecoveryService(
@@ -73,6 +76,7 @@ public class PasswordRecoveryService {
             PasswordPolicy passwordPolicy,
             UuidV7Generator uuidGenerator,
             BackChannelLogoutOutbox backChannelLogout,
+            ServiceAccessEligibilityService serviceAccess,
             SecureRandom secureRandom,
             Clock clock,
             AdminRecoveryFailureAuditService failureAudit) {
@@ -85,11 +89,13 @@ public class PasswordRecoveryService {
         this.passwordPolicy = passwordPolicy;
         this.uuidGenerator = uuidGenerator;
         this.backChannelLogout = backChannelLogout;
+        this.serviceAccess = serviceAccess;
         this.secureRandom = secureRandom;
         this.clock = clock;
         this.failureAudit = failureAudit;
     }
 
+    @Transactional
     public RecoverySession start(
             String username,
             String credential,
@@ -125,18 +131,26 @@ public class PasswordRecoveryService {
                     networkKey);
         }
 
-        OffsetDateTime now = now();
         ConsumedCredential consumed;
         try {
-            consumed = consumeCredential(username, credential, credentialType, now);
+            // Resolve only a candidate here; ownership/name/credential validity is rechecked after locking.
+            UUID candidateUser = jdbcClient.sql("""
+                    SELECT user_id FROM usernames WHERE username = :username COLLATE "C"
+                        AND valid_to IS NULL
+                    """).param("username", username).query(UUID.class).optional()
+                    .orElseThrow(() -> new RecoveryFlowException("RECOVERY_CREDENTIAL_INVALID"));
+            lockActiveUser(candidateUser, "RECOVERY_CREDENTIAL_INVALID");
+            OffsetDateTime now = now();
+            consumed = consumeCredential(candidateUser, username, credential, credentialType, now);
         } catch (RecoveryFlowException exception) {
             if (credentialType == CredentialType.ADMIN_ISSUED) {
                 failureAudit.recordRejectedAttempt(
-                        username, recoveryCodes.digest(credential), requestId, now);
+                        username, recoveryCodes.digest(credential), requestId, now());
             }
             throw exception;
         }
         UUID userId = consumed.userId();
+        OffsetDateTime now = now();
         String token = newSessionToken();
         jdbcClient.sql("""
                 INSERT INTO recovery_sessions
@@ -155,6 +169,7 @@ public class PasswordRecoveryService {
         return new RecoverySession(token, now.plus(SESSION_LIFETIME));
     }
 
+    @Transactional
     public void complete(String sessionToken, String newPassword) {
         complete(sessionToken, newPassword, uuidGenerator.generate());
     }
@@ -164,12 +179,20 @@ public class PasswordRecoveryService {
         if (sessionToken == null || sessionToken.isBlank()) {
             throw new RecoveryFlowException("SESSION_EXPIRED");
         }
+        byte[] tokenHash = keyHasher.hash("recovery-session", sessionToken);
+        // Never lock a recovery-session row before its user: password change holds user first.
+        UUID candidateUser = jdbcClient.sql("""
+                SELECT user_id FROM recovery_sessions WHERE session_token_hash = :tokenHash
+                """).param("tokenHash", tokenHash).query(UUID.class).optional()
+                .orElseThrow(() -> new RecoveryFlowException("SESSION_EXPIRED"));
+        lockActiveUser(candidateUser, "SESSION_EXPIRED");
         OffsetDateTime now = now();
         RecoveryCredential credential = jdbcClient.sql("""
                 SELECT rs.id AS recovery_session_id,
                        rs.user_id,
                        un.username,
-                       pc.password_hash
+                       pc.password_hash,
+                       pc.state
                   FROM recovery_sessions rs
                   JOIN users u ON u.id = rs.user_id
                   JOIN usernames un ON un.user_id = u.id AND un.valid_to IS NULL
@@ -178,14 +201,16 @@ public class PasswordRecoveryService {
                    AND rs.consumed_at IS NULL
                    AND rs.expires_at > :now
                    AND u.account_status = 'ACTIVE'
-                 FOR UPDATE OF rs, u, un, pc
-                """).param("tokenHash", keyHasher.hash("recovery-session", sessionToken))
+                    AND rs.user_id = :userId
+                  FOR UPDATE OF rs, un, pc
+                """).param("tokenHash", tokenHash).param("userId", candidateUser)
                 .param("now", now)
                 .query((rs, rowNum) -> new RecoveryCredential(
                         rs.getObject("recovery_session_id", UUID.class),
                         rs.getObject("user_id", UUID.class),
                         rs.getString("username"),
-                        rs.getString("password_hash")))
+                        rs.getString("password_hash"),
+                        rs.getString("state")))
                 .optional()
                 .orElseThrow(() -> new RecoveryFlowException("SESSION_EXPIRED"));
 
@@ -211,6 +236,9 @@ public class PasswordRecoveryService {
                  WHERE user_id = :userId
                 """).param("passwordHash", passwordEncoder.encode(newPassword))
                 .param("now", now).param("userId", credential.userId()).update();
+        if ("PASSWORD_CHANGE_REQUIRED".equals(credential.credentialState())) {
+            serviceAccess.advanceStateVersion(credential.userId(), now);
+        }
         jdbcClient.sql("""
                 UPDATE recovery_sessions
                    SET consumed_at = :now
@@ -255,14 +283,16 @@ public class PasswordRecoveryService {
     }
 
     private ConsumedCredential consumeCredential(
-            String username, String credential, CredentialType credentialType, OffsetDateTime now) {
+            UUID candidateUser, String username, String credential,
+            CredentialType credentialType, OffsetDateTime now) {
         byte[] digest = recoveryCodes.digest(credential);
         if (credentialType == CredentialType.RECOVERY_CODE) {
             UUID userId = jdbcClient.sql("""
                     UPDATE recovery_codes rc
                        SET used_at = :now
                       FROM users u, usernames un
-                     WHERE rc.user_id = u.id
+                      WHERE rc.user_id = u.id
+                        AND u.id = :userId
                        AND un.user_id = u.id
                        AND un.valid_to IS NULL
                        AND un.username = :username COLLATE "C"
@@ -271,7 +301,8 @@ public class PasswordRecoveryService {
                        AND rc.used_at IS NULL
                        AND rc.revoked_at IS NULL
                     RETURNING rc.user_id
-                    """).param("now", now).param("username", username).param("digest", digest)
+                    """).param("now", now).param("userId", candidateUser)
+                    .param("username", username).param("digest", digest)
                     .query(UUID.class).optional()
                     .orElseThrow(() -> new RecoveryFlowException("RECOVERY_CREDENTIAL_INVALID"));
             return new ConsumedCredential(userId, null, null);
@@ -280,7 +311,8 @@ public class PasswordRecoveryService {
                 UPDATE admin_recovery_credentials arc
                    SET used_at = :now
                   FROM users u, usernames un
-                 WHERE arc.target_user_id = u.id
+                  WHERE arc.target_user_id = u.id
+                    AND u.id = :userId
                    AND un.user_id = u.id
                    AND un.valid_to IS NULL
                    AND un.username = :username COLLATE "C"
@@ -290,13 +322,20 @@ public class PasswordRecoveryService {
                    AND arc.revoked_at IS NULL
                    AND arc.expires_at > :now
                 RETURNING arc.target_user_id, arc.id, arc.issued_by_user_id
-                """).param("now", now).param("username", username).param("digest", digest)
+                """).param("now", now).param("userId", candidateUser)
+                .param("username", username).param("digest", digest)
                 .query((rs, rowNum) -> new ConsumedCredential(
                         rs.getObject("target_user_id", UUID.class),
                         rs.getObject("id", UUID.class),
                         rs.getObject("issued_by_user_id", UUID.class)))
                 .optional()
                 .orElseThrow(() -> new RecoveryFlowException("RECOVERY_CREDENTIAL_INVALID"));
+    }
+
+    private void lockActiveUser(UUID userId, String failureCode) {
+        jdbcClient.sql("SELECT id FROM users WHERE id = :userId AND account_status = 'ACTIVE' FOR UPDATE")
+                .param("userId", userId).query(UUID.class).optional()
+                .orElseThrow(() -> new RecoveryFlowException(failureCode));
     }
 
     private void adminRecoveryAudit(
@@ -365,7 +404,8 @@ public class PasswordRecoveryService {
     }
 
     private record RecoveryCredential(
-            UUID sessionId, UUID userId, String username, String passwordHash) {
+            UUID sessionId, UUID userId, String username, String passwordHash,
+            String credentialState) {
     }
 
     private record ConsumedCredential(

@@ -4,12 +4,14 @@ import java.io.Console;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
+import org.springframework.beans.factory.annotation.Autowired;
 
 @Component
 @ConditionalOnProperty(name = "las.sso.maintenance.command", havingValue = "admin-bootstrap")
@@ -17,10 +19,18 @@ public final class AdminBootstrapCommand implements ApplicationRunner {
 
     private final AdminBootstrapService service;
     private final Environment environment;
+    private final Supplier<Console> consoleSupplier;
 
+    @Autowired
     public AdminBootstrapCommand(AdminBootstrapService service, Environment environment) {
+        this(service, environment, System::console);
+    }
+
+    /** Console acquisition seam; production still requires a real hidden-input interactive console. */
+    AdminBootstrapCommand(AdminBootstrapService service, Environment environment, Supplier<Console> consoleSupplier) {
         this.service = service;
         this.environment = environment;
+        this.consoleSupplier = consoleSupplier;
     }
 
     @Override
@@ -32,7 +42,7 @@ public final class AdminBootstrapCommand implements ApplicationRunner {
             throw new AdminBootstrapException("SPECIFY_EXACTLY_ONE_OF_USERNAME_OR_USER_ID");
         }
 
-        Console console = System.console();
+        Console console = consoleSupplier.get();
         if (console == null) {
             throw new AdminBootstrapException("INTERACTIVE_CONSOLE_REQUIRED");
         }
@@ -52,6 +62,13 @@ public final class AdminBootstrapCommand implements ApplicationRunner {
                     result.userId(),
                     result.temporaryPasswordExpiresAt(),
                     result.auditEventId());
+        } catch (AdminBootstrapException exception) {
+            if ("DELETION_CANCELLATION_REQUIRED".equals(exception.code())) {
+                console.printf("Administrator promotion refused (DELETION_CANCELLATION_REQUIRED).%n"
+                        + "The account owner must cancel the pending/held deletion request first; "
+                        + "then retry administrator bootstrap.%n");
+            }
+            throw exception; // Preserve unsuccessful ApplicationRunner/startup, never report bootstrap success.
         } finally {
             if (first != null) {
                 Arrays.fill(first, '\0');

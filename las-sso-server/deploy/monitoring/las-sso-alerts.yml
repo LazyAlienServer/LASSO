@@ -1,0 +1,63 @@
+groups:
+  - name: las-sso
+    rules:
+      - alert: LasSsoScrapeUnavailable
+        expr: up{job="las-sso"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: LAS SSO metrics scrape unavailable
+          description: Check the process, private management listener, collector credential and transport.
+
+      - alert: LasSsoSnapshotUnavailable
+        expr: (las_sso_snapshot_available{job="las-sso"} != 1 or time() - las_sso_snapshot_last_success_seconds{job="las-sso"} > 60) and on(job, instance) up{job="las-sso"} == 1
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: LAS SSO database snapshot unavailable or stale
+          description: Last-known session and queue gauges are invalid. Check readiness, database and pool.
+
+      - alert: LasSsoLogoutBacklog
+        expr: las_sso_outbox_oldest_age_seconds{job="las-sso"} > 300 and on(job, instance) las_sso_snapshot_available{job="las-sso"} == 1 and on(job, instance) time() - las_sso_snapshot_last_success_seconds{job="las-sso"} <= 60
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: LAS SSO logout backlog older than five minutes
+          description: Check workers, retry state and receiving endpoints without logging token payloads.
+
+      - alert: LasSsoLogoutDeadLetters
+        expr: las_sso_outbox_dead{job="las-sso"} > 0 and on(job, instance) las_sso_snapshot_available{job="las-sso"} == 1 and on(job, instance) time() - las_sso_snapshot_last_success_seconds{job="las-sso"} <= 60
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: LAS SSO logout delivery exhausted retries
+          description: Inspect restricted outbox state and repair the receiving endpoint before operator replay.
+
+      - alert: LasSsoRefreshReuse
+        expr: increase(las_sso_refresh_reuse_total{job="las-sso"}[5m]) > 0
+        labels:
+          severity: critical
+        annotations:
+          summary: LAS SSO refresh token reuse recorded
+          description: A committed reuse detection occurred. Correlate through restricted security audit, not metric labels.
+
+      - alert: LasSsoAdminLoginFailures
+        expr: increase(las_sso_admin_login_failures_total{job="las-sso"}[5m]) >= 5
+        labels:
+          severity: warning
+        annotations:
+          summary: LAS SSO administrator login failures increased
+          description: Review restricted security audit and account lock state. Do not add identity labels.
+
+      - alert: LasSsoPasswordHashSlow
+        expr: histogram_quantile(0.95, sum by(job, instance, le) (rate(las_sso_password_hash_seconds_bucket{job="las-sso", algorithm="argon2id", operation="match"}[5m]))) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: LAS SSO Argon2 verification p95 exceeds one second
+          description: Check workload, CPU, memory and pool contention before changing password parameters.

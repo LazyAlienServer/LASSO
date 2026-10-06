@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>重新验证密码 · LAS 通行证</title>
+  <link rel="stylesheet" th:href="@{/assets/passport.css}">
+  <script th:src="@{/assets/passport-ui.js}" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#auth-form">跳到密码验证表单</a>
+  <main class="auth-shell">
+    <section class="brand-panel" aria-labelledby="brand-title">
+      <div class="section-index">SECURITY / OIDC</div>
+      <div class="brand-copy">
+        <h1 id="brand-title">重新验证<br><span>LAS 通行证</span></h1>
+        <p class="brand-summary">密码只在身份中心输入。</p>
+      </div>
+    </section>
+    <section class="auth-card" aria-labelledby="form-title">
+      <header class="card-header"><div><p id="form-title">PASSWORD VERIFICATION</p></div></header>
+      <p>请重新输入 <strong th:text="${username}">LAS User</strong> 的密码。</p>
+      <div class="status-message error" role="alert" th:if="${failed}">
+        <strong>验证未完成</strong><span>密码不正确，请重试。</span>
+      </div>
+      <form id="auth-form" class="auth-form" method="post" th:action="@{/oauth2/reauthenticate}" data-password-verification>
+        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+        <input type="hidden" name="challenge" th:value="${challenge}">
+        <h2 class="form-section-title">验证当前密码</h2>
+        <div class="field-group">
+          <label for="password">当前密码</label>
+          <div class="password-field">
+            <input id="password" name="password" type="password" autocomplete="current-password" maxlength="512" required autofocus th:attr="aria-invalid=${failed == true},aria-describedby=${failed == true ? 'password-error' : null}">
+            <button class="icon-button password-toggle" type="button" aria-label="显示密码" aria-pressed="false" data-password-toggle="password">
+              <svg class="eye-open" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"></path><circle cx="12" cy="12" r="2.5"></circle></svg>
+              <svg class="eye-closed" viewBox="0 0 24 24" aria-hidden="true"><path d="m3 3 18 18M10.5 6.2A10 10 0 0 1 12 6c6 0 9.5 6 9.5 6a16 16 0 0 1-2.3 3M6.2 6.2C3.8 8 2.5 12 2.5 12s3.5 6 9.5 6a10 10 0 0 0 3-.5"></path></svg>
+            </button>
+          </div>
+          <p id="password-error" class="field-error" th:if="${failed}">密码不正确，请重新输入。</p>
+        </div>
+        <button class="primary-button" type="submit"><span>验证并返回应用</span></button>
+      </form>
+      <nav class="auth-links" aria-label="账号导航"><a th:href="@{/account}">取消，返回个人中心</a></nav>
+    </section>
+  </main>
+</body>
+</html>

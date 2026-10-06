@@ -1,0 +1,22 @@
+# Same-host example. Keep collector credentials in a private mounted file, not this configuration.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - /etc/prometheus/las-sso-alerts.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["127.0.0.1:9093"]
+
+scrape_configs:
+  - job_name: las-sso
+    metrics_path: /actuator/prometheus
+    scrape_timeout: 5s
+    basic_auth:
+      username: las-sso-metrics
+      password_file: /run/secrets/las-sso-monitoring-password
+    static_configs:
+      - targets: ["127.0.0.1:9091"]

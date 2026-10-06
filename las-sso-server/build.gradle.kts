@@ -5,7 +5,9 @@ plugins {
 }
 
 group = "org.las"
-version = "0.1.0-SNAPSHOT"
+version = providers.gradleProperty("lasSsoServerVersion").getOrElse("0.1.0-SNAPSHOT")
+// Security scan remediation: Boot 4.1.1's Tomcat 11.0.24 still predates later vendor fixes.
+extra["tomcat.version"] = libs.versions.tomcat.get()
 
 java {
     toolchain {
@@ -13,8 +15,17 @@ java {
     }
 }
 
+dependencyManagement {
+    imports {
+        // D1 / CVE-2026-47877: align Security modules on the fixed patch while retaining Boot's baseline.
+        mavenBom("org.springframework.security:spring-security-bom:${libs.versions.spring.security.get()}")
+        mavenBom("tools.jackson:jackson-bom:${libs.versions.jackson.get()}")
+    }
+}
+
 dependencies {
     implementation(libs.spring.boot.starter.actuator)
+    runtimeOnly(libs.micrometer.registry.prometheus)
     implementation(libs.spring.boot.starter.flyway)
     implementation(libs.spring.boot.starter.jdbc)
     implementation(libs.spring.boot.starter.session.jdbc)

@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 
+import org.las.sso.access.ServiceAccessEligibilityService;
 import org.las.sso.identity.UuidV7Generator;
 import org.las.sso.session.UserSessionService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,24 +23,28 @@ public class AdminUserManagementService {
     private final JdbcClient jdbcClient;
     private final UserSessionService userSessions;
     private final UuidV7Generator uuidGenerator;
+    private final ServiceAccessEligibilityService serviceAccess;
     private final Clock clock;
 
     @Autowired
     public AdminUserManagementService(
             JdbcClient jdbcClient,
             UserSessionService userSessions,
-            UuidV7Generator uuidGenerator) {
-        this(jdbcClient, userSessions, uuidGenerator, Clock.systemUTC());
+            UuidV7Generator uuidGenerator,
+            ServiceAccessEligibilityService serviceAccess) {
+        this(jdbcClient, userSessions, uuidGenerator, serviceAccess, Clock.systemUTC());
     }
 
     AdminUserManagementService(
             JdbcClient jdbcClient,
             UserSessionService userSessions,
             UuidV7Generator uuidGenerator,
+            ServiceAccessEligibilityService serviceAccess,
             Clock clock) {
         this.jdbcClient = jdbcClient;
         this.userSessions = userSessions;
         this.uuidGenerator = uuidGenerator;
+        this.serviceAccess = serviceAccess;
         this.clock = clock;
     }
 
@@ -131,7 +136,7 @@ public class AdminUserManagementService {
                          WHERE a.principal_name = u.id::text) AS active_authorizations
                   FROM users u
                   JOIN usernames un ON un.user_id = u.id AND un.valid_to IS NULL
-                  JOIN password_credentials pc ON pc.user_id = u.id
+                  LEFT JOIN password_credentials pc ON pc.user_id = u.id
                  WHERE u.id = :userId
                 """).param("userId", userId)
                 .query((rs, rowNum) -> new UserDetails(
@@ -169,6 +174,7 @@ public class AdminUserManagementService {
                    SET account_status = 'FROZEN', frozen_at = :now, updated_at = :now
                  WHERE id = :targetUserId
                 """).param("now", now).param("targetUserId", targetUserId).update();
+        serviceAccess.advanceStateVersion(targetUserId, now);
         userSessions.logoutAll(targetUserId, "ADMIN_FROZEN");
         insertSecurityEvent(targetUserId, "ACCOUNT_FROZEN_BY_ADMIN", "HIGH", requestId, now);
         insertAudit(actorUserId, actorSid, targetUserId, "ADMIN_USER_FREEZE", reason,
@@ -192,6 +198,7 @@ public class AdminUserManagementService {
                    SET account_status = 'ACTIVE', frozen_at = NULL, updated_at = :now
                  WHERE id = :targetUserId
                 """).param("now", now).param("targetUserId", targetUserId).update();
+        serviceAccess.advanceStateVersion(targetUserId, now);
         insertSecurityEvent(targetUserId, "ACCOUNT_UNFROZEN_BY_ADMIN", "INFO", requestId, now);
         insertAudit(actorUserId, actorSid, targetUserId, "ADMIN_USER_UNFREEZE", reason,
                 target.status(), "ACTIVE", requestId, now);
@@ -311,6 +318,7 @@ public class AdminUserManagementService {
             OffsetDateTime createdAt) {
     }
 
+    /** Credential state and timestamps are null when the retained identity has no credential row. */
     public record UserDetails(
             UUID userId,
             String username,

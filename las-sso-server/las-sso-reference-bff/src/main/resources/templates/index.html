@@ -19,7 +19,7 @@
     </section>
 
     <div class="actions" th:if="${!authenticated}">
-      <a class="primary" href="/api/auth/login">使用 LAS SSO 登录</a>
+      <a class="primary" th:href="@{/api/auth/login(returnTo='/protected')}">使用 LAS SSO 登录</a>
     </div>
     <div class="actions" th:if="${authenticated}">
       <a class="primary" href="/protected">访问受保护页面</a>

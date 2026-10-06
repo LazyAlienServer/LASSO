@@ -15,28 +15,42 @@ public final class RefreshTokenFamilyAuthenticationProvider implements Authentic
     private final AuthenticationProvider delegate;
     private final RefreshTokenFamilyService tokenFamilies;
     private final TransactionOperations transactions;
+    private final org.las.sso.observability.SsoMetrics metrics;
 
     public RefreshTokenFamilyAuthenticationProvider(
             AuthenticationProvider delegate,
             RefreshTokenFamilyService tokenFamilies,
-            TransactionOperations transactions) {
+            TransactionOperations transactions,
+            org.las.sso.observability.SsoMetrics metrics) {
         this.delegate = delegate;
         this.tokenFamilies = tokenFamilies;
         this.transactions = transactions;
+        this.metrics = metrics;
     }
 
     @Override
     public Authentication authenticate(Authentication authentication) throws AuthenticationException {
         var refresh = (OAuth2RefreshTokenAuthenticationToken) authentication;
-        Object result = transactions.execute(status -> {
-            if (!tokenFamilies.lockAndValidate(refresh.getRefreshToken())) {
-                return DENIED;
-            }
-            return delegate.authenticate(authentication);
-        });
+        final Object result;
+        try {
+            result = transactions.execute(status -> {
+                if (!tokenFamilies.lockAndValidate(refresh.getRefreshToken())) {
+                    return DENIED;
+                }
+                return delegate.authenticate(authentication);
+            });
+        } catch (OAuth2AuthenticationException rejected) {
+            metrics.refresh(org.las.sso.observability.SsoMetrics.RefreshResult.REJECTED);
+            throw rejected;
+        } catch (RuntimeException failure) {
+            metrics.refresh(org.las.sso.observability.SsoMetrics.RefreshResult.ERROR);
+            throw failure;
+        }
         if (result == DENIED) {
+            metrics.refresh(org.las.sso.observability.SsoMetrics.RefreshResult.REJECTED);
             throw new OAuth2AuthenticationException(OAuth2ErrorCodes.INVALID_GRANT);
         }
+        metrics.refresh(org.las.sso.observability.SsoMetrics.RefreshResult.SUCCESS);
         return (Authentication) result;
     }
 

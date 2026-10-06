@@ -28,14 +28,15 @@ public final class RecoveryCodeService {
     public List<RecoveryCode> generateBatch() {
         var codes = new ArrayList<RecoveryCode>(CODE_COUNT);
         for (int index = 0; index < CODE_COUNT; index++) {
-            String plaintext = "LAS-" + group() + "-" + group() + "-" + group();
+            // Four groups of four uniformly selected 32-alphabet symbols: 16 * 5 = 80 random bits.
+            String plaintext = "LAS-" + group() + "-" + group() + "-" + group() + "-" + group();
             codes.add(new RecoveryCode(plaintext, digest(plaintext)));
         }
         return List.copyOf(codes);
     }
 
     public RecoveryCode generateAdminCredential() {
-        String plaintext = "LAS-ADMIN-" + group() + "-" + group() + "-" + group();
+        String plaintext = "LAS-ADMIN-" + group() + "-" + group() + "-" + group() + "-" + group();
         return new RecoveryCode(plaintext, digest(plaintext));
     }
 

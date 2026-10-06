@@ -5,6 +5,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.UUID;
 
+import org.las.sso.access.ServiceAccessEligibilityService;
 import org.las.sso.account.PasswordPolicy;
 import org.las.sso.identity.UuidV7Generator;
 import org.las.sso.logout.BackChannelLogoutOutbox;
@@ -25,6 +26,7 @@ public class AdminPasswordResetService {
     private final PasswordEncoder passwordEncoder;
     private final PasswordPolicy passwordPolicy;
     private final BackChannelLogoutOutbox backChannelLogout;
+    private final ServiceAccessEligibilityService serviceAccess;
     private final Clock clock;
 
     @Autowired
@@ -33,9 +35,10 @@ public class AdminPasswordResetService {
             UuidV7Generator uuidGenerator,
             PasswordEncoder passwordEncoder,
             PasswordPolicy passwordPolicy,
-            BackChannelLogoutOutbox backChannelLogout) {
+            BackChannelLogoutOutbox backChannelLogout,
+            ServiceAccessEligibilityService serviceAccess) {
         this(jdbcClient, uuidGenerator, passwordEncoder, passwordPolicy,
-                backChannelLogout, Clock.systemUTC());
+                backChannelLogout, serviceAccess, Clock.systemUTC());
     }
 
     AdminPasswordResetService(
@@ -44,12 +47,14 @@ public class AdminPasswordResetService {
             PasswordEncoder passwordEncoder,
             PasswordPolicy passwordPolicy,
             BackChannelLogoutOutbox backChannelLogout,
+            ServiceAccessEligibilityService serviceAccess,
             Clock clock) {
         this.jdbcClient = jdbcClient;
         this.uuidGenerator = uuidGenerator;
         this.passwordEncoder = passwordEncoder;
         this.passwordPolicy = passwordPolicy;
         this.backChannelLogout = backChannelLogout;
+        this.serviceAccess = serviceAccess;
         this.clock = clock;
     }
 
@@ -85,6 +90,7 @@ public class AdminPasswordResetService {
                  WHERE user_id = :userId
                 """).param("passwordHash", passwordEncoder.encode(newPassword))
                 .param("now", now).param("userId", administrator.userId()).update();
+        serviceAccess.advanceStateVersion(administrator.userId(), now);
         revokeSecurityState(administrator.userId(), now);
         UUID auditEventId = insertAudit(administrator.userId(), now);
         insertSecurityEvent(administrator.userId(), now);
@@ -93,7 +99,12 @@ public class AdminPasswordResetService {
     }
 
     private LockedAdministrator loadAdministrator(boolean forUpdate) {
-        String locking = forUpdate ? " FOR UPDATE OF u, un, pc" : "";
+        if (forUpdate) {
+            // Serialize with recovery before acquiring username/credential locks.
+            jdbcClient.sql("SELECT id FROM users WHERE is_sso_admin = true FOR UPDATE")
+                    .query(UUID.class).list();
+        }
+        String locking = forUpdate ? " FOR UPDATE OF un, pc" : "";
         var administrators = jdbcClient.sql("""
                 SELECT u.id, u.account_status::text, un.username, pc.password_hash
                   FROM users u

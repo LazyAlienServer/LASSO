@@ -14,11 +14,7 @@ import org.springframework.security.oauth2.client.OAuth2AuthorizedClientManager;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientProviderBuilder;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.oauth2.client.web.DefaultOAuth2AuthorizedClientManager;
-import org.springframework.security.oauth2.client.web.OAuth2AuthorizedClientRepository;
-import org.springframework.security.oauth2.client.web.DefaultOAuth2AuthorizationRequestResolver;
-import org.springframework.security.oauth2.client.web.OAuth2AuthorizationRequestCustomizers;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.oauth2.client.web.OAuth2LoginAuthenticationFilter;
 import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm;
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
@@ -26,11 +22,7 @@ import org.springframework.security.oauth2.jwt.JwtIssuerValidator;
 import org.springframework.security.oauth2.jwt.JwtTimestampValidator;
 import org.springframework.security.oauth2.jwt.JwtTypeValidator;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
-import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
-import org.springframework.http.HttpMethod;
-
-import jakarta.servlet.http.HttpSessionEvent;
-import jakarta.servlet.http.HttpSessionListener;
+import org.springframework.security.web.authentication.SimpleUrlAuthenticationSuccessHandler;
 
 @AutoConfiguration
 @EnableConfigurationProperties(LasSsoClientProperties.class)
@@ -51,14 +43,26 @@ public class LasSsoClientAutoConfiguration {
     }
 
     @Bean
-    @ConditionalOnMissingBean
-    LasSsoBackChannelSessionRegistry lasSsoBackChannelSessionRegistry() {
-        return new LasSsoBackChannelSessionRegistry();
+    @ConditionalOnMissingBean(LasSsoAuthorizedClientRepository.class)
+    LasSsoAuthorizedClientRepository lasSsoAuthorizedClientRepository() {
+        return new DefaultLasSsoAuthorizedClientRepository();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(LasSsoBackChannelSessionStore.class)
+    LasSsoBackChannelSessionStore lasSsoBackChannelSessionRegistry(LasSsoClientProperties properties) {
+        return new LasSsoBackChannelSessionRegistry(properties.sessionAbsoluteLifetime());
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(LasSsoLogoutReplayStore.class)
+    LasSsoLogoutReplayStore lasSsoLogoutReplayStore() {
+        return new DefaultLasSsoLogoutReplayStore();
     }
 
     @Bean(destroyMethod = "close")
-    @ConditionalOnMissingBean
-    LasSsoTokenRevocationQueue lasSsoTokenRevocationQueue() {
+    @ConditionalOnMissingBean(LasSsoRevocationTaskSink.class)
+    LasSsoRevocationTaskSink lasSsoTokenRevocationQueue() {
         return new LasSsoTokenRevocationQueue();
     }
 
@@ -66,24 +70,35 @@ public class LasSsoClientAutoConfiguration {
     @ConditionalOnMissingBean
     LasSsoCurrentApplicationLogoutHandler lasSsoCurrentApplicationLogoutHandler(
             ClientRegistrationRepository registrations,
-            OAuth2AuthorizedClientRepository authorizedClients,
+            LasSsoAuthorizedClientRepository authorizedClients,
             LasSsoClientProperties properties,
-            LasSsoTokenRevocationQueue revocations) {
+            LasSsoRevocationTaskSink revocations) {
         return new LasSsoCurrentApplicationLogoutHandler(
                 registrations, authorizedClients, properties, revocations);
     }
 
     @Bean
     @ConditionalOnMissingBean(name = "lasSsoSessionLifecycleListener")
-    ServletListenerRegistrationBean<HttpSessionListener> lasSsoSessionLifecycleListener(
-            LasSsoBackChannelSessionRegistry sessions) {
-        HttpSessionListener listener = new HttpSessionListener() {
-            @Override
-            public void sessionDestroyed(HttpSessionEvent event) {
-                sessions.unregister(event.getSession().getId());
-            }
-        };
-        return new ServletListenerRegistrationBean<>(listener);
+    ServletListenerRegistrationBean<LasSsoSessionLifecycleListener> lasSsoSessionLifecycleListener(
+            LasSsoBackChannelSessionStore sessions, LasSsoClientProperties properties) {
+        return new ServletListenerRegistrationBean<>(new LasSsoSessionLifecycleListener(sessions, properties));
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(LasSsoClientErrorHandler.class)
+    LasSsoClientErrorHandler lasSsoClientErrorHandler() {
+        return new DefaultLasSsoClientErrorHandler();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(LasSsoSecurityConfigurer.class)
+    LasSsoSecurityConfigurer lasSsoSecurityConfigurer(
+            ClientRegistrationRepository registrations, LasSsoAuthorizedClientRepository authorizedClients,
+            LasSsoClientProperties properties, LasSsoAuthorizedClientRefresher refresher,
+            LasSsoBackChannelSessionStore sessions, LasSsoCurrentApplicationLogoutHandler logout,
+            LasSsoClientErrorHandler errors) {
+        return new LasSsoSecurityConfigurer(registrations, authorizedClients, properties,
+                refresher, sessions, logout, errors);
     }
 
     @Bean
@@ -92,13 +107,19 @@ public class LasSsoClientAutoConfiguration {
             @Qualifier("lasSsoLogoutTokenDecoder") JwtDecoder jwtDecoder,
             ClientRegistrationRepository registrations,
             LasSsoClientProperties properties,
-            LasSsoBackChannelSessionRegistry sessions) {
+            LasSsoBackChannelSessionStore sessions,
+            LasSsoLogoutReplayStore replayStore) {
         var registration = registrations.findByRegistrationId(properties.registrationId());
         if (registration == null) {
             throw new IllegalStateException("LAS SSO client registration is missing");
         }
+        String issuer = registration.getProviderDetails().getIssuerUri();
+        if (issuer == null || issuer.isBlank()) {
+            throw new IllegalStateException("LAS SSO client registration requires a fixed issuer");
+        }
         return new LasSsoBackChannelLogoutController(
-                jwtDecoder, registration.getClientId(), sessions);
+                jwtDecoder, registration.getClientId(), sessions, replayStore,
+                issuer, java.time.Clock.systemUTC());
     }
 
     @Bean
@@ -124,47 +145,38 @@ public class LasSsoClientAutoConfiguration {
                 new JwtTimestampValidator(),
                 new JwtIssuerValidator(issuerUri),
                 new JwtTypeValidator("logout+jwt")));
-        return decoder;
+        return token -> {
+            var jwt = decoder.decode(token);
+            // Nimbus JWTClaimsSet coerces numeric sub before Spring sees claims. Check the verified
+            // payload through Nimbus's own API; do not write a second JWT parser or signature verifier.
+            try {
+                var raw = com.nimbusds.jwt.SignedJWT.parse(token).getPayload().toJSONObject();
+                if (raw == null) throw new IllegalArgumentException("Invalid logout payload");
+                for (String name : java.util.List.of("iss", "sub", "jti", "sid")) {
+                    if (raw.containsKey(name) && !(raw.get(name) instanceof String)) {
+                        throw new IllegalArgumentException("Logout identity claim has invalid type");
+                    }
+                }
+                return jwt;
+            } catch (java.text.ParseException | IllegalArgumentException exception) {
+                throw new org.springframework.security.oauth2.jwt.BadJwtException("Invalid logout claim types");
+            }
+        };
     }
 
     @Bean
     @ConditionalOnMissingBean(SecurityFilterChain.class)
     SecurityFilterChain lasSsoSecurityFilterChain(
             HttpSecurity http,
-            ClientRegistrationRepository clientRegistrations,
-            OAuth2AuthorizedClientRepository authorizedClients,
-            LasSsoClientProperties properties,
-            LasSsoAuthorizedClientRefresher refresher,
-            LasSsoBackChannelSessionRegistry backChannelSessions,
-            LasSsoCurrentApplicationLogoutHandler currentApplicationLogoutHandler) throws Exception {
-        var resolver = new DefaultOAuth2AuthorizationRequestResolver(
-                clientRegistrations, "/oauth2/authorization");
-        resolver.setAuthorizationRequestCustomizer(OAuth2AuthorizationRequestCustomizers.withPkce());
-
+            LasSsoSecurityConfigurer configurer) throws Exception {
         http.authorizeHttpRequests(authorize -> authorize
                         .requestMatchers("/", "/error", "/assets/**", "/api/auth/login", "/api/auth/session",
                                 "/logged-out", "/internal/oidc/backchannel-logout")
                         .permitAll()
-                        .anyRequest().authenticated())
-                .oauth2Login(oauth2 -> oauth2
-                        .authorizationEndpoint(endpoint -> endpoint
-                                .authorizationRequestResolver(resolver))
-                        .defaultSuccessUrl("/", true))
-                .logout(logout -> logout
-                        .logoutUrl("/api/auth/logout")
-                        .logoutSuccessUrl(properties.logoutSuccessUri())
-                        .addLogoutHandler(currentApplicationLogoutHandler)
-                        .invalidateHttpSession(true)
-                        .deleteCookies(properties.sessionCookieName()));
-        http.csrf(csrf -> csrf.ignoringRequestMatchers(
-                PathPatternRequestMatcher.pathPattern(
-                        HttpMethod.POST, "/internal/oidc/backchannel-logout")));
-        http.addFilterAfter(
-                new LasSsoAuthorizedClientRefreshFilter(properties, refresher, authorizedClients),
-                OAuth2LoginAuthenticationFilter.class);
-        http.addFilterAfter(
-                new LasSsoSessionRegistrationFilter(backChannelSessions),
-                LasSsoAuthorizedClientRefreshFilter.class);
+                        .anyRequest().authenticated());
+        var successHandler = new SimpleUrlAuthenticationSuccessHandler("/");
+        successHandler.setAlwaysUseDefaultTargetUrl(true);
+        configurer.configure(http, new LasSsoReturnToSuccessHandler(successHandler));
         return http.build();
     }
 
@@ -172,7 +184,7 @@ public class LasSsoClientAutoConfiguration {
     @ConditionalOnMissingBean(OAuth2AuthorizedClientManager.class)
     OAuth2AuthorizedClientManager lasSsoAuthorizedClientManager(
             ClientRegistrationRepository clientRegistrations,
-            OAuth2AuthorizedClientRepository authorizedClients,
+            LasSsoAuthorizedClientRepository authorizedClients,
             LasSsoClientProperties properties) {
         var manager = new DefaultOAuth2AuthorizedClientManager(clientRegistrations, authorizedClients);
         manager.setAuthorizedClientProvider(OAuth2AuthorizedClientProviderBuilder.builder()

@@ -1,0 +1,74 @@
+{
+  "uid": "las-sso-operations",
+  "title": "LAS SSO Operations",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": false,
+  "tags": ["las-sso"],
+  "timezone": "utc",
+  "refresh": "15s",
+  "time": { "from": "now-1h", "to": "now" },
+  "templating": {
+    "list": [
+      { "name": "datasource", "type": "datasource", "query": "prometheus", "label": "Prometheus" },
+      { "name": "instance", "type": "query", "datasource": { "type": "prometheus", "uid": "${datasource}" }, "query": "label_values(up{job=\"las-sso\"}, instance)", "refresh": 1, "includeAll": true, "allValue": ".*", "multi": true }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1, "title": "Scrape Availability", "type": "stat", "gridPos": { "x": 0, "y": 0, "w": 6, "h": 5 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [{ "refId": "A", "expr": "up{job=\"las-sso\",instance=~\"$instance\"}", "legendFormat": "{{instance}}" }],
+      "fieldConfig": { "defaults": { "min": 0, "max": 1, "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] } }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "colorMode": "value" }
+    },
+    {
+      "id": 2, "title": "Database Snapshot Availability", "type": "stat", "gridPos": { "x": 6, "y": 0, "w": 6, "h": 5 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [{ "refId": "A", "expr": "las_sso_snapshot_available{job=\"las-sso\",instance=~\"$instance\"}", "legendFormat": "{{instance}}" }],
+      "fieldConfig": { "defaults": { "min": 0, "max": 1, "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] } }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "colorMode": "value" }
+    },
+    {
+      "id": 3, "title": "Snapshot Age", "type": "stat", "gridPos": { "x": 12, "y": 0, "w": 6, "h": 5 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [{ "refId": "A", "expr": "time() - las_sso_snapshot_last_success_seconds{job=\"las-sso\",instance=~\"$instance\"}", "legendFormat": "{{instance}}" }],
+      "fieldConfig": { "defaults": { "unit": "s", "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 60 }] } }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } }
+    },
+    {
+      "id": 4, "title": "Active SSO Sessions", "type": "stat", "gridPos": { "x": 18, "y": 0, "w": 6, "h": 5 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [{ "refId": "A", "expr": "las_sso_sessions_active{job=\"las-sso\",instance=~\"$instance\"} and on(job,instance) las_sso_snapshot_available == 1 and on(job,instance) time() - las_sso_snapshot_last_success_seconds <= 60", "legendFormat": "{{instance}}" }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } }
+    },
+    {
+      "id": 5, "title": "Login Results", "type": "timeseries", "gridPos": { "x": 0, "y": 5, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [{ "refId": "A", "expr": "sum by(result) (rate(las_sso_login_attempts_total{job=\"las-sso\",instance=~\"$instance\"}[5m]))", "legendFormat": "{{result}}" }],
+      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] }
+    },
+    {
+      "id": 6, "title": "Argon2 Verification p95", "type": "timeseries", "gridPos": { "x": 12, "y": 5, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [{ "refId": "A", "expr": "histogram_quantile(0.95,sum by(instance,le) (rate(las_sso_password_hash_seconds_bucket{job=\"las-sso\",instance=~\"$instance\",algorithm=\"argon2id\",operation=\"match\"}[5m])))", "legendFormat": "{{instance}}" }],
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] }
+    },
+    {
+      "id": 7, "title": "Logout Queue", "type": "timeseries", "gridPos": { "x": 0, "y": 13, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [
+        { "refId": "A", "expr": "las_sso_outbox_pending{job=\"las-sso\",instance=~\"$instance\"} and on(job,instance) las_sso_snapshot_available == 1 and on(job,instance) time() - las_sso_snapshot_last_success_seconds <= 60", "legendFormat": "pending {{instance}}" },
+        { "refId": "B", "expr": "las_sso_outbox_dead{job=\"las-sso\",instance=~\"$instance\"} and on(job,instance) las_sso_snapshot_available == 1 and on(job,instance) time() - las_sso_snapshot_last_success_seconds <= 60", "legendFormat": "dead {{instance}}" }
+      ]
+    },
+    {
+      "id": 8, "title": "Connection Pool", "type": "timeseries", "gridPos": { "x": 12, "y": 13, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [
+        { "refId": "A", "expr": "hikaricp_connections_active{job=\"las-sso\",instance=~\"$instance\"}", "legendFormat": "active {{instance}}" },
+        { "refId": "B", "expr": "hikaricp_connections_pending{job=\"las-sso\",instance=~\"$instance\"}", "legendFormat": "waiting {{instance}}" }
+      ]
+    }
+  ]
+}

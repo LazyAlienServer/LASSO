@@ -13,6 +13,8 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.las.sso.config.LoginRiskProperties;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
+import org.springframework.web.util.UriUtils;
+import java.nio.charset.StandardCharsets;
 
 @Component
 public final class LoginRiskAuthenticationFilter extends OncePerRequestFilter {
@@ -21,22 +23,36 @@ public final class LoginRiskAuthenticationFilter extends OncePerRequestFilter {
     private final ClientNetworkKey clientNetworkKey;
     private final AltchaChallengeService captcha;
     private final LoginRiskProperties properties;
+    private final org.las.sso.observability.SsoMetrics metrics;
 
     public LoginRiskAuthenticationFilter(
             PostgresRateLimiter rateLimiter,
             ClientNetworkKey clientNetworkKey,
             AltchaChallengeService captcha,
-            LoginRiskProperties properties) {
+            LoginRiskProperties properties,
+            org.las.sso.observability.SsoMetrics metrics) {
         this.rateLimiter = rateLimiter;
         this.clientNetworkKey = clientNetworkKey;
         this.captcha = captcha;
         this.properties = properties;
+        this.metrics = metrics;
     }
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        return !"POST".equals(request.getMethod())
-                || !(request.getContextPath() + "/login").equals(request.getRequestURI());
+        if (!"POST".equals(request.getMethod())) {
+            return true;
+        }
+        String path = request.getRequestURI();
+        String contextPath = request.getContextPath();
+        if (!contextPath.isEmpty() && path.startsWith(contextPath)) {
+            path = path.substring(contextPath.length());
+        }
+        try {
+            return !"/login".equals(UriUtils.decode(path, StandardCharsets.UTF_8));
+        } catch (IllegalArgumentException exception) {
+            return true;
+        }
     }
 
     @Override
@@ -51,6 +67,8 @@ public final class LoginRiskAuthenticationFilter extends OncePerRequestFilter {
                 properties.blockIpFailures(),
                 properties.blockWindow());
         if (blocked.thresholdReached()) {
+            metrics.login(org.las.sso.observability.SsoMetrics.LoginResult.LIMITED,
+                    org.las.sso.observability.SsoMetrics.LoginReason.NETWORK);
             writeRateLimited(response, blocked.resetsAt());
             return;
         }
@@ -67,6 +85,8 @@ public final class LoginRiskAuthenticationFilter extends OncePerRequestFilter {
 
         String payload = request.getParameter("captchaPayload");
         if (payload == null || payload.isBlank()) {
+            metrics.login(org.las.sso.observability.SsoMetrics.LoginResult.CAPTCHA_REQUIRED,
+                    org.las.sso.observability.SsoMetrics.LoginReason.CAPTCHA);
             response.sendRedirect(request.getContextPath() + "/login?captcha");
             return;
         }
@@ -74,6 +94,8 @@ public final class LoginRiskAuthenticationFilter extends OncePerRequestFilter {
             captcha.verifyAndConsume(AltchaChallengeService.Purpose.LOGIN_RISK, payload, networkKey);
             filterChain.doFilter(request, response);
         } catch (CaptchaInvalidException exception) {
+            metrics.login(org.las.sso.observability.SsoMetrics.LoginResult.CAPTCHA_REQUIRED,
+                    org.las.sso.observability.SsoMetrics.LoginReason.CAPTCHA);
             response.sendRedirect(request.getContextPath() + "/login?captcha");
         }
     }

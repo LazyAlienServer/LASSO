@@ -1,5 +1,7 @@
 package org.las.sso.client;
 
+import java.io.IOException;
+import java.net.HttpURLConnection;
 import java.time.Duration;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -14,7 +16,7 @@ import org.springframework.security.oauth2.client.registration.ClientRegistratio
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.web.client.RestClient;
 
-public final class LasSsoTokenRevocationQueue implements AutoCloseable {
+public final class LasSsoTokenRevocationQueue implements AutoCloseable, LasSsoRevocationTaskSink {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(LasSsoTokenRevocationQueue.class);
     private static final int MAX_ATTEMPTS = 8;
@@ -23,15 +25,27 @@ public final class LasSsoTokenRevocationQueue implements AutoCloseable {
     private final RestClient restClient;
 
     public LasSsoTokenRevocationQueue() {
-        var requestFactory = new SimpleClientHttpRequestFactory();
+        this(Executors.newSingleThreadScheduledExecutor(
+                Thread.ofPlatform().daemon().name("las-sso-token-revocation").factory()));
+    }
+
+    /** Test seam for observing the retry schedule; the public queue uses the unchanged production scheduler. */
+    LasSsoTokenRevocationQueue(ScheduledExecutorService executor) {
+        var requestFactory = new SimpleClientHttpRequestFactory() {
+            @Override
+            protected void prepareConnection(HttpURLConnection connection, String method) throws IOException {
+                super.prepareConnection(connection, method);
+                connection.setInstanceFollowRedirects(false);
+            }
+        };
         requestFactory.setConnectTimeout(Duration.ofSeconds(3));
         requestFactory.setReadTimeout(Duration.ofSeconds(5));
         this.restClient = RestClient.builder().requestFactory(requestFactory).build();
-        this.executor = Executors.newSingleThreadScheduledExecutor(
-                Thread.ofPlatform().daemon().name("las-sso-token-revocation").factory());
+        this.executor = executor;
     }
 
-    public void enqueue(ClientRegistration registration, String token, String tokenTypeHint) {
+    @Override
+    public void submit(ClientRegistration registration, String token, String tokenTypeHint) {
         if (token == null || token.isBlank()) {
             return;
         }
@@ -43,6 +57,11 @@ public final class LasSsoTokenRevocationQueue implements AutoCloseable {
             return;
         }
         executor.execute(() -> deliver(new Request(registration, uri, token, tokenTypeHint, 0)));
+    }
+
+    /** Compatibility alias for existing consumers; new integrations use {@link #submit}. */
+    public void enqueue(ClientRegistration registration, String token, String tokenTypeHint) {
+        submit(registration, token, tokenTypeHint);
     }
 
     private void deliver(Request request) {
@@ -60,13 +79,19 @@ public final class LasSsoTokenRevocationQueue implements AutoCloseable {
             } else {
                 form.add("client_id", request.registration().getClientId());
             }
-            invocation.body(form).retrieve().toBodilessEntity();
+            invocation.body(form).exchange((sent, response) -> {
+                if (response.getStatusCode().value() != 200) {
+                    throw new RevocationResponseException(response.getStatusCode().value());
+                }
+                return null;
+            });
         } catch (RuntimeException exception) {
             int nextAttempt = request.attempt() + 1;
             if (nextAttempt >= MAX_ATTEMPTS) {
                 LOGGER.error(
-                        "Token revocation exhausted retries: registrationId={}",
-                        request.registration().getRegistrationId(), exception);
+                        "Token revocation exhausted retries: registrationId={}, errorCode={}",
+                        request.registration().getRegistrationId(), exception instanceof RevocationResponseException rejected
+                                ? "HTTP_" + rejected.status : exception.getClass().getSimpleName());
                 return;
             }
             long capSeconds = Math.min(300L, 1L << nextAttempt);
@@ -83,6 +108,15 @@ public final class LasSsoTokenRevocationQueue implements AutoCloseable {
     @Override
     public void close() {
         executor.shutdownNow();
+    }
+
+    private static final class RevocationResponseException extends RuntimeException {
+        private final int status;
+
+        private RevocationResponseException(int status) {
+            super("Revocation endpoint did not acknowledge revocation");
+            this.status = status;
+        }
     }
 
     private record Request(

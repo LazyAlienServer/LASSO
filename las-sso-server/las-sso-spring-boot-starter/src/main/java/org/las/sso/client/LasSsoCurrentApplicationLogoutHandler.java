@@ -5,6 +5,8 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.client.OAuth2AuthorizedClient;
 import org.springframework.security.oauth2.client.web.OAuth2AuthorizedClientRepository;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.web.authentication.logout.LogoutHandler;
@@ -17,17 +19,26 @@ public final class LasSsoCurrentApplicationLogoutHandler implements LogoutHandle
     private final ClientRegistrationRepository registrations;
     private final OAuth2AuthorizedClientRepository authorizedClients;
     private final LasSsoClientProperties properties;
-    private final LasSsoTokenRevocationQueue revocations;
+    private final LasSsoRevocationTaskSink revocations;
 
     public LasSsoCurrentApplicationLogoutHandler(
             ClientRegistrationRepository registrations,
             OAuth2AuthorizedClientRepository authorizedClients,
             LasSsoClientProperties properties,
-            LasSsoTokenRevocationQueue revocations) {
+            LasSsoRevocationTaskSink revocations) {
         this.registrations = registrations;
         this.authorizedClients = authorizedClients;
         this.properties = properties;
         this.revocations = revocations;
+    }
+
+    /** Compatibility constructor for existing starter consumers; new code should inject the sink. */
+    public LasSsoCurrentApplicationLogoutHandler(
+            ClientRegistrationRepository registrations,
+            OAuth2AuthorizedClientRepository authorizedClients,
+            LasSsoClientProperties properties,
+            LasSsoTokenRevocationQueue revocations) {
+        this(registrations, authorizedClients, properties, revocations::enqueue);
     }
 
     @Override
@@ -38,27 +49,50 @@ public final class LasSsoCurrentApplicationLogoutHandler implements LogoutHandle
         if (authentication == null) {
             return;
         }
+        OAuth2AuthorizedClient authorizedClient = null;
         try {
-            var authorizedClient = authorizedClients.loadAuthorizedClient(
+            authorizedClient = authorizedClients.loadAuthorizedClient(
                     properties.registrationId(), authentication, request);
-            if (authorizedClient != null) {
-                var registration = registrations.findByRegistrationId(properties.registrationId());
-                if (registration != null && authorizedClient.getRefreshToken() != null) {
-                    revocations.enqueue(
-                            registration,
-                            authorizedClient.getRefreshToken().getTokenValue(),
-                            "refresh_token");
-                } else if (registration != null && authorizedClient.getAccessToken() != null) {
-                    revocations.enqueue(
-                            registration,
-                            authorizedClient.getAccessToken().getTokenValue(),
-                            "access_token");
+        } catch (RuntimeException exception) {
+            LOGGER.error("Unable to read local authorization for logout: failureType={}",
+                    exception.getClass().getSimpleName());
+        }
+
+        try {
+            authorizedClients.removeAuthorizedClient(
+                    properties.registrationId(), authentication, request, response);
+        } catch (RuntimeException exception) {
+            LOGGER.error("Unable to remove local authorization; local session will end: failureType={}",
+                    exception.getClass().getSimpleName());
+        } finally {
+            SecurityContextHolder.clearContext();
+            var session = request.getSession(false);
+            if (session != null) {
+                try {
+                    session.invalidate();
+                } catch (IllegalStateException ignored) {
+                    // A concurrent logout already ended this local session.
                 }
-                authorizedClients.removeAuthorizedClient(
-                        properties.registrationId(), authentication, request, response);
+            }
+        }
+
+        // Use only the snapshot from this session, after local authentication has ended.
+        if (authorizedClient == null) {
+            return;
+        }
+        try {
+            var registration = registrations.findByRegistrationId(properties.registrationId());
+            if (registration != null && authorizedClient.getRefreshToken() != null) {
+                revocations.submit(registration,
+                        authorizedClient.getRefreshToken().getTokenValue(), "refresh_token");
+            } else if (registration != null && authorizedClient.getAccessToken() != null) {
+                revocations.submit(registration,
+                        authorizedClient.getAccessToken().getTokenValue(), "access_token");
             }
         } catch (RuntimeException exception) {
-            LOGGER.error("Failed to enqueue remote token revocation; local logout will continue", exception);
+            // A failed submission is not remote revocation success. Do not log secret-bearing errors.
+            LOGGER.error("Remote token revocation submission failed; local logout is complete: failureType={}",
+                    exception.getClass().getSimpleName());
         }
     }
 }

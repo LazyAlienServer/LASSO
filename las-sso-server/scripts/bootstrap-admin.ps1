@@ -5,16 +5,18 @@ param(
     [Parameter(Mandatory = $true, ParameterSetName = 'ExistingUser')]
     [Guid]$UserId,
 
-    [string]$Profile = 'local'
+    [string]$Profile = 'local',
+
+    [ValidateNotNullOrEmpty()]
+    [string]$JarPath = (Join-Path $PSScriptRoot '..\build\libs\las-sso-server-0.1.0-SNAPSHOT.jar'),
+
+    [ValidatePattern('^[0-9a-fA-F]{64}$')]
+    [string]$ExpectedSha256
 )
 
 $ErrorActionPreference = 'Stop'
-$projectDirectory = Split-Path -Parent $PSScriptRoot
-$jar = Join-Path $projectDirectory 'build\libs\las-sso-server-0.1.0-SNAPSHOT.jar'
-
-if (-not (Test-Path -LiteralPath $jar -PathType Leaf)) {
-    throw "Application JAR not found. Run .\gradlew.bat bootJar first."
-}
+. (Join-Path $PSScriptRoot 'maintenance-artifact.ps1')
+$jar = Resolve-LasSsoMaintenanceArtifact -JarPath $JarPath -ExpectedSha256 $ExpectedSha256
 
 $arguments = @(
     '-jar', $jar,

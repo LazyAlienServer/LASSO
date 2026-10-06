@@ -33,6 +33,9 @@ management:
       probes:
         enabled: true
       show-details: never
+      group:
+        readiness:
+          include: readinessState,db
 
 las:
   sso:

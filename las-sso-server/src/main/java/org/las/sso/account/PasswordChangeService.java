@@ -5,6 +5,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.UUID;
 
+import org.las.sso.access.ServiceAccessEligibilityService;
 import org.las.sso.identity.UuidV7Generator;
 import org.las.sso.logout.BackChannelLogoutOutbox;
 
@@ -22,6 +23,7 @@ public class PasswordChangeService {
     private final PasswordPolicy passwordPolicy;
     private final UuidV7Generator uuidGenerator;
     private final BackChannelLogoutOutbox backChannelLogout;
+    private final ServiceAccessEligibilityService serviceAccess;
     private final Clock clock;
 
     @Autowired
@@ -30,9 +32,10 @@ public class PasswordChangeService {
             PasswordEncoder passwordEncoder,
             PasswordPolicy passwordPolicy,
             UuidV7Generator uuidGenerator,
-            BackChannelLogoutOutbox backChannelLogout) {
+            BackChannelLogoutOutbox backChannelLogout,
+            ServiceAccessEligibilityService serviceAccess) {
         this(jdbcClient, passwordEncoder, passwordPolicy, uuidGenerator,
-                backChannelLogout, Clock.systemUTC());
+                backChannelLogout, serviceAccess, Clock.systemUTC());
     }
 
     PasswordChangeService(
@@ -41,12 +44,14 @@ public class PasswordChangeService {
             PasswordPolicy passwordPolicy,
             UuidV7Generator uuidGenerator,
             BackChannelLogoutOutbox backChannelLogout,
+            ServiceAccessEligibilityService serviceAccess,
             Clock clock) {
         this.jdbcClient = jdbcClient;
         this.passwordEncoder = passwordEncoder;
         this.passwordPolicy = passwordPolicy;
         this.uuidGenerator = uuidGenerator;
         this.backChannelLogout = backChannelLogout;
+        this.serviceAccess = serviceAccess;
         this.clock = clock;
     }
 
@@ -56,13 +61,17 @@ public class PasswordChangeService {
             boolean requiredChange,
             String currentCredential,
             String newPassword) {
+        // The user row is the common serialization boundary for credential and recovery operations.
+        jdbcClient.sql("SELECT id FROM users WHERE id = :userId AND account_status = 'ACTIVE' FOR UPDATE")
+                .param("userId", userId).query(UUID.class).optional()
+                .orElseThrow(() -> new PasswordChangeException("CURRENT_PASSWORD_INVALID"));
         Credential credential = jdbcClient.sql("""
                 SELECT un.username, pc.password_hash, pc.state, pc.temporary_expires_at
                   FROM users u
                   JOIN usernames un ON un.user_id = u.id AND un.valid_to IS NULL
                   JOIN password_credentials pc ON pc.user_id = u.id
                  WHERE u.id = :userId AND u.account_status = 'ACTIVE'
-                 FOR UPDATE OF u, un, pc
+                  FOR UPDATE OF un, pc
                 """).param("userId", userId)
                 .query((rs, rowNum) -> new Credential(
                         rs.getString("username"),
@@ -108,6 +117,13 @@ public class PasswordChangeService {
                 UPDATE recovery_codes SET revoked_at = :now
                  WHERE user_id = :userId AND revoked_at IS NULL
                 """).param("now", now).param("userId", userId).update();
+        jdbcClient.sql("""
+                UPDATE recovery_sessions SET consumed_at = :now
+                 WHERE user_id = :userId AND consumed_at IS NULL
+                """).param("now", now).param("userId", userId).update();
+        if ("PASSWORD_CHANGE_REQUIRED".equals(credential.state())) {
+            serviceAccess.advanceStateVersion(userId, now);
+        }
         jdbcClient.sql("""
                 UPDATE admin_recovery_credentials SET revoked_at = :now
                  WHERE target_user_id = :userId AND revoked_at IS NULL

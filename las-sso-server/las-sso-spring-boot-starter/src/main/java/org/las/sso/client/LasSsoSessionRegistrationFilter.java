@@ -7,15 +7,14 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 final class LasSsoSessionRegistrationFilter extends OncePerRequestFilter {
 
-    private final LasSsoBackChannelSessionRegistry sessions;
+    private final LasSsoSessionRegistration registration;
 
-    LasSsoSessionRegistrationFilter(LasSsoBackChannelSessionRegistry sessions) {
-        this.sessions = sessions;
+    LasSsoSessionRegistrationFilter(LasSsoSessionRegistration registration) {
+        this.registration = registration;
     }
 
     @Override
@@ -24,11 +23,8 @@ final class LasSsoSessionRegistrationFilter extends OncePerRequestFilter {
             HttpServletResponse response,
             FilterChain filterChain) throws ServletException, IOException {
         var authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication != null
-                && authentication.isAuthenticated()
-                && authentication.getPrincipal() instanceof OidcUser user) {
-            String sid = user.getClaimAsString("sid");
-            sessions.register(sid, user.getSubject(), request.getSession(true));
+        if (!registration.register(authentication, request, response)) {
+            return;
         }
         filterChain.doFilter(request, response);
     }

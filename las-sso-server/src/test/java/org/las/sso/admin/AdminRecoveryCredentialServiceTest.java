@@ -93,7 +93,7 @@ class AdminRecoveryCredentialServiceTest {
                 recoveryCredentialService.issue(adminId, null, target.userId(),
                         "identity verified through LASLOG history", requestId);
 
-        assertThat(issued.credential()).startsWith("LAS-ADMIN-");
+        assertThat(issued.credential()).matches("LAS-ADMIN-[2-9A-HJ-NP-Z]{4}(-[2-9A-HJ-NP-Z]{4}){3}");
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
         assertThat(issued.expiresAt()).isAfter(now.plusMinutes(29)).isBefore(now.plusMinutes(31));
 
@@ -253,6 +253,31 @@ class AdminRecoveryCredentialServiceTest {
     }
 
     @Test
+    void adminPromotionRevokesAnAlreadyStartedRecoverySession() {
+        jdbcClient.sql("UPDATE users SET is_sso_admin = false").update();
+        var target = registrationService.register(
+                "PromotionRecoveryTarget", "Promotion Recovery Target", "promotion old passphrase");
+
+        PasswordRecoveryService.RecoverySession session = passwordRecoveryService.start(
+                "PromotionRecoveryTarget", target.recoveryCodes().getFirst(),
+                PasswordRecoveryService.CredentialType.RECOVERY_CODE, null,
+                "v4/24:0a000099");
+
+        adminBootstrapService.promoteExistingUser(
+                target.userId(), "promotion temporary admin passphrase");
+
+        assertThatThrownBy(() -> passwordRecoveryService.complete(
+                session.token(), "stale recovery password passphrase"))
+                .isInstanceOf(RecoveryFlowException.class)
+                .extracting("code")
+                .isEqualTo("SESSION_EXPIRED");
+        assertThat(jdbcClient.sql("""
+                SELECT COUNT(*) FROM recovery_sessions
+                 WHERE user_id = :userId AND consumed_at IS NULL
+                """).param("userId", target.userId()).query(Long.class).single()).isZero();
+    }
+
+    @Test
     void endpointRequiresAdminRoleAndRecentAuthenticationAndReturnsOnce() throws Exception {
         var actor = registrationService.register(
                 "EndpointActor", "Endpoint Actor", "endpoint actor passphrase");
@@ -297,7 +322,8 @@ class AdminRecoveryCredentialServiceTest {
                         .content("{\"reason\":\"identity verified offline\"}"))
                 .andExpect(status().isOk())
                 .andExpect(header().string("Cache-Control", org.hamcrest.Matchers.containsString("no-store")))
-                .andExpect(jsonPath("$.credential").value(org.hamcrest.Matchers.startsWith("LAS-ADMIN-")))
+                .andExpect(jsonPath("$.credential").value(org.hamcrest.Matchers.matchesPattern(
+                        "LAS-ADMIN-[2-9A-HJ-NP-Z]{4}(-[2-9A-HJ-NP-Z]{4}){3}")))
                 .andExpect(jsonPath("$.expiresAt").isNotEmpty());
 
         mockMvc.perform(post("/api/v1/admin/users/{userId}/recovery-credentials", actor.userId())

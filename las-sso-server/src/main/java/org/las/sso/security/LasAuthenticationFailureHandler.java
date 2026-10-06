@@ -23,18 +23,21 @@ public final class LasAuthenticationFailureHandler implements AuthenticationFail
     private final ClientNetworkKey clientNetworkKey;
     private final LoginRiskProperties properties;
     private final LoginFailureResponseJitter failureJitter;
+    private final org.las.sso.observability.SsoMetrics metrics;
 
     public LasAuthenticationFailureHandler(
             LoginAttemptService loginAttempts,
             PostgresRateLimiter rateLimiter,
             ClientNetworkKey clientNetworkKey,
             LoginRiskProperties properties,
-            LoginFailureResponseJitter failureJitter) {
+            LoginFailureResponseJitter failureJitter,
+            org.las.sso.observability.SsoMetrics metrics) {
         this.loginAttempts = loginAttempts;
         this.rateLimiter = rateLimiter;
         this.clientNetworkKey = clientNetworkKey;
         this.properties = properties;
         this.failureJitter = failureJitter;
+        this.metrics = metrics;
     }
 
     @Override
@@ -42,6 +45,16 @@ public final class LasAuthenticationFailureHandler implements AuthenticationFail
             HttpServletRequest request,
             HttpServletResponse response,
             AuthenticationException exception) throws IOException, ServletException {
+        var reason = exception instanceof org.springframework.security.authentication.LockedException
+                ? org.las.sso.observability.SsoMetrics.LoginReason.LOCKED
+                : exception instanceof org.springframework.security.authentication.DisabledException
+                ? org.las.sso.observability.SsoMetrics.LoginReason.DISABLED
+                : exception instanceof org.springframework.security.authentication.CredentialsExpiredException
+                ? org.las.sso.observability.SsoMetrics.LoginReason.EXPIRED
+                : exception instanceof org.springframework.security.authentication.BadCredentialsException
+                ? org.las.sso.observability.SsoMetrics.LoginReason.CREDENTIALS
+                : org.las.sso.observability.SsoMetrics.LoginReason.OTHER;
+        metrics.login(org.las.sso.observability.SsoMetrics.LoginResult.REJECTED, reason);
         String username = request.getParameter("username");
         if (username != null && !username.isBlank()) {
             loginAttempts.recordFailure(username);

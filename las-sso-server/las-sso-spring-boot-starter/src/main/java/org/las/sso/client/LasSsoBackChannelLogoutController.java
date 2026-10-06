@@ -1,12 +1,9 @@
 package org.las.sso.client;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
-import java.util.Base64;
+import java.time.Clock;
+import java.time.Duration;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,6 +13,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtException;
+import org.springframework.security.oauth2.jwt.BadJwtException;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -27,78 +25,107 @@ public final class LasSsoBackChannelLogoutController {
 
     private static final String LOGOUT_EVENT =
             "http://schemas.openid.net/event/backchannel-logout";
+    static final Duration CLOCK_SKEW = Duration.ofSeconds(60);
+    private static final Duration MAX_LIFETIME = Duration.ofMinutes(2);
 
     private final JwtDecoder jwtDecoder;
     private final String clientId;
-    private final LasSsoBackChannelSessionRegistry sessions;
-    private final ConcurrentHashMap<String, Replay> replayCache = new ConcurrentHashMap<>();
+    private final LasSsoBackChannelSessionStore sessions;
+    private final LasSsoLogoutReplayStore replayStore;
+    private final Clock clock;
+    private final String issuer;
 
     LasSsoBackChannelLogoutController(
             @Qualifier("lasSsoLogoutTokenDecoder") JwtDecoder jwtDecoder,
             String clientId,
-            LasSsoBackChannelSessionRegistry sessions) {
+            LasSsoBackChannelSessionStore sessions,
+            LasSsoLogoutReplayStore replayStore) {
+        this(jwtDecoder, clientId, sessions, replayStore, null, Clock.systemUTC());
+    }
+
+    LasSsoBackChannelLogoutController(JwtDecoder jwtDecoder, String clientId,
+            LasSsoBackChannelSessionStore sessions, LasSsoLogoutReplayStore replayStore,
+            String issuer, Clock clock) {
         this.jwtDecoder = jwtDecoder;
         this.clientId = clientId;
         this.sessions = sessions;
+        this.replayStore = replayStore;
+        this.issuer = issuer;
+        this.clock = clock;
+    }
+
+    LasSsoBackChannelLogoutController(
+            @Qualifier("lasSsoLogoutTokenDecoder") JwtDecoder jwtDecoder,
+            String clientId,
+            LasSsoBackChannelSessionStore sessions) {
+        this(jwtDecoder, clientId, sessions, new DefaultLasSsoLogoutReplayStore());
     }
 
     @PostMapping(path = "/internal/oidc/backchannel-logout",
             consumes = "application/x-www-form-urlencoded")
     ResponseEntity<Void> logout(@RequestParam("logout_token") String logoutToken) {
+        Jwt jwt;
         try {
-            Jwt jwt = jwtDecoder.decode(logoutToken);
+            jwt = jwtDecoder.decode(logoutToken);
             validate(jwt);
-            if (!acceptReplay(jwt, logoutToken)) {
-                return ResponseEntity.badRequest().cacheControl(CacheControl.noStore()).build();
-            }
-            sessions.invalidate(jwt.getClaimAsString("sid"), jwt.getSubject());
-            return ResponseEntity.noContent().cacheControl(CacheControl.noStore()).build();
-        } catch (JwtException | IllegalArgumentException exception) {
-            LOGGER.warn("Rejected OIDC Back-Channel Logout Token: {}", exception.getMessage());
+        } catch (BadJwtException | IllegalArgumentException | ClassCastException | java.time.DateTimeException exception) {
+            LOGGER.warn("Rejected OIDC Back-Channel Logout Token: failureType={}", exception.getClass().getSimpleName());
             return ResponseEntity.badRequest().cacheControl(CacheControl.noStore()).build();
+        } catch (JwtException exception) {
+            LOGGER.error("Logout Token decoder unavailable: failureType={}", exception.getClass().getSimpleName());
+            return unavailable();
         }
+        try {
+            var result = replayStore.process(jwt.getIssuer().toString(), jwt.getId(),
+                    DefaultLasSsoLogoutReplayStore.sha256Base64Url(logoutToken),
+                    jwt.getExpiresAt().plus(CLOCK_SKEW),
+                    () -> sessions.invalidate(jwt.getClaimAsString("sid"), jwt.getSubject()));
+            return switch (java.util.Objects.requireNonNull(result, "Replay result")) {
+                case SUCCESS -> ResponseEntity.noContent().cacheControl(CacheControl.noStore()).build();
+                case CONFLICT -> ResponseEntity.badRequest().cacheControl(CacheControl.noStore()).build();
+                case IN_PROGRESS -> unavailable();
+            };
+        } catch (RuntimeException exception) {
+            LOGGER.error("Back-channel logout execution unavailable: failureType={}", exception.getClass().getSimpleName());
+            return unavailable();
+        }
+    }
+
+    private static ResponseEntity<Void> unavailable() {
+        return ResponseEntity.status(503).cacheControl(CacheControl.noStore()).build();
     }
 
     private void validate(Jwt jwt) {
         if (!"logout+jwt".equals(jwt.getHeaders().get("typ"))
-                || jwt.getId() == null
-                || jwt.getExpiresAt() == null
+                || !"RS256".equals(jwt.getHeaders().get("alg"))
+                || !(jwt.getClaim("jti") instanceof String jti) || jti.isBlank()
+                || !(jwt.getClaim("iss") instanceof String tokenIssuer) || tokenIssuer.isBlank()
+                || (issuer != null && !issuer.equals(tokenIssuer))
+                || jwt.getIssuer() == null
                 || jwt.getAudience() == null
                 || !jwt.getAudience().contains(clientId)
                 || jwt.hasClaim("nonce")) {
             throw new IllegalArgumentException("Invalid logout token envelope");
         }
-        Map<String, Object> events = jwt.getClaim("events");
-        if (events == null || !events.containsKey(LOGOUT_EVENT)) {
-            throw new IllegalArgumentException("Missing logout event");
+        Object rawEvents = jwt.getClaim("events");
+        if (!(rawEvents instanceof Map<?, ?> events)
+                || !(events.get(LOGOUT_EVENT) instanceof Map<?, ?> logoutEvent) || !logoutEvent.isEmpty()) {
+            throw new IllegalArgumentException("Invalid logout event");
         }
-        String sid = jwt.getClaimAsString("sid");
-        if ((sid == null || sid.isBlank())
-                && (jwt.getSubject() == null || jwt.getSubject().isBlank())) {
-            throw new IllegalArgumentException("Logout token requires sid or sub");
+        if (!(jwt.getClaim("sid") instanceof String sid) || sid.isBlank()
+                || (jwt.hasClaim("sub") && (!(jwt.getClaim("sub") instanceof String subject) || subject.isBlank()))) {
+            throw new IllegalArgumentException("First-party logout requires sid and a valid optional subject");
         }
-    }
-
-    private boolean acceptReplay(Jwt jwt, String token) {
-        Instant now = Instant.now();
-        replayCache.entrySet().removeIf(entry -> entry.getValue().expiresAt().isBefore(now));
-        Replay candidate = new Replay(digest(token), jwt.getExpiresAt());
-        Replay existing = replayCache.putIfAbsent(jwt.getId(), candidate);
-        return existing == null || MessageDigest.isEqual(
-                existing.digest().getBytes(StandardCharsets.US_ASCII),
-                candidate.digest().getBytes(StandardCharsets.US_ASCII));
-    }
-
-    private static String digest(String token) {
-        try {
-            byte[] digest = MessageDigest.getInstance("SHA-256")
-                    .digest(token.getBytes(StandardCharsets.UTF_8));
-            return Base64.getUrlEncoder().withoutPadding().encodeToString(digest);
-        } catch (NoSuchAlgorithmException exception) {
-            throw new IllegalStateException("SHA-256 unavailable", exception);
+        Instant now = clock.instant();
+        Instant issued = jwt.getIssuedAt();
+        Instant expires = jwt.getExpiresAt();
+        if (issued == null || expires == null || !expires.isAfter(issued)
+                || Duration.between(issued, expires).compareTo(MAX_LIFETIME) > 0
+                || issued.isAfter(now.plus(CLOCK_SKEW))
+                || issued.isBefore(now.minus(MAX_LIFETIME).minus(CLOCK_SKEW))
+                || !expires.plus(CLOCK_SKEW).isAfter(now)) {
+            throw new IllegalArgumentException("Invalid logout token lifetime");
         }
     }
 
-    private record Replay(String digest, Instant expiresAt) {
-    }
 }

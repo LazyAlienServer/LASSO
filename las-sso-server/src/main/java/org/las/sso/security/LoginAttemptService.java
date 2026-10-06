@@ -19,16 +19,20 @@ public class LoginAttemptService {
     private final JdbcClient jdbcClient;
     private final UuidV7Generator uuidGenerator;
     private final Clock clock;
+    private final org.las.sso.observability.SsoMetrics metrics;
 
     @Autowired
-    public LoginAttemptService(JdbcClient jdbcClient, UuidV7Generator uuidGenerator) {
-        this(jdbcClient, uuidGenerator, Clock.systemUTC());
+    public LoginAttemptService(JdbcClient jdbcClient, UuidV7Generator uuidGenerator,
+            org.las.sso.observability.SsoMetrics metrics) {
+        this(jdbcClient, uuidGenerator, Clock.systemUTC(), metrics);
     }
 
-    LoginAttemptService(JdbcClient jdbcClient, UuidV7Generator uuidGenerator, Clock clock) {
+    LoginAttemptService(JdbcClient jdbcClient, UuidV7Generator uuidGenerator, Clock clock,
+            org.las.sso.observability.SsoMetrics metrics) {
         this.jdbcClient = jdbcClient;
         this.uuidGenerator = uuidGenerator;
         this.clock = clock;
+        this.metrics = metrics;
     }
 
     @Transactional
@@ -50,6 +54,7 @@ public class LoginAttemptService {
         if (state == null) {
             return;
         }
+        if (state.admin()) metrics.committedAdminLoginFailure();
 
         OffsetDateTime now = now();
         Duration window = state.admin() ? Duration.ofMinutes(15) : Duration.ofMinutes(30);

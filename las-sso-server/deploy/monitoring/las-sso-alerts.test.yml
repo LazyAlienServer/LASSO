@@ -1,0 +1,68 @@
+rule_files:
+  - las-sso-alerts.yml
+evaluation_interval: 1m
+
+tests:
+  - interval: 1m
+    input_series:
+      - series: 'up{job="las-sso",instance="sso:9091"}'
+        values: '1 0 0 0 1 1'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: LasSsoScrapeUnavailable
+        exp_alerts: []
+      - eval_time: 3m
+        alertname: LasSsoScrapeUnavailable
+        exp_alerts:
+          - exp_labels: {job: las-sso, instance: "sso:9091", severity: critical}
+            exp_annotations:
+              summary: LAS SSO metrics scrape unavailable
+              description: Check the process, private management listener, collector credential and transport.
+      - eval_time: 4m
+        alertname: LasSsoScrapeUnavailable
+        exp_alerts: []
+
+  - interval: 1m
+    input_series:
+      - series: 'up{job="las-sso",instance="sso:9091"}'
+        values: '1+0x5'
+      - series: 'las_sso_snapshot_available{job="las-sso",instance="sso:9091"}'
+        values: '1 0 0 1 1 1'
+      - series: 'las_sso_snapshot_last_success_seconds{job="las-sso",instance="sso:9091"}'
+        values: '0 0 0 180 240 300'
+      - series: 'las_sso_outbox_oldest_age_seconds{job="las-sso",instance="sso:9091"}'
+        values: '0 400 400 0 0 0'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: LasSsoSnapshotUnavailable
+        exp_alerts:
+          - exp_labels: {job: las-sso, instance: "sso:9091", severity: critical}
+            exp_annotations:
+              summary: LAS SSO database snapshot unavailable or stale
+              description: Last-known session and queue gauges are invalid. Check readiness, database and pool.
+      - eval_time: 2m
+        alertname: LasSsoLogoutBacklog
+        exp_alerts: []
+      - eval_time: 3m
+        alertname: LasSsoSnapshotUnavailable
+        exp_alerts: []
+
+  - interval: 1m
+    input_series:
+      - series: 'las_sso_snapshot_available{job="las-sso",instance="sso:9091"}'
+        values: '1+0x4'
+      - series: 'las_sso_outbox_oldest_age_seconds{job="las-sso",instance="sso:9091"}'
+        values: '0 360 420 0 0'
+      - series: 'las_sso_snapshot_last_success_seconds{job="las-sso",instance="sso:9091"}'
+        values: '0 60 120 180 240'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: LasSsoLogoutBacklog
+        exp_alerts:
+          - exp_labels: {job: las-sso, instance: "sso:9091", severity: warning}
+            exp_annotations:
+              summary: LAS SSO logout backlog older than five minutes
+              description: Check workers, retry state and receiving endpoints without logging token payloads.
+      - eval_time: 3m
+        alertname: LasSsoLogoutBacklog
+        exp_alerts: []

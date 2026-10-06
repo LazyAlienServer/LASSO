@@ -1,6 +1,8 @@
 package org.las.sso.config;
 
 import java.time.Duration;
+import java.time.Instant;
+import java.util.Date;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -19,6 +21,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import org.las.sso.identity.LasUserPrincipal;
 import org.las.sso.identity.UuidV7Generator;
 import org.las.sso.oidc.SecurityAwareAuthorizationService;
+import org.las.sso.oidc.OidcPasswordAuthenticationFilter;
+import org.las.sso.oidc.OidcReauthenticationService;
 import org.las.sso.oidc.RefreshTokenFamilyAuthenticationProvider;
 import org.las.sso.oidc.RefreshTokenFamilyService;
 import org.las.sso.session.UserSessionService;
@@ -30,8 +34,10 @@ import org.las.sso.security.ClientNetworkKey;
 import org.las.sso.security.PostgresRateLimiter;
 import org.las.sso.security.LasAuthenticationSuccessHandler;
 import org.las.sso.security.AccountSessionValidationFilter;
+import org.las.sso.security.FirstPartyClientAuthenticationFilter;
 import org.las.sso.security.LoginRiskAuthenticationFilter;
 import org.las.sso.security.PasswordChangeRequiredFilter;
+import org.las.sso.security.RecentAuthenticationService;
 import org.las.sso.session.SsoGlobalLogoutHandler;
 
 import org.springframework.context.annotation.Bean;
@@ -55,6 +61,8 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.security.oauth2.core.oidc.endpoint.OidcParameterNames;
+import org.springframework.security.oauth2.server.resource.web.BearerTokenAuthenticationEntryPoint;
+import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationConverter;
 import org.springframework.security.oauth2.server.authorization.JdbcOAuth2AuthorizationConsentService;
 import org.springframework.security.oauth2.server.authorization.JdbcOAuth2AuthorizationService;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationConsentService;
@@ -67,17 +75,21 @@ import org.springframework.security.config.annotation.web.configurers.oauth2.ser
 import org.springframework.security.oauth2.server.authorization.settings.AuthorizationServerSettings;
 import org.springframework.security.oauth2.server.authorization.settings.TokenSettings;
 import org.springframework.security.oauth2.server.authorization.authentication.OAuth2RefreshTokenAuthenticationProvider;
+import org.springframework.security.oauth2.server.authorization.authentication.OAuth2AuthorizationCodeRequestAuthenticationProvider;
+import org.springframework.security.oauth2.server.authorization.authentication.OAuth2AuthorizationCodeRequestAuthenticationValidator;
 import org.springframework.security.oauth2.server.authorization.oidc.web.authentication.OidcLogoutAuthenticationSuccessHandler;
 import org.springframework.security.oauth2.server.authorization.token.JwtEncodingContext;
 import tools.jackson.databind.json.JsonMapper;
 import tools.jackson.databind.jsontype.BasicPolymorphicTypeValidator;
 import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenCustomizer;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.AnonymousAuthenticationFilter;
 import org.springframework.security.web.context.SecurityContextHolderFilter;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.savedrequest.HttpSessionRequestCache;
 import org.springframework.security.web.savedrequest.RequestCache;
+import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.security.web.util.matcher.MediaTypeRequestMatcher;
 import org.springframework.session.security.web.authentication.SpringSessionRememberMeServices;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -91,19 +103,32 @@ public class AuthorizationServerConfiguration {
     @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
     SecurityFilterChain authorizationServerSecurityFilterChain(
             HttpSecurity http,
+            AuthorizationServerSettings authorizationServerSettings,
             RequestCache loginRequestCache,
+            RecentAuthenticationService recentAuthentication,
+            OidcReauthenticationService oidcReauthentication,
             AccountSessionValidationFilter accountSessionValidationFilter,
             PasswordChangeRequiredFilter passwordChangeRequiredFilter,
             RefreshTokenFamilyService tokenFamilies,
             ClientAuthenticationFailureHandler clientAuthenticationFailureHandler,
             ClientAuthenticationRateLimitConverter clientAuthenticationRateLimitConverter,
             PlatformTransactionManager transactionManager,
-            SsoGlobalLogoutHandler globalLogoutHandler) throws Exception {
+            SsoGlobalLogoutHandler globalLogoutHandler,
+            org.las.sso.observability.SsoMetrics metrics) throws Exception {
         OAuth2AuthorizationServerConfigurer authorizationServerConfigurer =
                 new OAuth2AuthorizationServerConfigurer();
 
         http.securityMatcher(authorizationServerConfigurer.getEndpointsMatcher())
                 .with(authorizationServerConfigurer, authorizationServer -> authorizationServer
+                        .authorizationEndpoint(endpoint -> endpoint.authenticationProviders(providers -> {
+                            for (var provider : providers) {
+                                if (provider instanceof OAuth2AuthorizationCodeRequestAuthenticationProvider codeProvider) {
+                                    codeProvider.setAuthenticationValidator(
+                                            new OAuth2AuthorizationCodeRequestAuthenticationValidator()
+                                                    .andThen(OidcReauthenticationService::validateMaxAge));
+                                }
+                            }
+                        }))
                         .clientAuthentication(client -> client
                                 .authenticationConverters(converters ->
                                         converters.addFirst(clientAuthenticationRateLimitConverter))
@@ -115,7 +140,7 @@ public class AuthorizationServerConfiguration {
                                     providers.set(index, new RefreshTokenFamilyAuthenticationProvider(
                                             provider,
                                             tokenFamilies,
-                                            new TransactionTemplate(transactionManager)));
+                                            new TransactionTemplate(transactionManager), metrics));
                                     refreshProviderWrapped = true;
                                     break;
                                 }
@@ -136,11 +161,21 @@ public class AuthorizationServerConfiguration {
                                     }));
                         }))
                 .authorizeHttpRequests(authorize -> authorize.anyRequest().authenticated())
-                .exceptionHandling(exceptions -> exceptions.defaultAuthenticationEntryPointFor(
-                        new LoginUrlAuthenticationEntryPoint("/login"),
-                        new MediaTypeRequestMatcher(MediaType.TEXT_HTML)))
+                // OIDC UserInfo is a server-side Bearer request, not an SSO browser-cookie login.
+                .oauth2ResourceServer(resourceServer -> resourceServer
+                        // The client-secret budget converter is an application bean, but is not a Bearer parser.
+                        .authenticationConverter(new BearerTokenAuthenticationConverter())
+                        .jwt(Customizer.withDefaults()))
+                .exceptionHandling(exceptions -> exceptions
+                        .defaultAuthenticationEntryPointFor(new BearerTokenAuthenticationEntryPoint(),
+                                PathPatternRequestMatcher.withDefaults()
+                                        .matcher(authorizationServerSettings.getOidcUserInfoEndpoint()))
+                        .defaultAuthenticationEntryPointFor(new LoginUrlAuthenticationEntryPoint("/login"),
+                                new MediaTypeRequestMatcher(MediaType.TEXT_HTML)))
                 .requestCache(requests -> requests.requestCache(loginRequestCache))
                 .addFilterAfter(accountSessionValidationFilter, SecurityContextHolderFilter.class)
+                .addFilterAfter(new OidcPasswordAuthenticationFilter(
+                        oidcReauthentication, recentAuthentication, loginRequestCache), AnonymousAuthenticationFilter.class)
                 .addFilterAfter(passwordChangeRequiredFilter, AccountSessionValidationFilter.class);
         return http.build();
     }
@@ -153,6 +188,19 @@ public class AuthorizationServerConfiguration {
     }
 
     @Bean
+    FirstPartyClientAuthenticationFilter firstPartyClientAuthenticationFilter(
+            RegisteredClientRepository registeredClients,
+            JdbcClient jdbcClient,
+            PasswordEncoder passwordEncoder,
+            org.las.sso.security.FirstPartyAuthenticationBudget budget,
+            ClientNetworkKey clientNetworkKey,
+            org.las.sso.identity.UuidV7Generator requestIds,
+            org.las.sso.observability.SsoMetrics metrics) {
+        return new FirstPartyClientAuthenticationFilter(
+                registeredClients, jdbcClient, passwordEncoder, budget, clientNetworkKey, requestIds, metrics);
+    }
+
+    @Bean
     @Order(2)
     @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
     SecurityFilterChain applicationSecurityFilterChain(
@@ -162,6 +210,7 @@ public class AuthorizationServerConfiguration {
             LasAuthenticationFailureHandler failureHandler,
             RequestCache loginRequestCache,
             LoginRiskAuthenticationFilter loginRiskAuthenticationFilter,
+            FirstPartyClientAuthenticationFilter firstPartyClientAuthenticationFilter,
             AccountSessionValidationFilter accountSessionValidationFilter,
             PasswordChangeRequiredFilter passwordChangeRequiredFilter,
             SsoGlobalLogoutHandler globalLogoutHandler,
@@ -179,8 +228,10 @@ public class AuthorizationServerConfiguration {
                                 "/api/v1/csrf",
                                 "/api/v1/captcha/challenges",
                                 "/api/v1/registrations",
-                                "/api/v1/recovery/sessions",
-                                "/api/v1/recovery/password").permitAll()
+                         "/api/v1/recovery/sessions",
+                         "/api/v1/recovery/password").permitAll()
+                        .requestMatchers("/internal/v1/principals/*/service-access")
+                        .hasRole("FIRST_PARTY_SERVICE")
                         .requestMatchers("/admin/**", "/api/v1/admin/**").hasRole("SSO_ADMIN")
                         .anyRequest().authenticated())
                 .authenticationProvider(authenticationProvider)
@@ -193,6 +244,7 @@ public class AuthorizationServerConfiguration {
                 .rememberMe(remember -> remember.rememberMeServices(rememberMeServices))
                 .requestCache(requests -> requests.requestCache(loginRequestCache))
                 .addFilterBefore(loginRiskAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(firstPartyClientAuthenticationFilter, AnonymousAuthenticationFilter.class)
                 .addFilterAfter(accountSessionValidationFilter, SecurityContextHolderFilter.class)
                 .addFilterAfter(passwordChangeRequiredFilter, AccountSessionValidationFilter.class);
         return http.build();
@@ -239,11 +291,12 @@ public class AuthorizationServerConfiguration {
     }
 
     @Bean
-    PasswordEncoder passwordEncoder() {
+    PasswordEncoder passwordEncoder(org.las.sso.observability.SsoMetrics metrics) {
         var encoders = new HashMap<String, PasswordEncoder>();
         encoders.put("argon2id", new Argon2PasswordEncoder(16, 32, 1, 19_456, 2));
         encoders.put("bcrypt", new BCryptPasswordEncoder());
-        return new DelegatingPasswordEncoder("argon2id", encoders);
+        return new org.las.sso.observability.MeteredPasswordEncoder(
+                new DelegatingPasswordEncoder("argon2id", encoders), metrics);
     }
 
     @Bean(destroyMethod = "shutdown")
@@ -263,11 +316,14 @@ public class AuthorizationServerConfiguration {
             RegisteredClientRepository registeredClientRepository,
             JdbcClient jdbcClient,
             UserSessionService userSessions,
+            RecentAuthenticationService recentAuthentication,
             UuidV7Generator uuidGenerator,
             RefreshTokenFamilyService tokenFamilies,
-            PlatformTransactionManager transactionManager) {
+            PlatformTransactionManager transactionManager,
+            org.las.sso.security.TransientSecurityKeyHasher keyHasher) {
         var polymorphicTypes = BasicPolymorphicTypeValidator.builder()
                 .allowIfSubType(LasUserPrincipal.class)
+                .allowIfSubType(Long.class)
                 .allowIfSubType(Collection.class);
         var objectMapper = JsonMapper.builder()
                 .addModules(SecurityJacksonModules.getModules(
@@ -286,9 +342,10 @@ public class AuthorizationServerConfiguration {
                 service,
                 jdbcClient,
                 userSessions,
+                recentAuthentication,
                 uuidGenerator,
                 tokenFamilies,
-                new TransactionTemplate(transactionManager));
+                 new TransactionTemplate(transactionManager), keyHasher);
     }
 
     @Bean
@@ -339,6 +396,13 @@ public class AuthorizationServerConfiguration {
                     context.getClaims()
                             .claim("acr", "urn:las:loa:1")
                             .claim("amr", List.of("pwd"));
+                    // Freeze password evidence at authorization; refresh must never renew it.
+                    context.getClaims().claims(claims -> claims.remove("auth_time"));
+                    if (context.getAuthorization() != null
+                            && context.getAuthorization().getAttribute(
+                                    SecurityAwareAuthorizationService.PASSWORD_AUTH_TIME_ATTRIBUTE) instanceof Long at) {
+                        context.getClaims().claim("auth_time", Date.from(Instant.ofEpochSecond(at)));
+                    }
                     if (context.getAuthorizedScopes().contains("profile")) {
                         context.getClaims().claim("preferred_username", principal.loginUsername());
                     }

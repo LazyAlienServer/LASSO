@@ -24,16 +24,19 @@ public final class RefreshTokenFamilyService {
     private final TransientSecurityKeyHasher hasher;
     private final UuidV7Generator uuidGenerator;
     private final BackChannelLogoutOutbox backChannelLogout;
+    private final org.las.sso.observability.SsoMetrics metrics;
 
     public RefreshTokenFamilyService(
             JdbcClient jdbcClient,
             TransientSecurityKeyHasher hasher,
             UuidV7Generator uuidGenerator,
-            BackChannelLogoutOutbox backChannelLogout) {
+            BackChannelLogoutOutbox backChannelLogout,
+            org.las.sso.observability.SsoMetrics metrics) {
         this.jdbcClient = jdbcClient;
         this.hasher = hasher;
         this.uuidGenerator = uuidGenerator;
         this.backChannelLogout = backChannelLogout;
+        this.metrics = metrics;
     }
 
     /**
@@ -268,6 +271,7 @@ public final class RefreshTokenFamilyService {
 
     private void recordReuseAndRevoke(TokenHistory token) {
         recordInvalidationAndRevoke(token, "REFRESH_TOKEN_REUSE_DETECTED", "CRITICAL");
+        metrics.committedRefreshReuse();
     }
 
     private void recordInvalidationAndRevoke(
