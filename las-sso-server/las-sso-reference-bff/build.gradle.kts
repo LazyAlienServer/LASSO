@@ -8,12 +8,6 @@ group = "org.las"
 version = providers.gradleProperty("lasSsoServerVersion").getOrElse("0.1.0-SNAPSHOT")
 extra["tomcat.version"] = libs.versions.tomcat.get()
 
-java {
-    toolchain {
-        languageVersion = JavaLanguageVersion.of(21)
-    }
-}
-
 dependencyManagement {
     imports {
         mavenBom("org.springframework.security:spring-security-bom:${libs.versions.spring.security.get()}")
@@ -36,13 +30,4 @@ dependencies {
     testImplementation(libs.testcontainers.junit.jupiter)
     testImplementation(libs.testcontainers.postgresql)
     testRuntimeOnly(libs.junit.platform.launcher)
-}
-
-tasks.withType<Test>().configureEach {
-    useJUnitPlatform()
-}
-
-tasks.withType<JavaCompile>().configureEach {
-    options.encoding = "UTF-8"
-    options.release = 21
 }

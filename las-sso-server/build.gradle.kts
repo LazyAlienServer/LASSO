@@ -1,19 +1,18 @@
+import com.diffplug.gradle.spotless.SpotlessExtension
+import org.gradle.api.tasks.bundling.AbstractArchiveTask
+
 plugins {
     alias(libs.plugins.spring.boot)
     alias(libs.plugins.spring.dependency.management)
     java
+    alias(libs.plugins.spotless)
 }
 
 group = "org.las"
 version = providers.gradleProperty("lasSsoServerVersion").getOrElse("0.1.0-SNAPSHOT")
 // Security scan remediation: Boot 4.1.1's Tomcat 11.0.24 still predates later vendor fixes.
 extra["tomcat.version"] = libs.versions.tomcat.get()
-
-java {
-    toolchain {
-        languageVersion = JavaLanguageVersion.of(21)
-    }
-}
+val javaFormatterVersion = libs.versions.google.java.format.get()
 
 dependencyManagement {
     imports {
@@ -50,16 +49,57 @@ dependencies {
 }
 
 allprojects {
+    apply(plugin = "com.diffplug.spotless")
+
     dependencyLocking {
         lockAllConfigurations()
     }
-}
 
-tasks.withType<Test>().configureEach {
-    useJUnitPlatform()
-}
+    plugins.withId("java") {
+        extensions.configure<JavaPluginExtension> {
+            toolchain.languageVersion = JavaLanguageVersion.of(21)
+        }
+        tasks.withType<JavaCompile>().configureEach {
+            options.encoding = "UTF-8"
+            options.release = 21
+        }
+        tasks.withType<Test>().configureEach {
+            useJUnitPlatform()
+            val databaseRequired = providers.gradleProperty("requireDatabaseTests")
+                .map(String::toBoolean).getOrElse(false)
+            inputs.property("requireDatabaseTests", databaseRequired)
+            // Only the canonical CI/release run requires database coverage. Local focused runs may skip Docker tests.
+            if (databaseRequired) {
+                doLast {
+                    val parser = javax.xml.parsers.DocumentBuilderFactory.newInstance().apply {
+                        setFeature("http://apache.org/xml/features/disallow-doctype-decl", true)
+                    }
+                    val skipped = reports.junitXml.outputLocation.get().asFile
+                        .walkTopDown().filter { it.name.startsWith("TEST-") && it.extension == "xml" }
+                        .sumOf { report ->
+                            parser.newDocumentBuilder().parse(report).documentElement
+                                .getAttribute("skipped").toLong()
+                        }
+                    if (skipped > 0) {
+                        throw GradleException("${project.path}: database-required verification has $skipped skipped tests")
+                    }
+                }
+            }
+        }
+    }
 
-tasks.withType<JavaCompile>().configureEach {
-    options.encoding = "UTF-8"
-    options.release = 21
+    extensions.configure<SpotlessExtension> {
+        java {
+            target("src/*/java/**/*.java")
+            googleJavaFormat(javaFormatterVersion).aosp().reflowLongStrings(false)
+            removeUnusedImports()
+            trimTrailingWhitespace()
+            endWithNewline()
+        }
+    }
+
+    tasks.withType<AbstractArchiveTask>().configureEach {
+        isPreserveFileTimestamps = false
+        isReproducibleFileOrder = true
+    }
 }

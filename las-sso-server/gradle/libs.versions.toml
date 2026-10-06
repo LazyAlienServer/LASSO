@@ -7,6 +7,8 @@ tomcat = "11.0.26"
 jackson = "3.1.7"
 altcha = "2.0.3"
 altcha-widget = "3.1.0"
+spotless = "8.10.3"
+google-java-format = "1.28.0"
 
 [libraries]
 spring-security-bom = { module = "org.springframework.security:spring-security-bom", version.ref = "spring-security" }
@@ -42,3 +44,4 @@ testcontainers-postgresql = { module = "org.testcontainers:testcontainers-postgr
 [plugins]
 spring-boot = { id = "org.springframework.boot", version.ref = "spring-boot" }
 spring-dependency-management = { id = "io.spring.dependency-management", version.ref = "spring-dependency-management" }
+spotless = { id = "com.diffplug.spotless", version.ref = "spotless" }

@@ -28,12 +28,6 @@ publishing {
     }
 }
 
-java {
-    toolchain {
-        languageVersion = JavaLanguageVersion.of(21)
-    }
-}
-
 dependencyManagement {
     imports {
         mavenBom("org.springframework.boot:spring-boot-dependencies:${libs.versions.spring.boot.get()}") {
@@ -65,13 +59,4 @@ dependencies {
     // Exercise Spring's real OAuth2 HTTP clients; mock-only tests did not need a JSON converter.
     testRuntimeOnly("tools.jackson.core:jackson-databind")
     testRuntimeOnly(libs.junit.platform.launcher)
-}
-
-tasks.withType<Test>().configureEach {
-    useJUnitPlatform()
-}
-
-tasks.withType<JavaCompile>().configureEach {
-    options.encoding = "UTF-8"
-    options.release = 21
 }

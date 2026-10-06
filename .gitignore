@@ -4,3 +4,31 @@ __MACOSX/
 build/
 hs_err_pid*
 replay_pid*
+
+# Local tooling and generated exports; preserve the files locally.
+.gradle/
+.build*/
+bin/
+target/
+logs/
+*.log
+*.iml
+/docs.zip
+**/codex-build.init.gradle
+**/*.local.init.gradle
+
+# External settings and key material must not enter source control.
+.local/
+.env
+.env.*
+!.env.example
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.key
+*.pem
+
+# Python verification tools.
+__pycache__/
+*.py[cod]
