@@ -1,0 +1,46 @@
+{
+  "deliveryId": "0.1.0-dev.20261005.2",
+  "sourceBaseCommit": "8cee3ed62fd7c53664e8026b99664c73fae5f19d",
+  "sourceBranch": "codex/fix-sso-quality-review",
+  "sourceIsUncommittedWorktree": true,
+  "sourceFileCount": 263,
+  "sourceFingerprintAlgorithm": "SHA-256 of sorted relative-path + NUL + file SHA-256 hex + LF rows",
+  "sourceFingerprintSha256": "64bee2f4a7d0563aa7b43f64e31226132cd298fd5d1a56d2321b15be86df1365",
+  "sourceScope": "las-sso-server/{src,gradle}; root/build-settings-wrapper and module build scripts/locks; excludes docs, build outputs, local init scripts and external configs",
+  "artifacts": [
+    {
+      "path": "build/libs/las-sso-server-0.1.0-dev.20261005.2.jar",
+      "bytes": 45713934,
+      "sha256": "b1a0b4a98e2601cf96522c8b82d4b9a75b905e9e0480f3c4e75ea6f6bc85b8ba"
+    },
+    {
+      "path": "las-sso-reference-bff/build/libs/las-sso-reference-bff-0.1.0-dev.20261005.2.jar",
+      "bytes": 28310284,
+      "sha256": "d9d7ca250c4bd825572a67d2d53f73780084a50bd1ef4b97b9491662ae15d3c9"
+    },
+    {
+      "path": "las-sso-spring-boot-starter/build/libs/las-sso-spring-boot-starter-0.1.0-dev.20261005.2.jar",
+      "bytes": 70756,
+      "sha256": "513874a0e5cb8d6918c7649617ca795c8bb3b7c2866f5ce6d4292717b50d05b5"
+    },
+    {
+      "path": "las-sso-spring-boot-starter/build/publications/starter/pom-default.xml",
+      "bytes": 2680,
+      "sha256": "25a75ab26e5e4a6625fd2453ca998b7b70b2b58d3904874b5c8211a86d2876bb"
+    },
+    {
+      "path": "las-sso-spring-boot-starter/build/publications/starter/module.json",
+      "bytes": 4717,
+      "sha256": "1faac8ab2ede7d35dfc592d410f5d2fbe0b4364acc00388a46efb34714ff25df"
+    }
+  ],
+  "locks": [
+    { "path": "gradle.lockfile", "sha256": "7381944ed86e9d73524e86310f2e0dc69e6357e222720a9783f22bcb0faaabd3" },
+    { "path": "las-sso-spring-boot-starter/gradle.lockfile", "sha256": "e11e7b25f58597e55fce359c0b93840e146e29d4845f6f5da3d4b9e23e1782cb" },
+    { "path": "las-sso-reference-bff/gradle.lockfile", "sha256": "1d3411455363b28c5b1158e1e910f451eb0f3a9350ff417a016ce091fe1730bc" }
+  ],
+  "verification": {
+    "server": { "tests": 461, "failures": 0, "errors": 0, "skipped": 0 },
+    "starter": { "tests": 178, "failures": 0, "errors": 0, "skipped": 0 }
+  }
+}

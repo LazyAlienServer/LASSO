@@ -101,22 +101,48 @@ LAS SSO 已经可以开始编写代码。账号边界、永久身份、用户名
 
 ## 7. 生产上线门禁
 
+当前执行计划已整理为[项目状态与正式生产上线计划](../zh-CN/implementation/production-launch-plan.md)／[English](production-launch-plan.md)。P01–P19明确哪些已在隔离层完成、哪些仍需代码/配置/目标环境/消费方证据；本节早阶段说明按日期保留，不据旧“未实施”覆盖后续完成记录。正式开放依据最终候选验收和目标配置，而非累计测试数字。
+
+2026-10-07 .7 actualGrafana import/render/Viewer双viewport与十分钟mixed已验，发现refresh后globalhint400并加V15HMAC/cascade/typeonly修复，735全量0skip。见[English实现](refresh-logout-hint-history.md)／[中文](../zh-CN/implementation/refresh-logout-hint-history.md)、[验收English](../operations/grafana-mixed-load-2026-10-07.md)／[中文](../zh-CN/operations/grafana-mixed-load-2026-10-07.md)。非productionhourssoak/memoryleak排除/Grafana生产authretention，需V15部署与历史表容量，旧丢hint不重建。
+
+2026-10-06 .6核心监控子集已交：fixedcategorymetric/hashTimer/cachedDBsnapshot、独立管理口statelessBasicprofile、Prome/AM/Grafana配置；734全量0skip，finalJAR真3rulefiringresolved/10query/TLS双链。见[English](../operations/monitoring-and-alerting.md)／[中文](../zh-CN/operations/monitoring-and-alerting.md)。actualGrafanaimport/生产privateTLS凭据轮换失败throttle/真人oncallretry与剩余metricprobe/持续load仍独立，不称全部monitorproductiongate完成。
+
+2026-10-06 .5最终JAR重验TLS双链/管理员维护/真实PGrestore完成；liveDBdown发现readiness假200并修dbgroup，新HTTP/PGstopstart回归/717全量0skip，有界load/JVMpoolSQL观察。见[English验收](../operations/final-artifact-acceptance-2026-10-06.md)／[中文](../zh-CN/operations/final-artifact-acceptance-2026-10-06.md)、[容量English](../operations/capacity-readiness-2026-10-06.md)／[中文](../zh-CN/operations/capacity-readiness-2026-10-06.md)。domainmetrics/privateexport/dashboard/alertdelivery未实施，workstation短load不是productionhardware/soak/SLA，runbook指标是目标。
+
+2026-10-06 .20261006.4活跃构建扫描与依赖处置完成：Boot4.1.1/Framework7.0.9/Tomcat11.0.26/Jackson3.1.7等、三锁/解包JAR17不同CVE不再报告、716全量0skip；Semgrep1warning当前调用图误报保留、Secret模式三路径0匹配。见[English](security-scan-2026-10-06.md)／[中文](../zh-CN/implementation/security-scan-2026-10-06.md)。覆盖限制、productionimage/OS/JDK/proxy/runtime日志/外部Secret配置/DAST与发布时公告refresh独立，不据此声明生产安全。
+
+2026-10-06隔离真实TLSproxybrowser/SecureCookie/HTTPSBack-channel已补且修Forwarded/Prefix入口，参考profile与repoNginxinclude可用，见[English](../operations/tls-proxy-acceptance.md)／[中文](../zh-CN/operations/tls-proxy-acceptance.md)。仍需在正式DNS/域名CA续期/firewall/CDN真实链上核验；per-processSPKI私有CA例外非生产browser公共信任，fixturethreshold2/3非prodwindow容量。
+
+2026-10-06空库管理员实际console/bootstrap/浏览器firstchange/recoverydownload/offline reset及oldSessionToken拒已通过隔离闭环；见[English](../operations/administrator-maintenance-acceptance.md)／[中文](../zh-CN/operations/administrator-maintenance-acceptance.md)。生产终端/签名keySecret/管理员code离线保管、现有用户晋升/24h窗口/fullUI与代理仍分别验收，不把本机演练当上线全部完成。
+
+2026-10-06补隔离真实恢复：pg_dump/restore、新持久key/epoch、交互维护脚本、旧cookie/code/AT/RT拒与后台投递恢复，来源[English](../integration/development-delivery-2026-10-06-1.md)／[中文](../zh-CN/integration/development-delivery-2026-10-06-1.md)。这是SSO自有恢复层验收，不关闭生产备份介质/RPO/RTO/key保管、实际proxy/consumer屏障/完整扫描容量门禁。
+
 以下事项不阻塞阶段 0/1 编码，但阻塞生产上线：
 
 - 正式域名、TLS、固定 Issuer 和两个业务系统的精确回调/退出地址；
 - 受支持依赖版本与升级策略；
+
+  2026-10-04 D1/CVE-2026-47877指定依赖已升Security7.1.1并通过三模块锁/renderer/协议/打包/两metadata消费验证，见[English](spring-security-consent-patch.md)／[中文](../zh-CN/implementation/spring-security-consent-patch.md)。完整SCA/SAST/Secretlog/后续告警及真实release配置仍独立，不能把指定补丁当所有依赖已验安全。
 - 生产硬件上的 Argon2 参数和资源耗尽测试；
 - 普通用户人工恢复的至少两项核验依据和运营记录模板；
+
+  人工联系渠道已于 2026-10-02 确认为现有 QQ 群，由管理员联系本人并记录核验结果；渠道确认本身不代表记录模板或恢复演练已经验收。
 - 管理员恢复码离线保管和维护命令演练；
 - 正式反向代理、可信代理、Cookie、CSP 与 Secret 注入；
 - PostgreSQL 备份、异地保存、恢复后全局 epoch/key 重置演练；
 - LASLOG 与 AlienCommon 的真实 BFF 黑盒契约测试；
+- 第一阶段仅查询模式下的 service-access 过期、重启对账、主动刷新与 SSO 拒绝/不可用边界；独立服务访问状态事件已延期，不作为当前接入前置实现；
+- LASLOG 初期业务重启全失效、旧 Cookie/登录及重认证回调拒绝、新顶层登录和可靠撤销作业验收；跨重启保持业务登录、多实例留后续，SSO 自身 JDBC 持久会话不变；
 - 全局退出、Back-channel 重试、15 分钟 freshness 上界验证；
 - 日志秘密扫描、安全扫描、依赖漏洞处置和发布证据；
 - 账号注销、历史业务数据保留和人工争议处理规则；
 - 完成核心 UI 的浏览器 E2E 与可访问性检查。
 
+2026-10-04 A1/A2已有直连Tomcat/TCP根与/passport矩阵证据（96新增/181相关，强制419server176starter无失败/跳过），见[English](servlet-path-security.md)／[中文](../zh-CN/implementation/servlet-path-security.md)。Secure Cookie手工HTTP转发/固定Origin/长fixturewindow不替代上述productionproxy/TLS/browser或其他上线演练。
+
 ## 8. 当前未阻塞但必须跟踪的事项
+
+2026-10-05开发tuple0.1.0-dev.20261005.1已记录server/starter/source263fingerprint/Jarlockmanifest/两metadata制品compile，publicreauth参数与queryepoch用户决策/受控恢复/终态/小load有证据，460server178starter全绿。见[交付English](../integration/development-delivery-2026-10-05.md)／[中文](../zh-CN/integration/development-delivery-2026-10-05.md)。本地identifieddevelopment不替本页productiongate、consumer15m/epoch屏障、livebackup或容量SLA。
 
 - 头像第一版固定只支持站内默认头像资源 ID；上传与任意 URL 等媒体安全方案确定后再开放。
 - 合作网站 consent UI 可以在首个合作方接入前实现，不阻塞 LAS 自营第一版。

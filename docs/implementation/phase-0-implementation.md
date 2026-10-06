@@ -8,7 +8,7 @@
 
 正式后端位于 `las-sso-server`，与历史协议演示 `SAS-Test` 隔离。构建使用 Gradle Kotlin DSL 和 Gradle Wrapper；依赖版本由 Version Catalog、Spring Boot dependency management 与 `gradle.lockfile` 共同固定。
 
-当前基线：
+阶段0原始基线（保留历史）：
 
 | 组件 | 版本/策略 | 依据 |
 |---|---|---|
@@ -18,6 +18,8 @@
 | Gradle | Wrapper 9.6.1 | Java 21 可用于运行 Gradle |
 | PostgreSQL | 18.4 | 官方仍支持的主版本，开发镜像固定 patch 版本 |
 | 短期安全状态 | PostgreSQL 独立表 | 第一版不增加 Redis 运维组件，使用原子 SQL 与定时分批清理 |
+
+2026-10-04 D1后Security/Authorization Server已统一7.1.1（Boot仍4.1.0），三锁/Nimbus补丁、renderer与协议兼容、两bootJar/制品元数据消费证据见[升级记录](spring-security-consent-patch.md)及[中文](../zh-CN/implementation/spring-security-consent-patch.md)。上表7.1.0仅阶段0历史，不作现行依赖来源。
 
 权威版本资料：
 

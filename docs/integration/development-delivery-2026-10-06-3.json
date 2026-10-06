@@ -1,0 +1,34 @@
+{
+  "deliveryId": "0.1.0-dev.20261006.3",
+  "sourceBaseCommit": "8cee3ed62fd7c53664e8026b99664c73fae5f19d",
+  "sourceBranch": "codex/fix-sso-quality-review",
+  "sourceIsUncommittedWorktree": true,
+  "sourceFileCount": 286,
+  "sourceFingerprintAlgorithm": "SHA-256 of sorted relative-path + NUL + file SHA-256 hex + LF rows",
+  "sourceFingerprintSha256": "cdd5763e10b60ee8aa909d8861901c61316825ce7c15e1143a76b01af445b7e6",
+  "sourceScope": "las-sso-server/{src,gradle,scripts,deploy}; root/build-settings-wrapper and module build scripts/locks; excludes docs, build outputs, local init scripts and external configs",
+  "artifacts": [
+    { "path": "build/libs/las-sso-server-0.1.0-dev.20261006.3.jar", "bytes": 45721301, "sha256": "0f7027c217b284ef80fe1f4fe647d6d2792f9aba90b94989de4ff84352db269c" },
+    { "path": "las-sso-reference-bff/build/libs/las-sso-reference-bff-0.1.0-dev.20261006.3.jar", "bytes": 31066063, "sha256": "387bb87aca5709f4250d5fe61c502d06a91a5c09d4d5796f934aab9e8c8283d8" },
+    { "path": "las-sso-spring-boot-starter/build/libs/las-sso-spring-boot-starter-0.1.0-dev.20261006.3.jar", "bytes": 72236, "sha256": "35385b3cb40f63a08a2236f3f33898e02a7956b5c2b1fa385bec309b1dc3ba20" },
+    { "path": "las-sso-spring-boot-starter/build/publications/starter/pom-default.xml", "bytes": 2680, "sha256": "498f178a68c00b6c979ca609b726188fcd21be7d5f02060bb66e08e2a6727541" },
+    { "path": "las-sso-spring-boot-starter/build/publications/starter/module.json", "bytes": 4717, "sha256": "d4d5b2c2017379f2dbcb95facef8c4df98123f1b34b2b1bd05c6e559889c5e40" },
+    { "path": "scripts/bootstrap-admin.ps1", "bytes": 957, "sha256": "a79b9749c8e98e18bcd4e3486cae1339efe558c7dcf7c8f63dbfcee4fb0fc07b" },
+    { "path": "scripts/reset-admin-password.ps1", "bytes": 644, "sha256": "2e19ba7ec4a208d175aea4184322735582ac3e6565b508aa7a58c22ab521ec6b" },
+    { "path": "scripts/maintenance-artifact.ps1", "bytes": 1044, "sha256": "6bbabbd56c3b57106a0538e36084588537c48a3ed974fc253ea4d4ab2d9e700e" },
+    { "path": "scripts/rotate-security-epoch-after-restore.ps1", "bytes": 905, "sha256": "c15ad86a220755019297d919ca263ed300dcd6b05e8171e1896555f0860a5ded" },
+    { "path": "las-sso-reference-bff/src/main/resources/revocation-db/V1__revocation_tasks.sql", "bytes": 1365, "sha256": "5218f85688f6826fd42d7e0e2da83c1f451fce1acb4ed66fb24414500d3a834d" },
+    { "path": "deploy/nginx/las-forwarding.conf", "bytes": 656, "sha256": "22e152a42d3aa78d7d58e30c22e4f52b810e1106342c89e3130fbd1f119bcded" },
+    { "path": "las-sso-reference-bff/src/main/resources/application-https.yml", "bytes": 715, "sha256": "052d6f8d479e6cc571b8717ecacbbc3bad8e9ddc85c5c499f6dc3a227f80de1a" }
+  ],
+  "locks": [
+    { "path": "gradle.lockfile", "sha256": "7381944ed86e9d73524e86310f2e0dc69e6357e222720a9783f22bcb0faaabd3" },
+    { "path": "las-sso-spring-boot-starter/gradle.lockfile", "sha256": "e11e7b25f58597e55fce359c0b93840e146e29d4845f6f5da3d4b9e23e1782cb" },
+    { "path": "las-sso-reference-bff/gradle.lockfile", "sha256": "14829095b1834f4ae8aec9d8d1f361a737a7d49bcecb9910aecb7587e8d6799c" }
+  ],
+  "verification": {
+    "server": { "tests": 486, "failures": 0, "errors": 0, "skipped": 0 },
+    "starter": { "tests": 193, "failures": 0, "errors": 0, "skipped": 0 },
+    "referenceBff": { "tests": 37, "failures": 0, "errors": 0, "skipped": 0 }
+  }
+}

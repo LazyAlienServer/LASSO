@@ -40,6 +40,8 @@ production
 
 ## 3. 第一版部署拓扑
 
+2026-10-06隔离single-hop Nginx/TLS/实际Secure __HostCookie与HTTPSCode/Token/UserInfo/revoke/Back-channel闭环已验，客户端Forwarded/Prefix扰乱callback的部署输入已修。使用完整headerinclude和私有appsDB，不将framework当sendertrust。记录[English](tls-proxy-acceptance.md)／[中文](../zh-CN/operations/tls-proxy-acceptance.md)，publicCA续期/生产DNS防火墙/CDN多级等仍按实际拓扑验收。
+
 ```text
 Internet
   -> Reverse Proxy / TLS
@@ -89,6 +91,8 @@ LAS_SSO_TRUSTED_PROXY_CIDRS
 
 ## 5. 启动门禁与健康检查
 
+从当前开发基线到目标生产的责任与执行顺序见[上线计划](../zh-CN/implementation/production-launch-plan.md)／[English](../implementation/production-launch-plan.md)。其中P02逐项核对本节规则与实际代码，P06–P10落实环境/Secret/DB/监控/灾备，P15–P19完成最终候选演练和生产开放；本手册写出的控制不能自动记为已实现。
+
 ### 5.1 启动时必须失败关闭
 
 以下任一条件不满足时，生产应用不得进入 Ready：
@@ -115,10 +119,12 @@ LAS_SSO_TRUSTED_PROXY_CIDRS
 ```
 
 - Liveness 只判断进程是否卡死，不因 PostgreSQL 短故障无限重启。
-- Readiness 检查数据库、签名 key 已加载、schema 和关键配置。
+- 预期启动门禁涵盖数据库、签名 key/schema和关键配置；当前readiness运行期实际为`readinessState,db`。2026-10-06旧配置DBdown仍200已修，.5实际200→503→200/liveness始终200，[English记录](capacity-readiness-2026-10-06.md)／[中文](../zh-CN/operations/capacity-readiness-2026-10-06.md)。这不表示上节所有生产config/admin/schema/key验证器已实现，启动失败校验与运行期health分别核。
 - 健康详情只对本机/监控网络开放，公网只返回粗粒度状态。
 
 ## 6. 首次上线
+
+2026-10-06[管理员维护隔离闭环](../zh-CN/operations/administrator-maintenance-acceptance.md)／[English](administrator-maintenance-acceptance.md)已验证真PowerShell/JARhash/WindowsPTY hiddenbootstrap、临时密码强制改密/十个80bit恢复码展示download、offline reset及旧passwordSessionToken拒。并修撤销SSOCookie新OIDC请求丢失；不代表production终端/proxy/SecureCookie/离线实际保管或已有用户晋升注销流程已验。
 
 1. 确定正式域名、TLS 证书和不可随意变更的 Issuer。
 2. 建立独立 PostgreSQL 与最小权限账号。
@@ -196,6 +202,8 @@ RTO: 4 小时
 
 ### 8.4 恢复验收
 
+2026-10-06已提供非Web、禁调度、expectedepoch与交互确认的可执行屏障及[隔离真实演练](../zh-CN/integration/development-delivery-2026-10-06-1.md)。执行[恢复操作流程](../zh-CN/operations/restore-epoch-barrier.md)／[English](restore-epoch-barrier.md)；保users/clients/consent/audit/deletion与outbox，释放pendingclaims，撤销RT历史/删除SpringSession和短事务。命令不生成key或验证外部writer已停，以下生产备份/key/consumer步骤仍须完成。
+
 从备份恢复生产身份库时，不能证明备份时间点之后发生的退出、改密、RT 使用和撤销事实仍然存在，因此第一版采用“恢复即全局安全重置”：
 
 1. 生成新的随机 `security_epoch`；
@@ -204,6 +212,8 @@ RTO: 4 小时
 4. 清空 `rate_limit_buckets`、`captcha_challenges`、`recovery_sessions` 和 `registration_idempotency`；
 5. 清理 LASLOG、AlienCommon 的全部 BFF 本地会话；
 6. 恢复服务后要求所有用户重新登录。
+
+ADR-0007（用户2026-10-05确认）资格query的stateEpoch复用新的security_epoch；旧备份stateVersion可以回退，不跨epoch比counter/changedAt。开放前完成new epoch与本地cache/inflight隔离屏障，consumerfresh对账建立currentgeneration、废旧资格/本地证据并拒旧epochlate reply，不能随不同响应往返切换。server受控restore-shape测试非本节真实演练，见[English](../implementation/service-access-epoch-contract.md)／[中文](../zh-CN/implementation/service-access-epoch-contract.md)。
 
 该规则优先于“尽量保留登录状态”。如果未来要在灾难恢复后保留会话，必须先建立独立、未随备份回退的撤销账本并完成专项设计。
 
@@ -219,7 +229,13 @@ RTO: 4 小时
 
 ## 9. 监控与告警
 
+参考BFF可选持久撤销profile的queueDB/key是消费端独立资源，不属于SSO身份schema。监控pendingoldest/leasedexpired/dead/categoricalerrors，成功清Tokencipher，dead保encrypted材料须运维显式恢复，无自动replay/cleanup/multikeyrotation。先排空旧key任务再更换，DBkey分离备份；未验灾备continuity/presubmitcrash不称保证。契约见[English](../integration/reference-durable-revocation.md)／[中文](../zh-CN/integration/reference-durable-revocation.md)。
+
 ### 9.1 指标
+
+2026-10-07后续.7实际Grafana12.2.0privateDatasource/import与Viewer桌面手机展示/write403已验，两mode5分钟TLSmixed发现并修refreshlogoutIDhint400（V15HMAC历史关联）。[English](grafana-mixed-load-2026-10-07.md)／[中文](../zh-CN/operations/grafana-mixed-load-2026-10-07.md)记录12,598operation/实际refresh与内存采样限制；这不代生产Grafanaauthretention/oncall或小时soak。
+
+以下仍是完整目标清单；2026-10-06 .6已实现核心fixedcounter/hashTimer/cachedDBgauge、独立port/credential/privatePrometheusscrape、7rule和dashboardfile/10query，真实3类firingresolved到authwebhook。实际名称/语义/部署与限制：[English](monitoring-and-alerting.md)／[中文](../zh-CN/operations/monitoring-and-alerting.md)。未包registrationreject/recovery/tokenissue/cleanup/diskbackupclock全部、actualGrafana/oncallproduction；旧.5本机attach观察保历史。base仍health/info，monitoringprofile optin，health迁管理端口，禁止公网proxy管理口。
 
 至少采集：
 
@@ -264,6 +280,8 @@ clock_offset
 | Argon2 p95 超过 1 秒 | 中 |
 
 在实际基线建立后调整，不能为了消除噪声直接关闭安全告警。
+
+当前repo7rules无clientId标签，Back-channel按聚合receipt/queue观测，不能将上述“单客户端5次”当已实现rule。快照失败/过期值应invalid，不能当队列空或正常；consumer与生产operator通知须另核。实际规则/1m2m窗口和演练见[监控记录](monitoring-and-alerting.md)。
 
 ## 10. 日志与保留
 

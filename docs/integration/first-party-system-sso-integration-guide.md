@@ -25,6 +25,8 @@
 
 即使是第一方网站，也禁止复用另一个网站的 `client_id` 或 Client Secret。每个业务系统和每个环境都使用独立客户端。
 
+2026-10-05已提供可辨识本地server/starter开发组合0.1.0-dev.20261005.1，公共授权prompt/max_age扩展/签名auth_time读取与七字段资格stateEpoch契约，坐标/sourcefingerprint/锁/Jarhash/两metadata实际消费见[English](development-delivery-2026-10-05.md)／[中文](../zh-CN/integration/development-delivery-2026-10-05.md)。此组合不实现业务pending操作/十五分钟门禁或缓存恢复屏障，消费方须独立接入验收；未托管productionrelease。
+
 ## 2. 推荐部署结构
 
 ```mermaid

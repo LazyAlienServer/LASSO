@@ -1,0 +1,40 @@
+{
+  "deliveryId": "0.1.0-dev.20261006.7",
+  "sourceBaseCommit": "8cee3ed62fd7c53664e8026b99664c73fae5f19d",
+  "sourceBranch": "codex/fix-sso-quality-review",
+  "sourceIsUncommittedWorktree": true,
+  "sourceFileCount": 303,
+  "sourceFingerprintAlgorithm": "SHA-256 of sorted relative-path + NUL + file SHA-256 hex + LF rows",
+  "sourceFingerprintSha256": "ee911dc45866501f70ce9773fdc19228bf1fafd55b37f3ef82a5117c300fe0d2",
+  "sourceScope": "las-sso-server/{src,gradle,scripts,deploy}; root/build-settings-wrapper and module build scripts/locks; excludes docs, build outputs, local init scripts and external configs",
+  "artifacts": [
+    { "path": "build/libs/las-sso-server-0.1.0-dev.20261006.7.jar", "bytes": 46904893, "sha256": "ef4d296328005a66615efb0618ec1146128289dc31f5bcd968cb2b3b48548b43" },
+    { "path": "las-sso-reference-bff/build/libs/las-sso-reference-bff-0.1.0-dev.20261006.7.jar", "bytes": 31462038, "sha256": "a8ddc1e12feff9370fdc3b810b8b3feb714dd06b51e6788d52ab9ef21cd0c8c2" },
+    { "path": "las-sso-spring-boot-starter/build/libs/las-sso-spring-boot-starter-0.1.0-dev.20261006.7.jar", "bytes": 72236, "sha256": "35385b3cb40f63a08a2236f3f33898e02a7956b5c2b1fa385bec309b1dc3ba20" },
+    { "path": "las-sso-spring-boot-starter/build/publications/starter/pom-default.xml", "bytes": 4150, "sha256": "6e32c17010ccd139c6acefbf95b6a4c63bbc15f6ea9ef8664f6eb252018e2b73" },
+    { "path": "las-sso-spring-boot-starter/build/publications/starter/module.json", "bytes": 4717, "sha256": "640fd39601105c8fb990dedec0333ef66cfc38e3605401964b6d32e805614621" },
+    { "path": "scripts/bootstrap-admin.ps1", "bytes": 957, "sha256": "a79b9749c8e98e18bcd4e3486cae1339efe558c7dcf7c8f63dbfcee4fb0fc07b" },
+    { "path": "scripts/reset-admin-password.ps1", "bytes": 644, "sha256": "2e19ba7ec4a208d175aea4184322735582ac3e6565b508aa7a58c22ab521ec6b" },
+    { "path": "scripts/maintenance-artifact.ps1", "bytes": 1044, "sha256": "6bbabbd56c3b57106a0538e36084588537c48a3ed974fc253ea4d4ab2d9e700e" },
+    { "path": "scripts/rotate-security-epoch-after-restore.ps1", "bytes": 905, "sha256": "c15ad86a220755019297d919ca263ed300dcd6b05e8171e1896555f0860a5ded" },
+    { "path": "las-sso-reference-bff/src/main/resources/revocation-db/V1__revocation_tasks.sql", "bytes": 1365, "sha256": "5218f85688f6826fd42d7e0e2da83c1f451fce1acb4ed66fb24414500d3a834d" },
+    { "path": "deploy/nginx/las-forwarding.conf", "bytes": 656, "sha256": "22e152a42d3aa78d7d58e30c22e4f52b810e1106342c89e3130fbd1f119bcded" },
+    { "path": "las-sso-reference-bff/src/main/resources/application-https.yml", "bytes": 715, "sha256": "052d6f8d479e6cc571b8717ecacbbc3bad8e9ddc85c5c499f6dc3a227f80de1a" },
+    { "path": "src/main/resources/application-monitoring.yml", "bytes": 328, "sha256": "e701a9a895e5060f7c2151fb20fead5fc4af1ef4887da855687b510b3724667b" },
+    { "path": "deploy/monitoring/prometheus.yml", "bytes": 564, "sha256": "90919f4564530451460679526c3d7c038a840f3aa3d8a773782d7cc28d65814a" },
+    { "path": "deploy/monitoring/las-sso-alerts.yml", "bytes": 3050, "sha256": "379648c4959e281d94cd0002fcf7c71d41943d26d59fbe8eef48330a8189db40" },
+    { "path": "deploy/monitoring/las-sso-alerts.test.yml", "bytes": 2657, "sha256": "9c22d0742072f9185b63c26ae96237fe30c3c9ac0b922491ecf074e48b6cf114" },
+    { "path": "deploy/monitoring/alertmanager.yml", "bytes": 508, "sha256": "c24a92c85c62bed8170f0db6175b2d4335461ab6769602fe4811f8bbc329752d" },
+    { "path": "deploy/monitoring/grafana-dashboard.json", "bytes": 5378, "sha256": "f4e735ddd45c666fbe950e3585ea2544db34dcf67bfc23aea3a80866bf713141" }
+  ],
+  "locks": [
+    { "path": "gradle.lockfile", "sha256": "d3d4b5ccc7f4f05a36736d323d3165d95eb4f3814ad43ed17439a238f76a8600" },
+    { "path": "las-sso-spring-boot-starter/gradle.lockfile", "sha256": "2fc4da0ea83db0acf41529210806e1b8cf2659130036f1e7a5c4c37af2a2b758" },
+    { "path": "las-sso-reference-bff/gradle.lockfile", "sha256": "07d967217a0db9e128fcd8eb63e33aebeda1a8afc3230dc408b9245ccbb8fffc" }
+  ],
+  "verification": {
+    "server": { "tests": 505, "failures": 0, "errors": 0, "skipped": 0 },
+    "starter": { "tests": 193, "failures": 0, "errors": 0, "skipped": 0 },
+    "referenceBff": { "tests": 37, "failures": 0, "errors": 0, "skipped": 0 }
+  }
+}

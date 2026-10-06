@@ -76,6 +76,8 @@ EXPIRED
 | `account_status` | `account_status` | 非空 |
 | `is_sso_admin` | `BOOLEAN` | 非空，默认 `false` |
 | `profile_version` | `BIGINT` | 非空，资料变更时递增 |
+| `service_access_state_version` | `BIGINT` | 非空，从 1 开始；服务访问资格相关状态改变时递增 |
+| `service_access_changed_at` | `TIMESTAMPTZ` | 最近一次服务访问资格状态改变时间 |
 | `created_at` | `TIMESTAMPTZ` | 非空 |
 | `updated_at` | `TIMESTAMPTZ` | 非空 |
 | `frozen_at` | `TIMESTAMPTZ` | 可空 |
@@ -86,6 +88,8 @@ EXPIRED
 - 建立 `is_sso_admin = true` 的唯一部分索引，保证最多一个网页管理员。
 - `DELETED` 用户必须有 `deleted_at`，显示名和头像必须清空或匿名化。
 - 不允许物理删除 `users.id`；删除后该行作为 UUID 墓碑。
+
+`service_access_state_version` 和 `service_access_changed_at` 只描述 SSO 对第一方服务访问资格的最新确认版本，不是业务角色或权限版本。业务系统不得据此推导项目、服务器、白名单或内容权限。
 
 ### 3.2 `usernames`
 
@@ -125,6 +129,8 @@ EXPIRED
 
 任何会话都保存建立时的 `credentials_version`。当前版本不匹配时，即使 Cookie 尚未过期也必须拒绝。
 
+资格version的V13用户counter只在同全局security_epoch内单调；2026-10-05用户确认ADR-0007后internalquery公开stateEpoch复用该标识，不加schema。restore旧counter须换epoch再开流量；同snapshot读取epoch/user/credential/deletion，包括unknowncurrentepoch，blank/missingepoch失败不可用。禁止把跨epochcounter或changedAt直接排序，消费方必须恢复屏障废旧cache/inflight，见[ADR英文](../adr/0007-scope-service-access-versions-to-security-epoch.md)／[中文](../zh-CN/adr/0007-scope-service-access-versions-to-security-epoch.md)及[query契约](../implementation/service-access-epoch-contract.md)。
+
 ### 3.4 `recovery_codes`
 
 | 字段 | 类型 | 约束/说明 |
@@ -138,6 +144,8 @@ EXPIRED
 | `revoked_at` | `TIMESTAMPTZ` | 可空 |
 
 同一恢复码只能通过原子条件更新从“未使用”变为“已使用”。重新生成时，在同一事务内废除该用户全部旧码。
+
+S6（2026-10-04）新普通/人工码采用16随机字符80bit，存储仍32byte HMAC-SHA-256，无format/version列迁移、无pepper或规范化变更。旧三组60bit只保留原有效性，不重写或续期；rotation/reissue同事务旧撤销＋新四组生成，失败回滚旧状态。独立旧摘要fixture验证与新码恢复/期限/消费/审计见[English](../implementation/recovery-credential-entropy.md)／[中文](../zh-CN/implementation/recovery-credential-entropy.md)。
 
 ### 3.5 `admin_recovery_credentials`
 
@@ -181,6 +189,8 @@ EXPIRED
 
 不建立永久设备指纹。“记住设备”只由该会话的过期策略表达。每次使用会话都校验当前账号状态、`credentials_version`、`security_epoch`，管理员请求还要校验数据库角色和 `admin_session=true`。
 
+当前实现的 OIDC 密码 challenge 使用 V14 `oidc_password_challenges`（id、expires_at、completed_at、consumed_at、subject、sid）做数据库条件更新；原授权参数和浏览器关联保存在 Spring Session JDBC。它不是可复用登录凭据，也不保存密码。完成及消费必须在未到期、未完成/未消费条件下原子成功，过期记录由短期状态清理任务删除；每个浏览器只保留一个待验证事务。
+
 ### 3.7 `registered_clients`
 
 | 字段 | 类型 | 约束/说明 |
@@ -217,6 +227,7 @@ EXPIRED
 
 - 授权 ID、用户 ID、客户端 ID、授权类型、已批准 scopes、`sid`；
 - 建立授权时的 `credentials_version`、全局 `security_epoch` 和 `client_config_version`；
+- 当前实现还在初始 Authorization 属性中保存可信密码认证时间快照（Unix 秒）；用于签名 ID Token `auth_time`，Code 兑换/刷新及后续密码认证不重写；无证据的旧授权不补造；
 - Authorization Code 的值/元数据、用途、到期和使用时间；
 - Refresh Token 的值/元数据、到期、使用时间、`token_family_id`、`parent_token_id`、`family_created_at` 和 `family_absolute_expires_at`；
 - 授权状态、撤销时间和撤销原因；
@@ -252,6 +263,8 @@ Refresh Token 轮换必须在单个事务中：
 | `hold_public_summary` | `VARCHAR(500)` | 可空；暂缓时展示给用户的安全摘要 |
 
 申请、取消、暂缓、释放和执行都必须写安全事件。暂缓到期自动回到 `PENDING`，不能成为无限期保留开关。执行时先撤销所有会话和授权，再删除凭据与个人资料，最后将 `users.account_status` 设为 `DELETED`、申请状态设为 `EXECUTED`。
+
+S5（2026-10-04）管理员详情以保留身份为读取基础，密码凭据可选LEFT JOIN；凭据被删除不代表用户UUID不存在。无凭据时状态/改密时间/锁定时间为null，既有当前用户名仍沿用保留规则、显示名“已注销用户”，不重建个人资料/凭据。终态只读不推进资格/写事件，写操作保持终态拒绝；18项数据库/MockMvc/模板验证和删除未提交时的受控独立读取通过，非多次列表/详情统一快照。见[English](../implementation/admin-tombstone-views.md)／[中文](../zh-CN/implementation/admin-tombstone-views.md)。
 
 ### 3.10 审计与事件
 
@@ -313,6 +326,8 @@ change_reason
 
 ## 4. 关键事务与并发约束
 
+2026-10-07补V15 `oauth2_id_token_hint_history(token_hash bytea PK, authorization_id FK ON DELETE CASCADE, created_at)`，原key-pepper命名域HMAC-SHA256/authorization索引，不保存rawhistoryToken。原授权save事务先保previouscurrent再save/newhint，显式id_tokenlogoutfallback仍绑定currentauth验证；删除auth清history。保留旧current升级兼容但不重造升级前已丢hint，无独立TTLcompaction，长期auth/history容量另验。配对设计与验证：[English](../implementation/refresh-logout-hint-history.md)／[中文](../zh-CN/implementation/refresh-logout-hint-history.md)，决策[ADR-0011](../adr/0011-preserve-id-token-logout-hint-association.md)。
+
 ### 4.1 注册
 
 在一个事务内创建 `users`、首条 `usernames`、`password_credentials` 和整批 `recovery_codes`。用户名冲突由数据库唯一约束决定，接口返回通用冲突错误。
@@ -331,12 +346,23 @@ change_reason
 
 在一个事务内更新密码哈希、递增 `credentials_version`、废除相关恢复凭据、撤销会话和 Authorization，并写入 outbox。事务提交后异步发送 Back-channel Logout。
 
+2026-10-03 S1 的等效原子失效实现使用现有表与账号行锁，不给 `recovery_sessions` 新增版本字段：
+
+- 普通/强制改密、恢复创建/完成先显式锁定目标 `users` 行，再访问用户名、密码、恢复凭据或恢复会话。维护晋升/reset 保留维护 advisory lock，再按目标用户→关联状态的顺序执行。
+- 恢复创建先解析候选 UUID，取得用户锁后按同一 UUID、当前精确用户名及恢复凭据的未使用/未撤销/有效期条件重新核验；凭据消费与恢复会话创建同事务提交。
+- 恢复完成先通过 token 摘要解析候选 UUID，取得用户锁后重新检查同一用户的恢复会话未消费、未到期和账号可用，再修改密码。锁等待后重新取得时间；候选读取不是认证成功。
+- 普通/强制改密及晋升/reset 在更新凭据的同一事务中设置全部未消费恢复会话的 `consumed_at`，并撤销普通恢复码和人工恢复凭据。恢复先创建则后续改密将其失效；改密先提交则旧恢复凭据不能再创建会话。
+- 恢复完成消费该用户全部待完成恢复会话，仍保留同批其他未使用普通恢复码，沿用既定恢复政策；不把普通改密的整批废弃规则套用到自助恢复。
+
+`PasswordRecoveryInvalidationIntegrationTest` 的28项验证上述受控锁/回滚/审计；随后S3注销锁序另有§4.6证据，不等于全部生命周期锁图或生产验收。
+
 ### 4.4 唯一管理员
 
 授予管理员前必须：
 
 - 在维护模式中执行；
 - 锁定目标用户；
+- 确认目标为 `ACTIVE`，且没有有效的 `PENDING`/`HELD` 注销申请；有申请则拒绝，用户先自行取消后再重试，不能由提升隐式取消（[ADR-0002](../adr/0002-require-deletion-cancellation-before-admin-promotion.md)）；
 - 确认当前不存在其他 `is_sso_admin = true`；
 - 依赖唯一部分索引作最终保证；
 - 记录运维审计事件。
@@ -345,12 +371,26 @@ change_reason
 
 网页 API 不提供授予、转移或移除管理员身份的端点。
 
+注销条件在授予事务内、任何身份/密码变更前复核，并与注销申请、取消和执行按一致锁序串行化。注销申请先提交则提升拒绝且不改变角色、凭据、申请或既有安全状态；提升先提交则后续注销申请按现有管理员禁止注销规则拒绝。已取消等终态历史不阻止符合其余条件的账号提升。
+
+2026-10-04 S4已实现：维护advisory lock→ACTIVE用户→有效PENDING/HELD请求→用户名/凭据及关联安全状态。拒绝`DELETION_CANCELLATION_REQUIRED`，截止时间不改变有效状态，释放暂缓非取消。完整行快照/受控等待/实际SQL审计失败验证无变更拒绝与原子回滚，25数据库+3命令fixture及全量255/176通过。真实交互/浏览器/生产待验，见[English](../implementation/admin-promotion-deletion.md)／[中文](../zh-CN/implementation/admin-promotion-deletion.md)。
+
 ### 4.5 客户端配置变化
+
+S2于2026-10-05扩大23项DB/MockMvc真实wait/双向editrotationenable-disable/连续rotation/实际BasicOAutherror认证及auditoutboxidempotencySQL失败rollback，无新生产变更。name/rotation先metadata再读最新RegisteredClient，enable仅metadataUPDATE不写Secret；直接repository/seeder/新授权签发竞争不在该范围。见[English](../implementation/client-secret-concurrency.md)／[中文](../zh-CN/implementation/client-secret-concurrency.md)。
 
 - 禁用客户端、缩小 scopes/audience 或更换 Client Secret：增加 `config_version` 并撤销该客户端现有 Authorization/RT/BFF 会话。
 - 合作方扩大 scopes：增加 `config_version`，旧 consent 不自动覆盖新 scope，下次授权必须重新确认。
 - 只修改展示名称：增加 `profile_version` 或审计版本即可，不强制退出。
 - 修改 Redirect/Post Logout/Back-channel URI：只影响之后的新请求；若变更源于安全事件，应同时禁用客户端并撤销现有授权。
+
+### 4.6 注销锁序与批次
+
+2026-10-04 S3将注销申请/取消、管理员hold/release、expiry和execute统一user→request→关联状态。管理员只先无锁读候选owner，锁user后按同request/owner重检，不把候选读当授权；等锁后重检状态和hold期限。直接execute须owned/PENDING/due，错归属/取消/held/notdue不删。
+
+用户确认[ADR-0006](../adr/0006-user-first-deletion-batch-locking.md)：整批事务原子保持，不逐条提交；候选有限无request锁读，distinct user按PostgreSQL UUID稳定顺序SKIP LOCKED先取，再request锁/重检。定时expiry+pending预选并集一次取user，phase1后不加新user。busy候选后续重跑，实际count不算跳过。job仍advisory单执行者、定时每阶段100，failure回滚全部status/credentials/version/audit/event/outbox。
+
+S3阶段24新DBrace及40相关/强制227server+176starter无失败跳过；只证明测到的注销顺序/批次，非全系统无死锁、多实例live/容量验收。S4随后实现见§4.4，S5见§3.9，S6见§3.4，详见[英文并发契约](../implementation/deletion-concurrency.md)／[中文](../zh-CN/implementation/deletion-concurrency.md)。
 
 ## 5. PostgreSQL 短期状态表
 

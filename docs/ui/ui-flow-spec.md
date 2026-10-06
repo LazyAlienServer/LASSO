@@ -81,6 +81,8 @@
 
 失败页面不区分用户名不存在、恢复码错误、已使用或已过期。用户名输入旁必须明确提示大小写敏感。
 
+S6恢复页placeholder采用四组普通/人工格式，但不加“必须新长度”pattern：既有三组码按原状态/期限仍可提交，最大输入64保持。新普通码23字符、人工29字符，旧码强度不因显示更新提高；注册/轮换/人工一次性展示仍原流程。JVM/数据库/MockMvc模板验证已执行，浏览器打印下载/clipboard/可访问性走查待验，见[中文](../zh-CN/implementation/recovery-credential-entropy.md)／[English](../implementation/recovery-credential-entropy.md)。
+
 ### 3.4 近期认证
 
 ```text
@@ -117,6 +119,8 @@
 5. 提交后展示审计事件或 request ID。
 
 禁用客户端和缩小 scope/audience 必须明确提示会撤销现有授权及会话。Client Secret 轮换使用短维护窗口：新 Secret 创建后旧 Secret 立即失效，页面必须先要求管理员确认目标 BFF 已进入维护/可立即部署状态。
+
+管理员用户页必须能选择已注销身份墓碑：保留UUID/用户名与“已注销用户”/已删除状态，无凭据时明确显示“无凭据”，密码更新/锁定到期为“不适用”，不误称“未锁定”或造正常凭据状态；不显示冻结/解冻/下线/恢复写按钮。S5于2026-10-04通过实际Thymeleaf/MockMvc/数据库回归，真实浏览器/JS/可访问性走查仍待完成，见[中文](../zh-CN/implementation/admin-tombstone-views.md)／[English](../implementation/admin-tombstone-views.md)。
 
 ## 4. 通用页面状态
 

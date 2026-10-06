@@ -120,6 +120,8 @@ salt:        每个密码独立随机生成
 - 数据库保存 `HMAC-SHA-256(server_recovery_pepper, normalized_code)`，pepper 与数据库分离。
 - 页面鼓励下载/打印并离线保存，同时说明“任何得到恢复码的人都能重置密码”。
 
+S6于2026-10-04按原最小要求修复：普通/人工两入口使用原32字符表与SecureRandom.nextInt(32)，每枚四组×四字符=16×5=80bit，普通仍十枚；人工格式`LAS-ADMIN-XXXX-XXXX-XXXX-XXXX`，固定前缀不计熵。旧三组摘要规范化/HMAC/pepper不变，不批量重写/撤销或续期；旧码仍60bit且只有原未使用/未撤销/人工未过期才接受。显式普通rotation/人工reissue改用新码，按原事务废旧；普通自助完成仍保留其他未用码。生成预算/旧生命周期9JVM+33数据库MockMvc及164相关/314 server176 starter通过，非随机源认证或真实浏览器演练；详见[English](../implementation/recovery-credential-entropy.md)／[中文](../zh-CN/implementation/recovery-credential-entropy.md)。
+
 ### 4.2 使用
 
 1. 用户提交当前用户名和一个恢复码。
@@ -131,6 +133,10 @@ salt:        每个密码独立随机生成
 
 恢复流程不直接登录完整账号，完成后必须使用新密码登录。
 
+普通/强制改密、管理员晋升及维护 reset 必须在凭据变更的同一事务内失效全部待完成恢复会话，并撤销旧普通/人工恢复凭据。2026-10-03 S1 已用既有 `users` 行锁实现：恢复创建/完成先锁用户，锁后重新核验凭据或会话及到期时间；改密先提交则旧恢复不能创建/完成，恢复先创建则后续改密消费它。恢复完成仍保留同批其他未使用普通恢复码，不改变上面的自助恢复规则。
+
+带 request ID 的 Web 入口和公开便利重载均受 Spring 事务代理保护。恢复限流及已匹配人工凭据的失败审计仍用既有独立事务（`REQUIRES_NEW`），在外层恢复失败回滚后保留计数/审计。专项已验证这些行为，没有新增 schema、认证因素或恢复权限；验证边界见[状态地图 §3.3](../implementation/status-issues-and-plan-2026-10-02.md#33-2026-10-03-s1-原子失效与数据库竞争验证)。
+
 ### 4.3 重发
 
 用户已登录并在 15 分钟内重新输入密码后可以重发。生成新批次和废除旧批次在同一事务内完成。如果一次性明文响应丢失，服务端不能恢复旧码，用户应再次执行重发。
@@ -138,6 +144,8 @@ salt:        每个密码独立随机生成
 ## 5. 普通用户人工恢复
 
 用户同时失去密码和恢复码时，只能联系唯一 SSO 管理员。
+
+2026-10-02 已确认人工联系渠道：通过现有 QQ 群找到本人，由管理员结合既有社区身份和历史沟通人工核对，并记录核验结论。QQ 群用于联系及人工核验，不新增 SSO QQ 登录或账号绑定；核验及一次性恢复凭据仍按本节流程执行。
 
 第一版人工核验不能依赖系统不存在的邮箱。上线前必须由 LAS 运营确定最少两项可审计依据，例如：
 
@@ -168,6 +176,10 @@ salt:        每个密码独立随机生成
 - 维护命令使用和 Web 应用相同的构建产物、配置解析、`PasswordEncoder`、Repository、事务和审计服务。
 - 维护模式使用 `WebApplicationType.NONE`，不启动 HTTP 监听。
 - 命令获取 PostgreSQL advisory lock，防止两个初始化命令并发执行。
+- 提升已有账号前必须确认账号为 `ACTIVE`，且不存在有效的 `PENDING` 或 `HELD` 注销申请。用户须先通过已有受限注销流程主动取消申请，主机操作员再重试提升；提升不能自动取消注销或释放暂缓。拒绝时不改变管理员身份、密码、注销申请或既有安全状态，并明确提示先取消注销、返回非零退出码，见 [ADR-0002](../adr/0002-require-deletion-cancellation-before-admin-promotion.md)。
+- 注销条件必须在提升事务内、修改身份与凭据之前复核，与注销申请/取消/执行采用一致的并发锁顺序；不能只依赖命令开始前的状态检查。
+
+2026-10-04 S4已在维护advisory lock后按ACTIVE用户→有效请求实现，拒绝码`DELETION_CANCELLATION_REQUIRED`。25项PostgreSQL验证无安全状态变更、最新状态重检/竞争/回滚；3项Console fixture验证先取消提示、异常传播和两次密码缓冲清零。真实终端隐藏输入、JAR/脚本进程非零退出及浏览器首次改密仍待验收；不把fixture通过当这些演练。详见[English晋升契约](../implementation/admin-promotion-deletion.md)／[中文](../zh-CN/implementation/admin-promotion-deletion.md)及状态地图§3.10。
 
 ### 6.2 两种输入
 
@@ -293,6 +305,8 @@ java -jar las-sso.jar --spring.main.web-application-type=none \
 
 需要近期认证的操作统一先调用 `POST /api/v1/me/reauthentication`。成功重新验证密码后轮换会话 ID 并更新 `last_password_auth_at`，但不自动执行此前失败的危险写操作。
 
+业务网站的 OIDC 重认证在 SSO `/oauth2/reauthenticate` 收集密码，保留 CSRF/同源和同一用户/IP 限流；它不属于标准协议端点的 CSRF 例外。五分钟事务绑定当前浏览器及原授权参数，V14 数据库原子完成/消费。ID Token `auth_time` 使用授权时固定的密码时间，刷新不续期；业务网站仍须独立验证当前本地会话关联和自身的高风险窗口，详见 OIDC 契约 §3.3。
+
 ### 8.3 Cookie 与浏览器
 
 - 只使用 HTTPS；生产开启 HSTS。
@@ -313,6 +327,10 @@ java -jar las-sso.jar --spring.main.web-application-type=none \
 | 恢复凭据 | 5/小时 | 20/小时 | 要求 ALTCHA，继续失败则拒绝 |
 | 管理员登录失败 | 5/15 分钟 | 10/15 分钟 | 锁 30 分钟并高危告警 |
 | Client Secret 失败 | Client 10/15 分钟 | 20/15 分钟 | 临时拒绝并告警 |
+
+2026-10-04 内部 service-access Basic 的 A3 修复使用独立失败/在途预算，不把该表数值当所有成功查询配额。现有短期表条件UPSERT在短新事务按网段→客户端占用，哈希不持行锁；成功另一短事务归还本次、失败留至窗口到期，成功不清旧失败，封顶后429/Retry-After。与OAuth认证失败scope独立；DB不可用失败关闭503，异常输入有界解析/匿名预算。用户批准[ADR-0005](../adr/0005-independent-internal-basic-failure-budget.md)，配置和受控证据见[双语契约](../integration/internal-basic-authentication-budget.md)。这不是全系统吞吐/跨窗口全局并发、合法Secret缓存或指标告警完整交付。
+
+A1/A2于2026-10-04补真实Servlet HTTP验证：root及/passport、plain/encodedlogin同CSRF/密码失败/网络block/CAPTCHA单次，内部专用Basic/真实普通Cookie隔离及歧义target拒绝，96新/181相关通过。正proof实际HTTP签发/求解/消费；CSRF/block先于proof、错密码proof已消费、重放拒绝。fixture使用240hwindow/阈值2/3、forward处理禁用/SecureCookie手工HTTP/固定testOrigin，不改生产策略且不验proxyTLSbrowser/生产阈值窗口或容量；详见[English](../implementation/servlet-path-security.md)／[中文](../zh-CN/implementation/servlet-path-security.md)。
 
 要求：
 
@@ -347,6 +365,8 @@ Permissions-Policy: camera=(), microphone=(), geolocation=()
 如 ALTCHA Widget 需要内联样式/脚本，使用构建产物哈希或 nonce，不直接加入 `unsafe-inline`。登录、授权和管理员页面禁止被 iframe。
 
 所有 HTML 输出转义。第一版只允许服务端默认头像资源 ID；未来开放头像上传时必须单独做 MIME、尺寸、解码重编码和存储域隔离，不能只检查扩展名。
+
+D1（2026-10-04）按官方CVE-2026-47877将默认consent依赖Security/Authorization Server升7.1.1，保留既有第一方免同意/合作方要求同意。五依赖renderer fixture在旧raw输出先红后新escape绿、四实际配置DB/MVCconsent兼容通过；不是应用已复现浏览器XSS或所有HTML输出已扫描。三锁/Boot覆盖组合/metadata消费及剩余full scan/CSP/browser见[English](../implementation/spring-security-consent-patch.md)／[中文](../zh-CN/implementation/spring-security-consent-patch.md)。
 
 ## 11. Secret 与日志
 

@@ -1,0 +1,26 @@
+{
+  "deliveryId": "0.1.0-dev.20261005.1",
+  "sourceBaseCommit": "8cee3ed62fd7c53664e8026b99664c73fae5f19d",
+  "sourceBranch": "codex/fix-sso-quality-review",
+  "sourceIsUncommittedWorktree": true,
+  "sourceFileCount": 263,
+  "sourceFingerprintAlgorithm": "SHA-256 of sorted relative-path + NUL + file SHA-256 hex + LF rows",
+  "sourceFingerprintSha256": "96c47532d86d04efd33006ca23db66ddde65f36a3427ac309e178579a959d846",
+  "sourceScope": "las-sso-server/{src,gradle}; root/build-settings-wrapper and module build scripts/locks; excludes docs, build outputs, local init scripts and external configs",
+  "artifacts": [
+    {"path": "build/libs/las-sso-server-0.1.0-dev.20261005.1.jar", "bytes": 45713482, "sha256": "c4957310e2f5bd33f99aaf41634f7ea94225bb3ebfdd230143a82975a6e8d587"},
+    {"path": "las-sso-reference-bff/build/libs/las-sso-reference-bff-0.1.0-dev.20261005.1.jar", "bytes": 28310283, "sha256": "699b8491d5a5762d33db2588cee788aa0e7d00bff98b6ff6ab10e2a5abc8e9a3"},
+    {"path": "las-sso-spring-boot-starter/build/libs/las-sso-spring-boot-starter-0.1.0-dev.20261005.1.jar", "bytes": 70756, "sha256": "513874a0e5cb8d6918c7649617ca795c8bb3b7c2866f5ce6d4292717b50d05b5"},
+    {"path": "las-sso-spring-boot-starter/build/publications/starter/pom-default.xml", "bytes": 2680, "sha256": "559fcf13e5f175cb64e37e14153b10199f4a417a590067a3e1d2de43891c8dc5"},
+    {"path": "las-sso-spring-boot-starter/build/publications/starter/module.json", "bytes": 4717, "sha256": "a2ea0fa2b7e306d81d8921fa96439a33c1f71b1075d2332dbfa84489ad478f29"}
+  ],
+  "locks": [
+    {"path": "gradle.lockfile", "sha256": "7381944ed86e9d73524e86310f2e0dc69e6357e222720a9783f22bcb0faaabd3"},
+    {"path": "las-sso-spring-boot-starter/gradle.lockfile", "sha256": "e11e7b25f58597e55fce359c0b93840e146e29d4845f6f5da3d4b9e23e1782cb"},
+    {"path": "las-sso-reference-bff/gradle.lockfile", "sha256": "1d3411455363b28c5b1158e1e910f451eb0f3a9350ff417a016ce091fe1730bc"}
+  ],
+  "verification": {
+    "server": {"tests": 460, "failures": 0, "errors": 0, "skipped": 0},
+    "starter": {"tests": 178, "failures": 0, "errors": 0, "skipped": 0}
+  }
+}

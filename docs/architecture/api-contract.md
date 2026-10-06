@@ -80,6 +80,7 @@
 | 403 | `CAPTCHA_REQUIRED` | 恢复等匿名敏感流程达到风险阈值，需要先完成人机验证 |
 | 401 | `AUTHENTICATION_REQUIRED` | 需要登录 |
 | 401 | `SESSION_EXPIRED` | 会话空闲或绝对过期 |
+| 401 | `REAUTHENTICATION_CHALLENGE_EXPIRED` | OIDC 密码验证事务已到期、被替换或已消费；从应用重新发起 |
 | 403 | `CSRF_INVALID` | CSRF/Origin 校验失败 |
 | 403 | `RECENT_AUTHENTICATION_REQUIRED` | 15 分钟内未重新输入密码 |
 | 403 | `PASSWORD_CHANGE_REQUIRED` | 临时密码登录后尚未改密 |
@@ -114,6 +115,8 @@ SSO UI 至少提供：
 ```
 
 OIDC 请求触发登录时，服务端保存经过校验的授权事务 ID；页面不得信任任意 `returnUrl`。登录完成后只返回原授权事务或站内允许列表地址。
+
+当前实现另提供 `GET/POST /oauth2/reauthenticate`，属于 SSO 同源密码页面而非标准 OIDC 协议端点；POST 不豁免 CSRF。它只接受当前浏览器服务端保存的 `challenge` 和密码，不接受任意回跳地址或客户端声明的主体。密码错误以 `401` 重新显示空密码表单，事务无效返回 `REAUTHENTICATION_CHALLENGE_EXPIRED`，限流返回 `429`/`Retry-After`。该页用于经过验证的 OIDC `prompt=login`/`max_age` 流程，详见 [OIDC 契约](oidc-and-bff-contract.md#33-oidc-密码重新认证当前-sso-实现)。
 
 ## 4. 登录与人机验证
 
@@ -255,6 +258,8 @@ POST /api/v1/recovery/sessions
 `credentialType` 为 `RECOVERY_CODE` 或 `ADMIN_ISSUED`。成功返回 `204` 并设置受限的 `__Host-las_recovery` Cookie，有效 10 分钟；失败返回统一 `RECOVERY_CREDENTIAL_INVALID`。每次尝试都参与用户、IP 和全局限流。
 
 达到恢复风险阈值后，未提交 CAPTCHA 返回 `CAPTCHA_REQUIRED`，客户端再申请 `RECOVERY_RISK` challenge 并重试。恢复凭据在受限会话创建时立即原子标记为已使用；即使受限会话随后过期，该凭据也不能再次使用。
+
+S6新签发普通码为`LAS-XXXX-XXXX-XXXX-XXXX`、人工码为`LAS-ADMIN-XXXX-XXXX-XXXX-XXXX`，16随机32表字符80bit；请求字段/credentialType/最大64字符/响应/10mCookie不变。旧三组码按原摘要及状态期限兼容，不要求新长度pattern，不复活已用/撤销/过期码。轮换/重签仅生成新格式，旧码仍60bit、升级不自动提升它们。9JVM/33数据库MockMvc和四旧新HTTP恢复流通过，真实浏览器/发行待验，见[English](../implementation/recovery-credential-entropy.md)／[中文](../zh-CN/implementation/recovery-credential-entropy.md)。
 
 恢复流程中的用户名同样大小写敏感并精确匹配；客服或管理员不能把 `Alice` 的恢复凭据签发给 `alice`。
 
@@ -459,6 +464,48 @@ DELETE /api/v1/me/deletion-request
 
 申请后立即触发全局退出。取消时必须重新登录/恢复到受限注销页面，并在 DELETE 请求体提交 `{"password":"..."}` 重新验证当前密码。申请和取消都必须提供 `Idempotency-Key`。已执行删除不能自助恢复。
 
+仍有 `PENDING`/`HELD` 注销申请的账号不能通过主机维护命令提升为 SSO 管理员；用户必须先用上述取消流程取消申请，操作员再重试。提升不能隐式取消申请或释放暂缓，拒绝时不改变角色、凭据、申请或既有安全状态；终态历史不构成阻止条件，见 [ADR-0002](../adr/0002-require-deletion-cancellation-before-admin-promotion.md)。这是维护命令的前置条件，不新增网页管理员提升端点。
+
+2026-10-04 S4已实现上述事务门禁，错误码`DELETION_CANCELLATION_REQUIRED`仅用于维护失败，不是新增HTTP错误映射。门禁按有效状态判断，已到期PENDING/过期但仍HELD仍阻止、释放暂缓不等于取消。25数据库+3命令fixture、90相关专项及强制255 server/176 starter零失败/错误/跳过；真实终端进程/浏览器取消与首次改密待验，见[晋升契约English](../implementation/admin-promotion-deletion.md)／[中文](../zh-CN/implementation/admin-promotion-deletion.md)。
+
+### 6.3 第一方服务访问资格
+
+第一方业务系统可以使用已登记的机密客户端查询 SSO 对主体当前是否允许进入业务系统：
+
+```http
+GET /internal/v1/principals/{sub}/service-access
+Authorization: Basic <first-party-client-credentials>
+Cache-Control: no-store
+```
+
+调用方必须是状态为 `ACTIVE`、类型为 `FIRST_PARTY` 且登记了 `client_secret_basic` 的客户端。该接口不开放通用 Client Credentials Grant，不返回用户名、邮箱、头像、管理员身份或业务权限。
+
+2026-10-04 A1/A2扩大验证：直连Tomcat/TCP在root及/passport下，内部3literal编码路径与普通路径均执行专用Basic/第一方role门禁，真实普通Cookie不能替代；合法known/unknown200/no-store，错client/匿名401Basicchallenge，五歧义路径400无资格字段。编码/login同CSRF/IP预算/一次CAPTCHA/真实password/JDBCSession通过。仅test/docs无API变化；proxy/TLS/browsercookie/Origin及生产容量窗口未验，见[English](../implementation/servlet-path-security.md)／[中文](../zh-CN/implementation/servlet-path-security.md)。
+
+2026-10-04 A3 已实现内部独立哈希前失败/在途预算：默认客户端10、IPv4/24或IPv6/56网段20、十五分钟固定窗口；在查询客户端/哈希前原子占用两桶，认证成功仅归还本次，失败/崩溃保留至到期。正常成功不累计，也不重置旧失败；耗尽时连正确Secret都前置拒绝。scope不与OAuth Token/revocation失败计数共享，用户确认见[ADR-0005](../adr/0005-independent-internal-basic-failure-budget.md)。
+
+预算耗尽429/RATE_LIMITED+Retry-After；占用/认证DB/归还故障503/IDENTITY_SERVICE_UNAVAILABLE，都problem+json/no-store并带匹配的requestId/X-Request-Id。普通无效凭据保留401及Basic challenge。内部Authorization最多4096字符、只一个头；client ID非空最多128无控制，异常入匿名/网段预算不查客户端或哈希。配置 `las.sso.first-party-authentication.client-failures/network-failures/window` 可调整，正限额/正整秒窗口。正常资格响应/角色边界不变；25新增回归和全量203server/176starter无失败/跳过，真实代理/容量/多实例/SSO-04吞吐契约仍待验。见[English](../integration/internal-basic-authentication-budget.md)／[中文](../zh-CN/integration/internal-basic-authentication-budget.md)。
+
+已知主体的响应：
+
+```json
+{
+  "issuer": "https://sso.lzalien.org",
+  "subject": "019f...",
+  "decision": "DENIED",
+  "reason": "ACCOUNT_FROZEN",
+  "stateEpoch": "opaque-current-security-epoch",
+  "stateVersion": 27,
+  "changedAt": "2026-09-05T12:00:00Z"
+}
+```
+
+`decision` 只有 `ALLOWED` 和 `DENIED`。当前原因包括 `ACTIVE`、`ACCOUNT_FROZEN`、`DELETION_PENDING`、`DELETION_HELD`、`PASSWORD_CHANGE_REQUIRED`、`CREDENTIALS_DISABLED`、`ACCOUNT_DELETED` 和 `ACCOUNT_STATE_INVALID`。不存在的 UUID 也返回 `DENIED`，原因是 `PRINCIPAL_NOT_FOUND`，`stateVersion` 为 `0`，不会通过 `404` 暴露状态差异。
+
+`stateVersion`仅在同一`(issuer, subject, stateEpoch)`内单调。用户2026-10-05确认[ADR-0007](../adr/0007-scope-service-access-versions-to-security-epoch.md)，新增第七字段stateEpoch复用全局security_epoch，同SQLsnapshot读取；unknown也含当前epoch/version0/changedAtnull。epoch为opaque等值namespace，不按UUID/string/time排序；changedAt非恢复顺序。restore旧DB后必须rotate epoch再开流量；consumer未知epoch失败关闭，经fresh对账/恢复屏障建current、废旧cache并拒旧inflight，不按来一条就切换。missingrow/blankepoch503/no-store/IDENTITY_SERVICE_UNAVAILABLE；strict六字段DTO须更新，无新migration。17querycontract+1实际TCPload验证、开发组合见[English](../implementation/service-access-epoch-contract.md)／[中文](../zh-CN/implementation/service-access-epoch-contract.md)。
+
+当前只查询，独立SERVICE_ACCESS_CHANGED仍延期。Logout不替资格，businessroles/server限制归各方；consumer缓存到期/重启代次/活动refresh/执行未验前不称一分钟保证。普通ACTIVE→ACTIVE改密/恢复可推进credentials_version与撤销会话而不推进资格version，退出PASSWORD_CHANGE_REQUIRED会推进，两时钟独立。
+
 ## 7. 管理员 API
 
 所有 `/api/v1/admin/**` 端点要求：
@@ -502,6 +549,8 @@ POST /api/v1/admin/users/{userId}/recovery-credentials
 ```
 
 - 第一版不提供管理员直接改用户密码、查看恢复码或冒充登录。
+
+S5管理员墓碑读取（2026-10-04已实现）：已执行注销但UUID身份仍保留时，用户列表/DELETED筛选及详情继续可查，`GET /api/v1/admin/users/{userId}`返回200/no-store及DELETED；`credentialState`、`passwordChangedAt`、`lockedUntil`在无凭据行时明确JSON null，不返回hash/恢复码、不制造凭据状态。未知UUID仍404/ADMIN_TARGET_NOT_FOUND。只读成功不恢复登录/资格；冻结/解冻/下线/人工恢复等终态写仍409/ACCOUNT_STATE_CONFLICT。18数据库/MockMvc/模板回归及138相关/强制273 server/176 starter通过，真实浏览器/部署待验；详见[English](../implementation/admin-tombstone-views.md)／[中文](../zh-CN/implementation/admin-tombstone-views.md)。
 
 ### 7.2 OIDC Client
 
@@ -563,6 +612,8 @@ POST /api/v1/admin/deletion-requests/{requestId}/release
 - 使用不透明 cursor，不使用可被大范围跳页滥用的 offset。
 - 导出功能不在第一阶段；日志页面不显示秘密或完整 IP。
 - 注销任务默认自动执行，不需要管理员逐个批准。只有已记录的安全事件、账号归属争议或明确保留依据才能暂缓；`hold` 必须填写仅供管理审计的 `reason`、面向用户的 `publicSummary` 和最长 90 天的 `holdUntil`，到期自动释放。业务系统自己的稿件、处罚、Minecraft 数据保留不通过 SSO hold 解决。
+
+2026-10-04 S3统一注销user→request锁，候选归属/status及等待后hold期限重检。取消先提交时原hold/release拒绝且无成功审计；管理员先提交仍可后续取消。批次按稳定DB UUID先锁用户、busy用户/请求跳过后续重跑，两阶段同事务整体回滚（用户确认ADR-0006），不改HTTP门禁/30天/90天。executeDue内部count实际处理变更，job计release+processed，同条两阶段计2，0不保证积压空。直接execute也重检owned/PENDING/due，S4晋升门禁在随后独立步骤实现（§6.9）。S3阶段24新增受控DB回归/全量227+176绿，真实HTTP/浏览器、长时容量/饥饿/多实例未验；见[English](../implementation/deletion-concurrency.md)／[中文](../zh-CN/implementation/deletion-concurrency.md)。
 
 ## 8. 权限与近期认证矩阵
 

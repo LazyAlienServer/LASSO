@@ -1,11 +1,15 @@
 # LAS SSO 部署指南
 
+当前按依赖排序的任务入口：[正式生产上线计划](../zh-CN/implementation/production-launch-plan.md)／[English](../implementation/production-launch-plan.md)。该计划从`.7`开发交付到候选发行、目标部署和有限开放，列明模块/步骤/证据；本指南提供部署操作，执行结果另行记录。
+
 - 文档状态：当前仓库的可执行部署步骤
 - 推荐基线：单实例 Spring Boot + PostgreSQL + TLS 反向代理
 - 详细运维策略：[部署与运维手册](operations-runbook.md)
 - 上线门禁：[实施准备度](../implementation/implementation-readiness.md#7-生产上线门禁)
 
 ## 1. 当前部署能力与限制
+
+恢复旧库后可用[epoch维护脚本](../zh-CN/operations/restore-epoch-barrier.md)进行预开放屏障；.20261006.1隔离pgdumprestore/持久key/交互命令已验，仍不等生产backup、代理摘流量或consumercache验收。
 
 当前仓库可以构建可执行 Spring Boot JAR，并使用 PostgreSQL 持久化账号、OIDC 授权和 SSO HTTP Session。
 
@@ -212,17 +216,21 @@ Invoke-RestMethod http://127.0.0.1:9000/actuator/health/liveness
 Invoke-RestMethod http://127.0.0.1:9000/actuator/health/readiness
 ```
 
-预期 `status` 为 `UP`。健康详情只允许本机或监控网络访问。
+预期 `status` 为 `UP`。当前readiness组包含`readinessState,db`，数据库中断必须503、同库恢复后200；liveness不绑定DB。2026-10-06 .5真实stop/start已验，见[English](capacity-readiness-2026-10-06.md)／[中文](../zh-CN/operations/capacity-readiness-2026-10-06.md)。生产配置与启动门禁仍需另核；当前health详情never，只粗status。
 
 ## 10. 初始化唯一管理员
+
+隔离真实WindowsPTY/Edge维护闭环（空库bootstrap/firstchange/reset/旧状态拒）已验，见[中文](../zh-CN/operations/administrator-maintenance-acceptance.md)／[English](administrator-maintenance-acceptance.md)。生产首次上线仍按精确制品/停writer/真实keySecret和离线恢复码保管步骤执行。
 
 在应用未对公网开放时停止 Web 进程或保持维护模式，使用同一套生产环境变量执行：
 
 ```powershell
-.\scripts\bootstrap-admin.ps1 -Username InitialAdmin -Profil e production
+.\scripts\bootstrap-admin.ps1 -Username InitialAdmin -Profile production -JarPath $ServerJar -ExpectedSha256 $ServerJarSha256
 ```
 
 脚本交互式隐藏读取临时密码。完成后：
+
+`$ServerJar` 和 `$ServerJarSha256` 必须来自选定交付，不能自动选择目录最新版本；缺失/摘要不符不启动 Java。reset 同样接受这两个参数，见[维护制品说明](../zh-CN/operations/maintenance-artifact-selection.md)。
 
 1. 启动 Web 应用；
 2. 管理员首次登录；
@@ -246,6 +254,8 @@ java -jar las-sso-server.jar
 
 ## 11. 反向代理
 
+2026-10-06隔离真实Nginx/TLS验证发现只覆盖X-Forwarded-Host/Proto/For不足：客户端Forwarded和Prefix仍可扰乱callback。下示例已清alternate头，仓库提供[完整include](../../las-sso-server/deploy/nginx/las-forwarding.conf)，每个proxying location须完整设置，否则Nginx不继承parent整组。保持单literalcanonicalserver_name，另配unknownHost default拒与固定HTTPS redirect。来源及参考BFF `https` profile：[中文验收](../zh-CN/operations/tls-proxy-acceptance.md)／[English](tls-proxy-acceptance.md)。多级CDN/prefix/prod域名证书firewall另验，framework本身不验证代理来源。
+
 Nginx 基线示例：
 
 ```nginx
@@ -261,8 +271,13 @@ server {
     location / {
         proxy_pass http://127.0.0.1:9000;
         proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Forwarded-Host $host;
+        # Only this single canonical host is valid; client forwarding metadata is not trusted.
+        proxy_set_header Forwarded "";
+        proxy_set_header X-Forwarded-Prefix "";
+        proxy_set_header X-Forwarded-Ssl "";
+        proxy_set_header X-Forwarded-Server "";
+        proxy_set_header Host $server_name;
+        proxy_set_header X-Forwarded-Host $server_name;
         proxy_set_header X-Forwarded-Proto https;
         proxy_set_header X-Forwarded-Port 443;
         proxy_set_header X-Real-IP $remote_addr;
@@ -273,6 +288,16 @@ server {
         allow 127.0.0.1;
         deny all;
         proxy_pass http://127.0.0.1:9000;
+        proxy_set_header Forwarded "";
+        proxy_set_header X-Forwarded-Prefix "";
+        proxy_set_header X-Forwarded-Ssl "";
+        proxy_set_header X-Forwarded-Server "";
+        proxy_set_header Host $server_name;
+        proxy_set_header X-Forwarded-Host $server_name;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Forwarded-Port 443;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Real-IP $remote_addr;
     }
 }
 ```
@@ -293,6 +318,8 @@ SERVER_ADDRESS=127.0.0.1
 ```
 
 ## 12. systemd 服务示例
+
+可选私有监控由[monitoringprofile与独立凭据](monitoring-and-alerting.md)／[中文](../zh-CN/operations/monitoring-and-alerting.md)提供。启用后management9091默认loopback，health与Prometheus位于管理listener；不得从publicNginx代理。供`LAS_SSO_MONITORING_PASSWORD_HASH`及collectorrawpasswordfile，不能复用OIDCclient/humanSession；跨host采集另配validatedTLS/firewall。实际指标、Prometheus/Alertmanager/Grafana输入和告警覆盖见该记录。
 
 ```ini
 [Unit]
