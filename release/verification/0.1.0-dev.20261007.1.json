@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 1,
+  "version": "0.1.0-dev.20261007.1",
+  "kind": "post-package-local-verification",
+  "sourceCommit": "a442b0b1b9c5d7668c6dc214b5e6440ee927f443",
+  "distribution": {
+    "path": "release/las-sso-0.1.0-dev.20261007.1.zip",
+    "sha256": "9f41ee29b14efae8534ca052678af48d01a27d115cfc9949a9c63669cbe88d1b"
+  },
+  "sourceArchiveSha256": "ecb3bb8b04a526b58eff6987216adb7f68cec8e91af2db8287dd4cd170593605",
+  "artifacts": {
+    "server": "5e82b30de6e316a35eef3cee80bda9cde539bc906e290d31c925f3a3dc06fe81",
+    "starter": "7f4caa2dfff814499bc628e0654371cfadda6df4474b0b8eb0af1e09409fbe32",
+    "reference-bff": "b6576673ee5a2660c4d558b7cdbfc88da10ca46ab71cacc4e476e19b6d782cce"
+  },
+  "tests": {
+    "server": 505,
+    "starter": 193,
+    "reference-bff": 37,
+    "total": 735,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "databaseRequired": true,
+    "forcedCompleteRun": true
+  },
+  "package": {
+    "files": 70,
+    "localLinks": 104,
+    "extractedZipVerified": true,
+    "tamperedFileRejected": true,
+    "extraFileRejected": true,
+    "sourceGitArchiveCommitVerified": true,
+    "embeddedFlywayVersions": "V1-V15"
+  },
+  "scans": {
+    "trivyVersion": "0.75.0",
+    "databaseUpdatedAt": "2026-10-07T00:53:05.111120428Z",
+    "lockedDependencyRows": 241,
+    "nestedJarDependencyRows": 157,
+    "reportedDependencyVulnerabilities": 0,
+    "semgrepVersion": "1.179.0",
+    "scannedPaths": 409,
+    "errors": 0,
+    "findings": 6,
+    "review": "One fixed-target production redirect call-graph false positive; two operator-local network/fixed-rule URL prompts; three trusted-local XML parser prompts. All reviewed, no new production-path defect identified. Scope limitations retained.",
+    "gitleaksVersion": "8.30.1",
+    "sourceArtifactHistoryFindings": 0,
+    "extractedCompletePackageArchiveDepth": 3,
+    "extractedCompletePackageFindings": 0
+  },
+  "postPackageChecks": {
+    "maintenancePowerShellSyntax": "passed",
+    "maintenanceWrongHashBeforeJava": "rejected",
+    "maintenanceDefaults": "production; explicit mandatory JAR and SHA-256",
+    "nativeMetadataConsumer": "compile and Boot4.1.1/Security7.1.1/Framework7.0.9/Log4j2.25.5 alignment passed",
+    "pomOnlyConsumer": "compile and same alignment passed",
+    "prometheus3.6": "config syntax, seven alert rules and rule fixtures passed",
+    "alertmanager0.28.1": "configuration validation passed",
+    "nginx1.29": "nginx -t passed with fixture certificate/path substitution",
+    "systemd": "template reviewed; systemd-analyze/target service execution not performed on Windows"
+  },
+  "packagedRuntimeFixture": {
+    "profiles": "production,monitoring",
+    "externalTemplates": "copied packaged properties, only private fixture ports changed; ephemeral external fixture secrets/key supplied",
+    "postgresql": "18.4 isolated Docker database, fixed loopback port",
+    "flywayFreshDatabase": "V1-V15 passed",
+    "canonicalDiscoveryAndPersistentRsaPublicJwks": "passed",
+    "unauthenticatedManagementMetrics": 401,
+    "dedicatedCollectorManagementMetrics": 200,
+    "collectorOnApplicationPort": "rejected",
+    "readiness": [200, 503, 200],
+    "livenessDuringDatabaseOutage": 200,
+    "downBody": "coarse status only",
+    "cleanup": "fixture JVM/database stopped and removed"
+  },
+  "limitations": [
+    "Development delivery; no production rollout/approval, push or hosted release.",
+    "Post-package evidence is recorded here without rewriting the immutable package/source snapshot.",
+    "New-version browser login/refresh/logout/restore/Grafana/on-call exercises not repeated; earlier runtime acceptance remains historical.",
+    "Packaged runtime check uses loopback HTTP to app plus canonical HTTPS issuer metadata, not real public TLS/proxy/browser acceptance.",
+    "No target systemd execution, production image/JDK/proxy scan, DAST or hours-scale capacity/retention validation.",
+    "Initial failed unpublished packaging attempt and fixture timeout/random-port issue were tooling issues, corrected before successful handoff."
+  ],
+  "productionApproved": false
+}

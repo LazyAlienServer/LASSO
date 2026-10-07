@@ -4,6 +4,8 @@
 
 Current packaging target: **0.1.0-dev.20261007.1**. This is a new development delivery after the engineering cleanup; it must not replace historical `.20261006.7` bytes.
 
+Completed local delivery: [English verification record](../docs/integration/development-delivery-2026-10-07-1.md) / [中文](../docs/zh-CN/integration/development-delivery-2026-10-07-1.md), with [trusted checksum and post-package results](verification/0.1.0-dev.20261007.1.json). The immutable package source is `a442b0b`; subsequent evidence commits do not change its bytes.
+
 From the repository root, with a clean committed checkout, JDK21, Docker and Python3.10+:
 
 ```powershell
