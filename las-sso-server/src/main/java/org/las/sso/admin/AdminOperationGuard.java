@@ -35,11 +35,17 @@ public final class AdminOperationGuard {
         if (authentication == null
                 || !(authentication.getPrincipal() instanceof LasUserPrincipal principal)
                 || principal.getAuthorities().stream()
-                        .noneMatch(authority -> "ROLE_SSO_ADMIN".equals(authority.getAuthority()))) {
+                        .noneMatch(
+                                authority -> "ROLE_SSO_ADMIN".equals(authority.getAuthority()))) {
             throw new AdminUserManagementException("ADMIN_ACCESS_DENIED");
         }
         String sid = userSessions.currentSid(request);
-        boolean currentAdministratorSession = sid != null && Boolean.TRUE.equals(jdbcClient.sql("""
+        boolean currentAdministratorSession =
+                sid != null
+                        && Boolean.TRUE.equals(
+                                jdbcClient
+                                        .sql(
+                                                """
                 SELECT EXISTS (
                     SELECT 1
                       FROM users u
@@ -57,8 +63,11 @@ public final class AdminOperationGuard {
                        AND s.credentials_version = pc.credentials_version
                        AND s.security_epoch = state.security_epoch
                 )
-                """).param("userId", principal.userId()).param("sid", sid)
-                .query(Boolean.class).single());
+                """)
+                                        .param("userId", principal.userId())
+                                        .param("sid", sid)
+                                        .query(Boolean.class)
+                                        .single());
         if (!currentAdministratorSession) {
             throw new AdminUserManagementException("ADMIN_ACCESS_DENIED");
         }
@@ -68,6 +77,5 @@ public final class AdminOperationGuard {
         return new Context(principal, sid);
     }
 
-    public record Context(LasUserPrincipal principal, String sid) {
-    }
+    public record Context(LasUserPrincipal principal, String sid) {}
 }

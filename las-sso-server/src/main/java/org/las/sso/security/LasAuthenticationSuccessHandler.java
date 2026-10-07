@@ -1,14 +1,12 @@
 package org.las.sso.security;
 
-import java.io.IOException;
-
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
 import org.las.sso.identity.LasUserPrincipal;
 import org.las.sso.oidc.OidcReauthenticationService;
 import org.las.sso.session.UserSessionService;
-
 import org.springframework.security.core.Authentication;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.security.web.authentication.SavedRequestAwareAuthenticationSuccessHandler;
@@ -40,16 +38,16 @@ public final class LasAuthenticationSuccessHandler implements AuthenticationSucc
 
     @Override
     public void onAuthenticationSuccess(
-            HttpServletRequest request,
-            HttpServletResponse response,
-            Authentication authentication) throws IOException, ServletException {
+            HttpServletRequest request, HttpServletResponse response, Authentication authentication)
+            throws IOException, ServletException {
         if (authentication.getPrincipal() instanceof LasUserPrincipal principal) {
             loginAttempts.recordSuccess(principal.userId());
             userSessions.registerLogin(principal, request);
             recentAuthentication.markPasswordAuthenticated(request);
             userSessions.updateRecentPasswordAuthentication(request);
             oidcReauthentication.completeAfterLogin(request, principal);
-            metrics.login(org.las.sso.observability.SsoMetrics.LoginResult.SUCCESS,
+            metrics.login(
+                    org.las.sso.observability.SsoMetrics.LoginResult.SUCCESS,
                     org.las.sso.observability.SsoMetrics.LoginReason.NONE);
             if (principal.passwordChangeRequired()) {
                 response.sendRedirect(request.getContextPath() + "/password-change-required");

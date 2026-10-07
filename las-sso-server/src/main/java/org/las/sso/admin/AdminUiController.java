@@ -1,7 +1,6 @@
 package org.las.sso.admin;
 
 import java.util.UUID;
-
 import org.las.sso.identity.LasUserPrincipal;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
@@ -82,11 +81,12 @@ public class AdminUiController {
         model.addAttribute("from", from == null ? "" : from);
         model.addAttribute("to", to == null ? "" : to);
         if (securityKind) {
-            model.addAttribute("events", auditEvents.securityEvents(
-                    type, severity, userId, from, to, cursor, limit));
+            model.addAttribute(
+                    "events",
+                    auditEvents.securityEvents(type, severity, userId, from, to, cursor, limit));
         } else {
-            model.addAttribute("events", auditEvents.auditEvents(
-                    action, targetId, from, to, cursor, limit));
+            model.addAttribute(
+                    "events", auditEvents.auditEvents(action, targetId, from, to, cursor, limit));
         }
         model.addAttribute("auditActions", AuditLabels.auditActions());
         model.addAttribute("securityEvents", AuditLabels.securityEvents());
@@ -127,7 +127,8 @@ public class AdminUiController {
         if (authentication == null
                 || !(authentication.getPrincipal() instanceof LasUserPrincipal principal)
                 || principal.getAuthorities().stream()
-                        .noneMatch(authority -> "ROLE_SSO_ADMIN".equals(authority.getAuthority()))) {
+                        .noneMatch(
+                                authority -> "ROLE_SSO_ADMIN".equals(authority.getAuthority()))) {
             throw new AdminUserManagementException("ADMIN_ACCESS_DENIED");
         }
         return principal;

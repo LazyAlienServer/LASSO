@@ -13,10 +13,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
-
+import org.las.sso.config.LasSsoProperties;
 import org.las.sso.identity.UuidV7Generator;
 import org.las.sso.logout.BackChannelLogoutOutbox;
-import org.las.sso.config.LasSsoProperties;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -34,8 +33,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class AdminClientService {
 
-    private static final Set<String> ALLOWED_SCOPES =
-            Set.of(OidcScopes.OPENID, OidcScopes.PROFILE);
+    private static final Set<String> ALLOWED_SCOPES = Set.of(OidcScopes.OPENID, OidcScopes.PROFILE);
     private static final int MAX_PAGE_SIZE = 200;
     private static final int MAX_URIS = 10;
     private static final int MAX_AUDIENCES = 10;
@@ -59,8 +57,15 @@ public class AdminClientService {
             BackChannelLogoutOutbox backChannelLogout,
             UuidV7Generator uuidGenerator,
             LasSsoProperties properties) {
-        this(jdbcClient, registeredClients, tokenSettings, passwordEncoder, backChannelLogout,
-                uuidGenerator, new SecureRandom(), Clock.systemUTC(),
+        this(
+                jdbcClient,
+                registeredClients,
+                tokenSettings,
+                passwordEncoder,
+                backChannelLogout,
+                uuidGenerator,
+                new SecureRandom(),
+                Clock.systemUTC(),
                 "http".equalsIgnoreCase(properties.issuer().getScheme()));
     }
 
@@ -91,7 +96,10 @@ public class AdminClientService {
         String normalizedStatus = normalizeStatus(status);
         AdminAuditQueryService.Cursor position = AdminAuditQueryService.decodeCursor(cursor);
         String normalizedQuery = query == null ? "" : query.strip();
-        List<ClientSummary> rows = jdbcClient.sql("""
+        List<ClientSummary> rows =
+                jdbcClient
+                        .sql(
+                                """
                 SELECT rc.id, rc.client_id, rc.client_name, rc.client_id_issued_at,
                        rc.redirect_uris, rc.post_logout_redirect_uris, rc.scopes,
                        m.client_type::text, m.status::text, m.config_version,
@@ -108,37 +116,47 @@ public class AdminClientService {
                             CAST(:cursorTime AS timestamptz), CAST(:cursorId AS varchar)))
                  ORDER BY rc.client_id_issued_at DESC, rc.id DESC
                  LIMIT :limit
-                """).param("query", normalizedQuery)
-                .param("status", normalizedStatus)
-                .param("cursorTime", position == null ? null : position.occurredAt().toString())
-                .param("cursorId", position == null ? null : position.id().toString())
-                .param("limit", limit + 1)
-                .query((rs, rowNum) -> new ClientSummary(
-                        rs.getString("id"),
-                        rs.getString("client_id"),
-                        rs.getString("client_name"),
-                        rs.getString("client_type"),
-                        rs.getString("status"),
-                        rs.getLong("config_version"),
-                        splitList(rs.getString("redirect_uris")),
-                        splitList(rs.getString("scopes")),
-                        rs.getLong("authorization_count"),
-                        rs.getObject("client_id_issued_at", OffsetDateTime.class)))
-                .list();
+                """)
+                        .param("query", normalizedQuery)
+                        .param("status", normalizedStatus)
+                        .param(
+                                "cursorTime",
+                                position == null ? null : position.occurredAt().toString())
+                        .param("cursorId", position == null ? null : position.id().toString())
+                        .param("limit", limit + 1)
+                        .query(
+                                (rs, rowNum) ->
+                                        new ClientSummary(
+                                                rs.getString("id"),
+                                                rs.getString("client_id"),
+                                                rs.getString("client_name"),
+                                                rs.getString("client_type"),
+                                                rs.getString("status"),
+                                                rs.getLong("config_version"),
+                                                splitList(rs.getString("redirect_uris")),
+                                                splitList(rs.getString("scopes")),
+                                                rs.getLong("authorization_count"),
+                                                rs.getObject(
+                                                        "client_id_issued_at",
+                                                        OffsetDateTime.class)))
+                        .list();
         boolean hasMore = rows.size() > limit;
-        List<ClientSummary> items = hasMore
-                ? List.copyOf(rows.subList(0, limit))
-                : List.copyOf(rows);
-        String nextCursor = hasMore
-                ? AdminAuditQueryService.encodeCursor(
-                        items.getLast().issuedAt(), UUID.fromString(items.getLast().id()))
-                : null;
+        List<ClientSummary> items =
+                hasMore ? List.copyOf(rows.subList(0, limit)) : List.copyOf(rows);
+        String nextCursor =
+                hasMore
+                        ? AdminAuditQueryService.encodeCursor(
+                                items.getLast().issuedAt(), UUID.fromString(items.getLast().id()))
+                        : null;
         return new ClientPage(items, nextCursor);
     }
 
     @Transactional(readOnly = true)
     public ClientView detail(String clientId) {
-        ClientView client = jdbcClient.sql("""
+        ClientView client =
+                jdbcClient
+                        .sql(
+                                """
                 SELECT rc.id, rc.client_id, rc.client_name, rc.client_id_issued_at,
                        rc.redirect_uris, rc.post_logout_redirect_uris, rc.scopes,
                        m.client_type::text, m.status::text, m.config_version,
@@ -150,24 +168,31 @@ public class AdminClientService {
                   FROM oauth2_registered_client rc
                   JOIN registered_client_metadata m ON m.registered_client_id = rc.id
                  WHERE rc.client_id = :clientId
-                """).param("clientId", clientId)
-                .query((rs, rowNum) -> new ClientView(
-                        rs.getString("id"),
-                        rs.getString("client_id"),
-                        rs.getString("client_name"),
-                        rs.getString("client_type"),
-                        rs.getString("status"),
-                        rs.getLong("config_version"),
-                        splitList(rs.getString("redirect_uris")),
-                        splitList(rs.getString("post_logout_redirect_uris")),
-                        splitList(rs.getString("scopes")),
-                        splitList(rs.getArray("resource_audiences")),
-                        rs.getString("backchannel_uri"),
-                        "REVIEWED_PARTNER".equals(rs.getString("client_type")),
-                        rs.getLong("authorization_count"),
-                        rs.getObject("client_id_issued_at", OffsetDateTime.class)))
-                .optional()
-                .orElseThrow(() -> new AdminClientException("CLIENT_NOT_FOUND"));
+                """)
+                        .param("clientId", clientId)
+                        .query(
+                                (rs, rowNum) ->
+                                        new ClientView(
+                                                rs.getString("id"),
+                                                rs.getString("client_id"),
+                                                rs.getString("client_name"),
+                                                rs.getString("client_type"),
+                                                rs.getString("status"),
+                                                rs.getLong("config_version"),
+                                                splitList(rs.getString("redirect_uris")),
+                                                splitList(
+                                                        rs.getString("post_logout_redirect_uris")),
+                                                splitList(rs.getString("scopes")),
+                                                splitList(rs.getArray("resource_audiences")),
+                                                rs.getString("backchannel_uri"),
+                                                "REVIEWED_PARTNER"
+                                                        .equals(rs.getString("client_type")),
+                                                rs.getLong("authorization_count"),
+                                                rs.getObject(
+                                                        "client_id_issued_at",
+                                                        OffsetDateTime.class)))
+                        .optional()
+                        .orElseThrow(() -> new AdminClientException("CLIENT_NOT_FOUND"));
         return client;
     }
 
@@ -179,9 +204,10 @@ public class AdminClientService {
             String reason,
             UUID requestId) {
         OffsetDateTime now = now();
-        String clientId = request.clientId() == null || request.clientId().isBlank()
-                ? generateClientId()
-                : request.clientId().strip();
+        String clientId =
+                request.clientId() == null || request.clientId().isBlank()
+                        ? generateClientId()
+                        : request.clientId().strip();
         validateClientId(clientId);
         if (registeredClients.findByClientId(clientId) != null) {
             throw new AdminClientException("CLIENT_ID_CONFLICT");
@@ -194,43 +220,54 @@ public class AdminClientService {
         String clientType = validatedClientType(request.clientType());
         boolean partner = "REVIEWED_PARTNER".equals(clientType);
         String plainSecret = generateClientSecret();
-        RegisteredClient client = RegisteredClient.withId(uuidGenerator.generate().toString())
-                .clientId(clientId)
-                .clientName(request.clientName())
-                .clientSecret(passwordEncoder.encode(plainSecret))
-                .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
-                .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
-                .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
-                .redirectUris(uris -> redirectUris.forEach(uris::add))
-                .postLogoutRedirectUris(uris -> postLogoutUris.forEach(uris::add))
-                .scopes(scope -> scopes.forEach(scope::add))
-                .clientSettings(ClientSettings.builder()
-                        .requireProofKey(true)
-                        .requireAuthorizationConsent(partner)
-                        .build())
-                .tokenSettings(tokenSettings)
-                .build();
+        RegisteredClient client =
+                RegisteredClient.withId(uuidGenerator.generate().toString())
+                        .clientId(clientId)
+                        .clientName(request.clientName())
+                        .clientSecret(passwordEncoder.encode(plainSecret))
+                        .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
+                        .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
+                        .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
+                        .redirectUris(uris -> redirectUris.forEach(uris::add))
+                        .postLogoutRedirectUris(uris -> postLogoutUris.forEach(uris::add))
+                        .scopes(scope -> scopes.forEach(scope::add))
+                        .clientSettings(
+                                ClientSettings.builder()
+                                        .requireProofKey(true)
+                                        .requireAuthorizationConsent(partner)
+                                        .build())
+                        .tokenSettings(tokenSettings)
+                        .build();
         try {
             registeredClients.save(client);
         } catch (DuplicateKeyException exception) {
             throw new AdminClientException("CLIENT_ID_CONFLICT");
         }
-        jdbcClient.sql("""
+        jdbcClient
+                .sql(
+                        """
                 INSERT INTO registered_client_metadata
                     (registered_client_id, client_type, status, config_version,
                      resource_audiences, require_pkce, updated_at)
                 VALUES (:id, CAST(:clientType AS registered_client_type), 'ACTIVE', 1,
                         :audiences::text[], true, :now)
-                """).param("id", client.getId())
+                """)
+                .param("id", client.getId())
                 .param("clientType", partner ? "REVIEWED_PARTNER" : "FIRST_PARTY")
                 .param("audiences", audiences.toArray(new String[0]))
-                .param("now", now).update();
+                .param("now", now)
+                .update();
         if (backchannelUri != null) {
-            jdbcClient.sql("""
+            jdbcClient
+                    .sql(
+                            """
                     INSERT INTO registered_client_backchannel_logout_uris
                         (registered_client_id, uri, session_required)
                     VALUES (:id, :uri, true)
-                    """).param("id", client.getId()).param("uri", backchannelUri).update();
+                    """)
+                    .param("id", client.getId())
+                    .param("uri", backchannelUri)
+                    .update();
         }
         insertAudit(actorUserId, actorSid, clientId, "ADMIN_CLIENT_CREATE", reason, requestId, now);
         return new CreateResult(clientId, plainSecret, now, null, 1);
@@ -262,38 +299,49 @@ public class AdminClientService {
         boolean scopesShrunk = !newScopes.containsAll(current.getScopes());
         boolean audiencesShrunk = !newAudiences.containsAll(currentAudiences(clientId));
         boolean typeChanged = newPartner != partner;
-        boolean securityRelevant = scopesChanged || audiencesChanged || typeChanged
-                || !newRedirectUris.equals(List.copyOf(current.getRedirectUris()))
-                || !newPostLogoutUris.equals(List.copyOf(current.getPostLogoutRedirectUris()))
-                || !java.util.Objects.equals(
-                        newBackchannelUri, currentBackchannelUri(clientId));
+        boolean securityRelevant =
+                scopesChanged
+                        || audiencesChanged
+                        || typeChanged
+                        || !newRedirectUris.equals(List.copyOf(current.getRedirectUris()))
+                        || !newPostLogoutUris.equals(
+                                List.copyOf(current.getPostLogoutRedirectUris()))
+                        || !java.util.Objects.equals(
+                                newBackchannelUri, currentBackchannelUri(clientId));
         boolean revoke = scopesShrunk || audiencesShrunk || typeChanged;
 
-        RegisteredClient updated = RegisteredClient.from(current)
-                .clientName(request.clientName())
-                .redirectUris(uris -> {
-                    uris.clear();
-                    newRedirectUris.forEach(uris::add);
-                })
-                .postLogoutRedirectUris(uris -> {
-                    uris.clear();
-                    newPostLogoutUris.forEach(uris::add);
-                })
-                .scopes(scope -> {
-                    scope.clear();
-                    newScopes.forEach(scope::add);
-                })
-                .clientSettings(ClientSettings.builder()
-                        .requireProofKey(true)
-                        .requireAuthorizationConsent(newPartner)
-                        .build())
-                .build();
+        RegisteredClient updated =
+                RegisteredClient.from(current)
+                        .clientName(request.clientName())
+                        .redirectUris(
+                                uris -> {
+                                    uris.clear();
+                                    newRedirectUris.forEach(uris::add);
+                                })
+                        .postLogoutRedirectUris(
+                                uris -> {
+                                    uris.clear();
+                                    newPostLogoutUris.forEach(uris::add);
+                                })
+                        .scopes(
+                                scope -> {
+                                    scope.clear();
+                                    newScopes.forEach(scope::add);
+                                })
+                        .clientSettings(
+                                ClientSettings.builder()
+                                        .requireProofKey(true)
+                                        .requireAuthorizationConsent(newPartner)
+                                        .build())
+                        .build();
         registeredClients.save(updated);
 
         long configVersion = configVersion(clientId);
         if (securityRelevant) {
             configVersion = configVersion + 1;
-            jdbcClient.sql("""
+            jdbcClient
+                    .sql(
+                            """
                     UPDATE registered_client_metadata
                        SET config_version = config_version + 1,
                            client_type = CAST(:clientType AS registered_client_type),
@@ -301,49 +349,71 @@ public class AdminClientService {
                            require_pkce = true,
                            updated_at = :now
                      WHERE registered_client_id = :id
-                    """).param("clientType", newPartner ? "REVIEWED_PARTNER" : "FIRST_PARTY")
+                    """)
+                    .param("clientType", newPartner ? "REVIEWED_PARTNER" : "FIRST_PARTY")
                     .param("audiences", newAudiences.toArray(new String[0]))
-                    .param("now", now).param("id", current.getId()).update();
+                    .param("now", now)
+                    .param("id", current.getId())
+                    .update();
         } else {
-            jdbcClient.sql("""
+            jdbcClient
+                    .sql(
+                            """
                     UPDATE registered_client_metadata
                        SET client_type = CAST(:clientType AS registered_client_type),
                            resource_audiences = :audiences::text[],
                            require_pkce = true,
                            updated_at = :now
                      WHERE registered_client_id = :id
-                    """).param("clientType", newPartner ? "REVIEWED_PARTNER" : "FIRST_PARTY")
+                    """)
+                    .param("clientType", newPartner ? "REVIEWED_PARTNER" : "FIRST_PARTY")
                     .param("audiences", newAudiences.toArray(new String[0]))
-                    .param("now", now).param("id", current.getId()).update();
+                    .param("now", now)
+                    .param("id", current.getId())
+                    .update();
         }
         if (newBackchannelUri != null) {
-            jdbcClient.sql("""
+            jdbcClient
+                    .sql(
+                            """
                     INSERT INTO registered_client_backchannel_logout_uris
                         (registered_client_id, uri, session_required)
                     VALUES (:id, :uri, true)
                     ON CONFLICT (registered_client_id) DO UPDATE SET
                         uri = EXCLUDED.uri, session_required = EXCLUDED.session_required
-                    """).param("id", current.getId()).param("uri", newBackchannelUri).update();
+                    """)
+                    .param("id", current.getId())
+                    .param("uri", newBackchannelUri)
+                    .update();
         } else {
-            jdbcClient.sql("""
+            jdbcClient
+                    .sql(
+                            """
                     DELETE FROM registered_client_backchannel_logout_uris
                      WHERE registered_client_id = :id
-                    """).param("id", current.getId()).update();
+                    """)
+                    .param("id", current.getId())
+                    .update();
         }
 
         int revoked = 0;
         if (revoke) {
-            revoked = revokeClientAuthorizations(
-                    current.getId(), current.getClientId(), "CLIENT_CONFIG_REVOKED", now);
+            revoked =
+                    revokeClientAuthorizations(
+                            current.getId(), current.getClientId(), "CLIENT_CONFIG_REVOKED", now);
         } else if (securityRelevant) {
-            jdbcClient.sql("""
+            jdbcClient
+                    .sql(
+                            """
                     UPDATE oauth2_authorization_security security
                        SET client_config_version = :configVersion
                       FROM oauth2_authorization authz
                      WHERE security.authorization_id = authz.id
                        AND authz.registered_client_id = :registeredClientId
-                    """).param("configVersion", configVersion)
-                    .param("registeredClientId", current.getId()).update();
+                    """)
+                    .param("configVersion", configVersion)
+                    .param("registeredClientId", current.getId())
+                    .update();
         }
         insertAudit(actorUserId, actorSid, clientId, "ADMIN_CLIENT_UPDATE", reason, requestId, now);
         return new PatchResult(revoke, revoked, configVersion);
@@ -354,15 +424,20 @@ public class AdminClientService {
             String clientId, UUID actorUserId, String actorSid, String reason, UUID requestId) {
         OffsetDateTime now = now();
         RegisteredClient client = requireClientForMutation(clientId);
-        jdbcClient.sql("""
+        jdbcClient
+                .sql(
+                        """
                 UPDATE registered_client_metadata
                    SET status = 'DISABLED', config_version = config_version + 1, updated_at = :now
                  WHERE registered_client_id = :id
-                """).param("now", now).param("id", client.getId()).update();
-        revokeClientAuthorizations(
-                client.getId(), client.getClientId(), "CLIENT_DISABLED", now);
+                """)
+                .param("now", now)
+                .param("id", client.getId())
+                .update();
+        revokeClientAuthorizations(client.getId(), client.getClientId(), "CLIENT_DISABLED", now);
         securityEvent("CLIENT_DISABLED_BY_ADMIN", "HIGH", clientId, requestId, now);
-        insertAudit(actorUserId, actorSid, clientId, "ADMIN_CLIENT_DISABLE", reason, requestId, now);
+        insertAudit(
+                actorUserId, actorSid, clientId, "ADMIN_CLIENT_DISABLE", reason, requestId, now);
         return configVersion(clientId);
     }
 
@@ -371,11 +446,16 @@ public class AdminClientService {
             String clientId, UUID actorUserId, String actorSid, String reason, UUID requestId) {
         OffsetDateTime now = now();
         RegisteredClient client = requireClient(clientId);
-        jdbcClient.sql("""
+        jdbcClient
+                .sql(
+                        """
                 UPDATE registered_client_metadata
                    SET status = 'ACTIVE', config_version = config_version + 1, updated_at = :now
                  WHERE registered_client_id = :id
-                """).param("now", now).param("id", client.getId()).update();
+                """)
+                .param("now", now)
+                .param("id", client.getId())
+                .update();
         securityEvent("CLIENT_ENABLED_BY_ADMIN", "INFO", clientId, requestId, now);
         insertAudit(actorUserId, actorSid, clientId, "ADMIN_CLIENT_ENABLE", reason, requestId, now);
         return configVersion(clientId);
@@ -387,41 +467,66 @@ public class AdminClientService {
         OffsetDateTime now = now();
         RegisteredClient client = requireClientForMutation(clientId);
         String plainSecret = generateClientSecret();
-        RegisteredClient rotated = RegisteredClient.from(client)
-                .clientSecret(passwordEncoder.encode(plainSecret))
-                .build();
+        RegisteredClient rotated =
+                RegisteredClient.from(client)
+                        .clientSecret(passwordEncoder.encode(plainSecret))
+                        .build();
         registeredClients.save(rotated);
-        jdbcClient.sql("""
+        jdbcClient
+                .sql(
+                        """
                 UPDATE registered_client_metadata
                    SET config_version = config_version + 1, updated_at = :now
                  WHERE registered_client_id = :id
-                """).param("now", now).param("id", client.getId()).update();
+                """)
+                .param("now", now)
+                .param("id", client.getId())
+                .update();
         revokeClientAuthorizations(
                 client.getId(), client.getClientId(), "CLIENT_SECRET_ROTATED", now);
         securityEvent("CLIENT_SECRET_ROTATED", "HIGH", clientId, requestId, now);
-        insertAudit(actorUserId, actorSid, clientId, "ADMIN_CLIENT_SECRET_ROTATE", reason,
-                requestId, now);
-        return new RotationResult(
-                plainSecret, now, null, configVersion(clientId), true, false);
+        insertAudit(
+                actorUserId,
+                actorSid,
+                clientId,
+                "ADMIN_CLIENT_SECRET_ROTATE",
+                reason,
+                requestId,
+                now);
+        return new RotationResult(plainSecret, now, null, configVersion(clientId), true, false);
     }
 
     private int revokeClientAuthorizations(
             String registeredClientId, String clientId, String reason, OffsetDateTime now) {
-        List<UUID> principals = jdbcClient.sql("""
+        List<UUID> principals =
+                jdbcClient
+                        .sql(
+                                """
                 SELECT DISTINCT CAST(principal_name AS uuid)
                   FROM oauth2_authorization
                  WHERE registered_client_id = :rcId
-                """).param("rcId", registeredClientId)
-                .query(UUID.class).list();
+                """)
+                        .param("rcId", registeredClientId)
+                        .query(UUID.class)
+                        .list();
         for (UUID userId : principals) {
             backChannelLogout.enqueueForClient(userId, clientId, reason, now);
         }
-        int deleted = jdbcClient.sql("""
+        int deleted =
+                jdbcClient
+                        .sql(
+                                """
                 DELETE FROM oauth2_authorization WHERE registered_client_id = :rcId
-                """).param("rcId", registeredClientId).update();
-        jdbcClient.sql("""
+                """)
+                        .param("rcId", registeredClientId)
+                        .update();
+        jdbcClient
+                .sql(
+                        """
                 DELETE FROM oauth2_authorization_consent WHERE registered_client_id = :rcId
-                """).param("rcId", registeredClientId).update();
+                """)
+                .param("rcId", registeredClientId)
+                .update();
         return deleted;
     }
 
@@ -434,15 +539,20 @@ public class AdminClientService {
     }
 
     private RegisteredClient requireClientForMutation(String clientId) {
-        String registeredClientId = jdbcClient.sql("""
+        String registeredClientId =
+                jdbcClient
+                        .sql(
+                                """
                 SELECT registered_client_id
                   FROM registered_client_metadata m
                   JOIN oauth2_registered_client rc ON rc.id = m.registered_client_id
                  WHERE rc.client_id = :clientId
                  FOR UPDATE OF m
-                """).param("clientId", clientId)
-                .query(String.class).optional()
-                .orElseThrow(() -> new AdminClientException("CLIENT_NOT_FOUND"));
+                """)
+                        .param("clientId", clientId)
+                        .query(String.class)
+                        .optional()
+                        .orElseThrow(() -> new AdminClientException("CLIENT_NOT_FOUND"));
         return requireClientAfterLock(clientId, registeredClientId);
     }
 
@@ -459,36 +569,55 @@ public class AdminClientService {
     }
 
     private String clientType(String clientId) {
-        return jdbcClient.sql("""
+        return jdbcClient
+                .sql(
+                        """
                 SELECT client_type::text FROM registered_client_metadata
                  WHERE registered_client_id = :id
-                """).param("id", requireClient(clientId).getId())
-                .query(String.class).optional().orElse("FIRST_PARTY");
+                """)
+                .param("id", requireClient(clientId).getId())
+                .query(String.class)
+                .optional()
+                .orElse("FIRST_PARTY");
     }
 
     private long configVersion(String clientId) {
-        return jdbcClient.sql("""
+        return jdbcClient
+                .sql(
+                        """
                 SELECT config_version FROM registered_client_metadata
                  WHERE registered_client_id = :id
-                """).param("id", requireClient(clientId).getId())
-                .query(Long.class).optional().orElse(1L);
+                """)
+                .param("id", requireClient(clientId).getId())
+                .query(Long.class)
+                .optional()
+                .orElse(1L);
     }
 
     private List<String> currentAudiences(String clientId) {
-        return jdbcClient.sql("""
+        return jdbcClient
+                .sql(
+                        """
                 SELECT resource_audiences FROM registered_client_metadata
                  WHERE registered_client_id = :id
-                """).param("id", requireClient(clientId).getId())
+                """)
+                .param("id", requireClient(clientId).getId())
                 .query((rs, rowNum) -> splitList(rs.getArray("resource_audiences")))
-                .optional().orElse(List.of());
+                .optional()
+                .orElse(List.of());
     }
 
     private String currentBackchannelUri(String clientId) {
-        return jdbcClient.sql("""
+        return jdbcClient
+                .sql(
+                        """
                 SELECT uri FROM registered_client_backchannel_logout_uris
                  WHERE registered_client_id = :id
-                """).param("id", requireClient(clientId).getId())
-                .query(String.class).optional().orElse(null);
+                """)
+                .param("id", requireClient(clientId).getId())
+                .query(String.class)
+                .optional()
+                .orElse(null);
     }
 
     private void insertAudit(
@@ -499,31 +628,55 @@ public class AdminClientService {
             String reason,
             UUID requestId,
             OffsetDateTime now) {
-        UUID actorSessionId = actorSid == null ? null : jdbcClient.sql("""
+        UUID actorSessionId =
+                actorSid == null
+                        ? null
+                        : jdbcClient
+                                .sql(
+                                        """
                 SELECT id FROM user_sessions WHERE sid = :sid AND user_id = :actorUserId
-                """).param("sid", actorSid).param("actorUserId", actorUserId)
-                .query(UUID.class).optional().orElse(null);
-        jdbcClient.sql("""
+                """)
+                                .param("sid", actorSid)
+                                .param("actorUserId", actorUserId)
+                                .query(UUID.class)
+                                .optional()
+                                .orElse(null);
+        jdbcClient
+                .sql(
+                        """
                 INSERT INTO admin_audit_events
                     (id, occurred_at, actor_user_id, actor_session_id, action,
                      target_type, target_id, request_id, result, reason)
                 VALUES (:id, :now, :actorUserId, :actorSessionId, :action,
                         'CLIENT', :clientId, :requestId, 'SUCCESS', :reason)
-                """).param("id", uuidGenerator.generate()).param("now", now)
-                .param("actorUserId", actorUserId).param("actorSessionId", actorSessionId)
-                .param("action", action).param("clientId", clientId)
-                .param("requestId", requestId).param("reason", reason).update();
+                """)
+                .param("id", uuidGenerator.generate())
+                .param("now", now)
+                .param("actorUserId", actorUserId)
+                .param("actorSessionId", actorSessionId)
+                .param("action", action)
+                .param("clientId", clientId)
+                .param("requestId", requestId)
+                .param("reason", reason)
+                .update();
     }
 
     private void securityEvent(
             String type, String severity, String clientId, UUID requestId, OffsetDateTime now) {
-        jdbcClient.sql("""
+        jdbcClient
+                .sql(
+                        """
                 INSERT INTO security_events
                     (id, occurred_at, event_type, severity, request_id, client_id, details_json)
                 VALUES (:id, :now, :type, :severity, :requestId, :clientId, '{}'::jsonb)
-                """).param("id", uuidGenerator.generate()).param("now", now)
-                .param("type", type).param("severity", severity)
-                .param("requestId", requestId).param("clientId", clientId).update();
+                """)
+                .param("id", uuidGenerator.generate())
+                .param("now", now)
+                .param("type", type)
+                .param("severity", severity)
+                .param("requestId", requestId)
+                .param("clientId", clientId)
+                .update();
     }
 
     private List<String> validatedUris(List<String> uris, boolean required) {
@@ -552,8 +705,10 @@ public class AdminClientService {
         } catch (URISyntaxException exception) {
             throw new AdminClientException("INVALID_REDIRECT_URI");
         }
-        if (parsed.getFragment() != null || parsed.getUserInfo() != null
-                || uri.contains("*") || uri.contains("#")
+        if (parsed.getFragment() != null
+                || parsed.getUserInfo() != null
+                || uri.contains("*")
+                || uri.contains("#")
                 || parsed.getHost() == null) {
             throw new AdminClientException("INVALID_REDIRECT_URI");
         }
@@ -564,7 +719,8 @@ public class AdminClientService {
         if ("https".equalsIgnoreCase(scheme)) {
             return;
         }
-        if (allowInsecureLoopback && "http".equalsIgnoreCase(scheme)
+        if (allowInsecureLoopback
+                && "http".equalsIgnoreCase(scheme)
                 && ("localhost".equalsIgnoreCase(parsed.getHost())
                         || "127.0.0.1".equals(parsed.getHost()))) {
             return;
@@ -688,8 +844,7 @@ public class AdminClientService {
             List<String> postLogoutRedirectUris,
             List<String> scopes,
             List<String> resourceAudiences,
-            String backchannelLogoutUri) {
-    }
+            String backchannelLogoutUri) {}
 
     public record PatchRequest(
             String clientName,
@@ -698,8 +853,7 @@ public class AdminClientService {
             List<String> postLogoutRedirectUris,
             List<String> scopes,
             List<String> resourceAudiences,
-            String backchannelLogoutUri) {
-    }
+            String backchannelLogoutUri) {}
 
     public record ClientSummary(
             String id,
@@ -711,8 +865,7 @@ public class AdminClientService {
             List<String> redirectUris,
             List<String> scopes,
             long authorizationCount,
-            OffsetDateTime issuedAt) {
-    }
+            OffsetDateTime issuedAt) {}
 
     public record ClientPage(List<ClientSummary> items, String nextCursor) {
         public ClientPage {
@@ -734,22 +887,17 @@ public class AdminClientService {
             String backchannelLogoutUri,
             boolean requireConsent,
             long authorizationCount,
-            OffsetDateTime issuedAt) {
-    }
+            OffsetDateTime issuedAt) {}
 
     public record CreateResult(
             String clientId,
             String clientSecret,
             OffsetDateTime validFrom,
             OffsetDateTime expiresAt,
-            long configVersion) {
-    }
+            long configVersion) {}
 
     public record PatchResult(
-            boolean revocationTriggered,
-            int revokedAuthorizationCount,
-            long configVersion) {
-    }
+            boolean revocationTriggered, int revokedAuthorizationCount, long configVersion) {}
 
     public record RotationResult(
             String clientSecret,
@@ -757,6 +905,5 @@ public class AdminClientService {
             OffsetDateTime expiresAt,
             long configVersion,
             boolean secretsAvailable,
-            boolean idempotentReplay) {
-    }
+            boolean idempotentReplay) {}
 }

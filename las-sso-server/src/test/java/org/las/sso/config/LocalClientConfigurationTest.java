@@ -13,24 +13,19 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
-@SpringBootTest(properties = {
-        "las.sso.scheduling.enabled=false",
-        "spring.session.jdbc.cleanup-cron=-"
-})
+@SpringBootTest(
+        properties = {"las.sso.scheduling.enabled=false", "spring.session.jdbc.cleanup-cron=-"})
 @ActiveProfiles("local")
 @Testcontainers(disabledWithoutDocker = true)
 class LocalClientConfigurationTest {
 
-    @Container
-    @ServiceConnection
+    @Container @ServiceConnection
     static final PostgreSQLContainer<?> POSTGRES =
             new PostgreSQLContainer<>("postgres:18.4-alpine");
 
-    @Autowired
-    RegisteredClientRepository clients;
+    @Autowired RegisteredClientRepository clients;
 
-    @Autowired
-    PasswordEncoder passwordEncoder;
+    @Autowired PasswordEncoder passwordEncoder;
 
     @Test
     void localLaslogClientUsesDocumentedCredentialAndRedirectUri() {
@@ -38,8 +33,9 @@ class LocalClientConfigurationTest {
 
         assertThat(client).isNotNull();
         assertThat(passwordEncoder.matches("laslog-local-only", client.getClientSecret())).isTrue();
-        assertThat(client.getRedirectUris()).containsExactlyInAnyOrder(
-                "http://localhost:8088/login/oauth2/code/las-sso",
-                "http://127.0.0.1:8088/login/oauth2/code/las-sso");
+        assertThat(client.getRedirectUris())
+                .containsExactlyInAnyOrder(
+                        "http://localhost:8088/login/oauth2/code/las-sso",
+                        "http://127.0.0.1:8088/login/oauth2/code/las-sso");
     }
 }

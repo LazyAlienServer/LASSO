@@ -1,13 +1,12 @@
 package org.las.sso.account;
 
-import java.time.Duration;
-import java.util.UUID;
-
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
+import java.time.Duration;
+import java.util.UUID;
 import org.las.sso.api.RequestIdFilter;
 import org.las.sso.security.ClientNetworkKey;
 import org.las.sso.security.SameOriginVerifier;
@@ -16,8 +15,8 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CookieValue;
-import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -43,23 +42,26 @@ public class PasswordRecoveryController {
 
     @PostMapping("/sessions")
     ResponseEntity<Void> start(
-            @Valid @RequestBody StartRecoveryRequest body,
-            HttpServletRequest request) {
+            @Valid @RequestBody StartRecoveryRequest body, HttpServletRequest request) {
         sameOriginVerifier.verify(request);
-        PasswordRecoveryService.CaptchaSubmission captcha = body.captcha() == null
-                ? null
-                : new PasswordRecoveryService.CaptchaSubmission(
-                        body.captcha().challengeId(), body.captcha().payload());
-        PasswordRecoveryService.RecoverySession session = recovery.start(
-                body.username(),
-                body.credential(),
-                body.credentialType(),
-                captcha,
-                clientNetworkKey.fromRemoteAddress(request.getRemoteAddr()),
-                requestId(request));
+        PasswordRecoveryService.CaptchaSubmission captcha =
+                body.captcha() == null
+                        ? null
+                        : new PasswordRecoveryService.CaptchaSubmission(
+                                body.captcha().challengeId(), body.captcha().payload());
+        PasswordRecoveryService.RecoverySession session =
+                recovery.start(
+                        body.username(),
+                        body.credential(),
+                        body.credentialType(),
+                        captcha,
+                        clientNetworkKey.fromRemoteAddress(request.getRemoteAddr()),
+                        requestId(request));
         return ResponseEntity.noContent()
-                .header(HttpHeaders.SET_COOKIE, recoveryCookie(
-                        session.token(), PasswordRecoveryService.SESSION_LIFETIME).toString())
+                .header(
+                        HttpHeaders.SET_COOKIE,
+                        recoveryCookie(session.token(), PasswordRecoveryService.SESSION_LIFETIME)
+                                .toString())
                 .cacheControl(CacheControl.noStore())
                 .build();
     }
@@ -97,15 +99,10 @@ public class PasswordRecoveryController {
             @NotBlank @Size(max = 24) String username,
             @NotBlank @Size(max = 64) String credential,
             @NotNull PasswordRecoveryService.CredentialType credentialType,
-            @Valid CaptchaSubmission captcha) {
-    }
+            @Valid CaptchaSubmission captcha) {}
 
     public record CaptchaSubmission(
-            @NotNull UUID challengeId,
-            @NotBlank @Size(max = 32_768) String payload) {
-    }
+            @NotNull UUID challengeId, @NotBlank @Size(max = 32_768) String payload) {}
 
-    public record CompleteRecoveryRequest(
-            @NotBlank @Size(max = 512) String newPassword) {
-    }
+    public record CompleteRecoveryRequest(@NotBlank @Size(max = 512) String newPassword) {}
 }

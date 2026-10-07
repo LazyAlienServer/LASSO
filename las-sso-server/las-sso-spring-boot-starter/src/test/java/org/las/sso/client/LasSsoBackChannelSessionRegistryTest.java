@@ -12,7 +12,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
-
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpSession;
 
@@ -47,13 +46,19 @@ class LasSsoBackChannelSessionRegistryTest {
     @Test
     void failedInvalidationKeepsMarkerAndLiveIndexForRetry() {
         var registry = new LasSsoBackChannelSessionRegistry();
-        var session = new MockHttpSession() {
-            boolean fail = true;
-            @Override public void invalidate() {
-                if (fail) { fail = false; throw new IllegalStateException("fixture transient failure"); }
-                super.invalidate();
-            }
-        };
+        var session =
+                new MockHttpSession() {
+                    boolean fail = true;
+
+                    @Override
+                    public void invalidate() {
+                        if (fail) {
+                            fail = false;
+                            throw new IllegalStateException("fixture transient failure");
+                        }
+                        super.invalidate();
+                    }
+                };
         registry.register("revoked", "subject", session);
         assertThatThrownBy(() -> registry.invalidate("revoked", "subject"))
                 .isInstanceOf(IllegalStateException.class);
@@ -108,55 +113,77 @@ class LasSsoBackChannelSessionRegistryTest {
         var registry = new LasSsoBackChannelSessionRegistry();
         var entered = new CountDownLatch(1);
         var release = new CountDownLatch(1);
-        var late = new MockHttpSession() {
-            @Override public String getId() {
-                entered.countDown();
-                await(release);
-                return super.getId();
-            }
-        };
+        var late =
+                new MockHttpSession() {
+                    @Override
+                    public String getId() {
+                        entered.countDown();
+                        await(release);
+                        return super.getId();
+                    }
+                };
         try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
-            var registration = executor.submit(() -> {
-                try { registry.register("revoked", "subject", late); return false; }
-                catch (IllegalStateException rejected) { return true; }
-            });
+            var registration =
+                    executor.submit(
+                            () -> {
+                                try {
+                                    registry.register("revoked", "subject", late);
+                                    return false;
+                                } catch (IllegalStateException rejected) {
+                                    return true;
+                                }
+                            });
             try {
                 assertThat(entered.await(5, TimeUnit.SECONDS)).isTrue();
                 assertThat(registry.invalidate("revoked", "subject")).isZero();
-            } finally { release.countDown(); }
+            } finally {
+                release.countDown();
+            }
             assertThat(registration.get(5, TimeUnit.SECONDS)).isTrue();
         }
     }
 
     @Test
-    void registrationWinsThenLogoutInvalidatesOutsideLockAndBlocksNewSameSidRegistration() throws Exception {
+    void registrationWinsThenLogoutInvalidatesOutsideLockAndBlocksNewSameSidRegistration()
+            throws Exception {
         var registry = new LasSsoBackChannelSessionRegistry();
         var entered = new CountDownLatch(1);
         var release = new CountDownLatch(1);
-        var existing = new MockHttpSession() {
-            @Override public void invalidate() {
-                entered.countDown();
-                await(release);
-                super.invalidate();
-                // Container destruction listeners may reenter registry cleanup.
-                registry.unregister(getId());
-            }
-        };
+        var existing =
+                new MockHttpSession() {
+                    @Override
+                    public void invalidate() {
+                        entered.countDown();
+                        await(release);
+                        super.invalidate();
+                        // Container destruction listeners may reenter registry cleanup.
+                        registry.unregister(getId());
+                    }
+                };
         registry.register("revoked", "subject", existing);
         try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
             var logout = executor.submit(() -> registry.invalidate("revoked", "subject"));
             try {
                 assertThat(entered.await(5, TimeUnit.SECONDS)).isTrue();
-                var later = executor.submit(() -> {
-                    assertThatThrownBy(() -> registry.register("revoked", "subject", new MockHttpSession()))
-                            .isInstanceOf(IllegalStateException.class);
-                    var other = new MockHttpSession();
-                    registry.register("other", "subject", other);
-                    return registry.invalidate("other", "subject");
-                });
+                var later =
+                        executor.submit(
+                                () -> {
+                                    assertThatThrownBy(
+                                                    () ->
+                                                            registry.register(
+                                                                    "revoked",
+                                                                    "subject",
+                                                                    new MockHttpSession()))
+                                            .isInstanceOf(IllegalStateException.class);
+                                    var other = new MockHttpSession();
+                                    registry.register("other", "subject", other);
+                                    return registry.invalidate("other", "subject");
+                                });
                 assertThat(later.get(5, TimeUnit.SECONDS)).isEqualTo(1);
                 assertThat(existing.isInvalid()).isFalse();
-            } finally { release.countDown(); }
+            } finally {
+                release.countDown();
+            }
             assertThat(logout.get(5, TimeUnit.SECONDS)).isEqualTo(1);
             assertThat(existing.isInvalid()).isTrue();
         }
@@ -175,7 +202,8 @@ class LasSsoBackChannelSessionRegistryTest {
 
     @Test
     void retentionRejectsUnsupportedValues() {
-        for (Duration invalid : new Duration[] {Duration.ZERO, Duration.ofSeconds(-1), Duration.ofDays(15)}) {
+        for (Duration invalid :
+                new Duration[] {Duration.ZERO, Duration.ofSeconds(-1), Duration.ofDays(15)}) {
             assertThatThrownBy(() -> new LasSsoBackChannelSessionRegistry(invalid))
                     .isInstanceOf(IllegalArgumentException.class);
         }
@@ -185,7 +213,8 @@ class LasSsoBackChannelSessionRegistryTest {
 
     private static void await(CountDownLatch latch) {
         try {
-            if (!latch.await(5, TimeUnit.SECONDS)) throw new IllegalStateException("Fixture latch timed out");
+            if (!latch.await(5, TimeUnit.SECONDS))
+                throw new IllegalStateException("Fixture latch timed out");
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("Fixture interrupted", exception);
@@ -193,10 +222,26 @@ class LasSsoBackChannelSessionRegistryTest {
     }
 
     private static final class MutableClock extends Clock {
-        private final AtomicReference<Instant> now = new AtomicReference<>(Instant.parse("2026-10-05T00:00:00Z"));
-        void advance(Duration duration) { now.updateAndGet(value -> value.plus(duration)); }
-        @Override public ZoneId getZone() { return ZoneOffset.UTC; }
-        @Override public Clock withZone(ZoneId zone) { return this; }
-        @Override public Instant instant() { return now.get(); }
+        private final AtomicReference<Instant> now =
+                new AtomicReference<>(Instant.parse("2026-10-05T00:00:00Z"));
+
+        void advance(Duration duration) {
+            now.updateAndGet(value -> value.plus(duration));
+        }
+
+        @Override
+        public ZoneId getZone() {
+            return ZoneOffset.UTC;
+        }
+
+        @Override
+        public Clock withZone(ZoneId zone) {
+            return this;
+        }
+
+        @Override
+        public Instant instant() {
+            return now.get();
+        }
     }
 }

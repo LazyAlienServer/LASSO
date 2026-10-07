@@ -2,7 +2,6 @@ package org.las.sso.identity;
 
 import java.util.List;
 import java.util.UUID;
-
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -13,7 +12,8 @@ import org.springframework.stereotype.Service;
 @Service
 public final class JdbcLasUserDetailsService implements UserDetailsService {
 
-    private static final String FIND_BY_CURRENT_USERNAME = """
+    private static final String FIND_BY_CURRENT_USERNAME =
+            """
             SELECT u.id,
                    un.username,
                    pc.password_hash,
@@ -37,33 +37,48 @@ public final class JdbcLasUserDetailsService implements UserDetailsService {
 
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        return jdbcClient.sql(FIND_BY_CURRENT_USERNAME)
+        return jdbcClient
+                .sql(FIND_BY_CURRENT_USERNAME)
                 .param("username", username)
-                .query((rs, rowNum) -> {
-                    boolean active = "ACTIVE".equals(rs.getString("account_status"));
-                    String credentialState = rs.getString("credential_state");
-                    boolean passwordChangeRequired = "PASSWORD_CHANGE_REQUIRED".equals(credentialState);
-                    var temporaryExpiresAt = rs.getObject("temporary_expires_at", java.time.OffsetDateTime.class);
-                    var lockedUntil = rs.getObject("locked_until", java.time.OffsetDateTime.class);
-                    boolean credentialActive = "ACTIVE".equals(credentialState)
-                            || (passwordChangeRequired
-                            && temporaryExpiresAt != null
-                            && temporaryExpiresAt.isAfter(java.time.OffsetDateTime.now(java.time.ZoneOffset.UTC)));
-                    boolean admin = rs.getBoolean("is_sso_admin");
-                    var authorities = admin
-                            ? List.of(new SimpleGrantedAuthority("ROLE_USER"), new SimpleGrantedAuthority("ROLE_SSO_ADMIN"))
-                            : List.of(new SimpleGrantedAuthority("ROLE_USER"));
-                    return new LasUserPrincipal(
-                            rs.getObject("id", UUID.class),
-                            rs.getString("username"),
-                            rs.getString("password_hash"),
-                            rs.getLong("credentials_version"),
-                            active && credentialActive
-                                    && (lockedUntil == null || !lockedUntil.isAfter(
-                                    java.time.OffsetDateTime.now(java.time.ZoneOffset.UTC))),
-                            passwordChangeRequired,
-                            authorities);
-                })
+                .query(
+                        (rs, rowNum) -> {
+                            boolean active = "ACTIVE".equals(rs.getString("account_status"));
+                            String credentialState = rs.getString("credential_state");
+                            boolean passwordChangeRequired =
+                                    "PASSWORD_CHANGE_REQUIRED".equals(credentialState);
+                            var temporaryExpiresAt =
+                                    rs.getObject(
+                                            "temporary_expires_at", java.time.OffsetDateTime.class);
+                            var lockedUntil =
+                                    rs.getObject("locked_until", java.time.OffsetDateTime.class);
+                            boolean credentialActive =
+                                    "ACTIVE".equals(credentialState)
+                                            || (passwordChangeRequired
+                                                    && temporaryExpiresAt != null
+                                                    && temporaryExpiresAt.isAfter(
+                                                            java.time.OffsetDateTime.now(
+                                                                    java.time.ZoneOffset.UTC)));
+                            boolean admin = rs.getBoolean("is_sso_admin");
+                            var authorities =
+                                    admin
+                                            ? List.of(
+                                                    new SimpleGrantedAuthority("ROLE_USER"),
+                                                    new SimpleGrantedAuthority("ROLE_SSO_ADMIN"))
+                                            : List.of(new SimpleGrantedAuthority("ROLE_USER"));
+                            return new LasUserPrincipal(
+                                    rs.getObject("id", UUID.class),
+                                    rs.getString("username"),
+                                    rs.getString("password_hash"),
+                                    rs.getLong("credentials_version"),
+                                    active
+                                            && credentialActive
+                                            && (lockedUntil == null
+                                                    || !lockedUntil.isAfter(
+                                                            java.time.OffsetDateTime.now(
+                                                                    java.time.ZoneOffset.UTC))),
+                                    passwordChangeRequired,
+                                    authorities);
+                        })
                 .optional()
                 .orElseThrow(() -> new UsernameNotFoundException("Invalid username or password"));
     }

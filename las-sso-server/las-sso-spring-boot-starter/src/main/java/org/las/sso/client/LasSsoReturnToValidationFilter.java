@@ -1,11 +1,10 @@
 package org.las.sso.client;
 
-import java.io.IOException;
-
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -16,11 +15,14 @@ final class LasSsoReturnToValidationFilter extends OncePerRequestFilter {
     private final RequestMatcher endpoint;
 
     LasSsoReturnToValidationFilter(LasSsoClientProperties properties) {
-        endpoint = PathPatternRequestMatcher.pathPattern("/oauth2/authorization/" + properties.registrationId());
+        endpoint =
+                PathPatternRequestMatcher.pathPattern(
+                        "/oauth2/authorization/" + properties.registrationId());
     }
 
     @Override
-    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
+    protected void doFilterInternal(
+            HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
         if (endpoint.matches(request)) {
             try {

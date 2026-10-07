@@ -1,12 +1,10 @@
 package org.las.sso.account;
 
-import java.util.UUID;
-
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
-
+import java.util.UUID;
 import org.las.sso.api.RequestIdFilter;
 import org.las.sso.identity.LasUserPrincipal;
 import org.las.sso.security.RecentAuthenticationException;
@@ -35,7 +33,8 @@ public class ProfileController {
 
     @GetMapping("/profile")
     ResponseEntity<ProfileService.View> profile(Authentication authentication) {
-        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noStore())
                 .body(profiles.profile(principal(authentication).userId()));
     }
 
@@ -45,11 +44,14 @@ public class ProfileController {
             @Valid @RequestBody ProfileUpdateRequest body,
             HttpServletRequest request) {
         sameOriginVerifier.verify(request);
-        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
-                .body(profiles.updateProfile(
-                        principal(authentication).userId(), body.displayName(),
-                        body.avatarResourceId(),
-                        requestId(request)));
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noStore())
+                .body(
+                        profiles.updateProfile(
+                                principal(authentication).userId(),
+                                body.displayName(),
+                                body.avatarResourceId(),
+                                requestId(request)));
     }
 
     @PostMapping("/username-change")
@@ -59,30 +61,31 @@ public class ProfileController {
             HttpServletRequest request) {
         LasUserPrincipal principal = principal(authentication);
         sameOriginVerifier.verify(request);
-        ProfileService.View view = profiles.changeUsername(
-                principal.userId(),
-                body.newUsername(),
-                body.currentPassword(),
-                requestId(request));
+        ProfileService.View view =
+                profiles.changeUsername(
+                        principal.userId(),
+                        body.newUsername(),
+                        body.currentPassword(),
+                        requestId(request));
         refreshPrincipalUsername(principal, view.username());
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(view);
     }
 
-    private static void refreshPrincipalUsername(
-            LasUserPrincipal current, String newUsername) {
-        var updated = new LasUserPrincipal(
-                current.userId(),
-                newUsername,
-                current.getPassword(),
-                current.credentialsVersion(),
-                current.isEnabled(),
-                current.passwordChangeRequired(),
-                current.getAuthorities());
-        var authentication = org.springframework.security.authentication
-                .UsernamePasswordAuthenticationToken.authenticated(
-                        updated, null, updated.getAuthorities());
-        org.springframework.security.core.context.SecurityContextHolder
-                .getContext().setAuthentication(authentication);
+    private static void refreshPrincipalUsername(LasUserPrincipal current, String newUsername) {
+        var updated =
+                new LasUserPrincipal(
+                        current.userId(),
+                        newUsername,
+                        current.getPassword(),
+                        current.credentialsVersion(),
+                        current.isEnabled(),
+                        current.passwordChangeRequired(),
+                        current.getAuthorities());
+        var authentication =
+                org.springframework.security.authentication.UsernamePasswordAuthenticationToken
+                        .authenticated(updated, null, updated.getAuthorities());
+        org.springframework.security.core.context.SecurityContextHolder.getContext()
+                .setAuthentication(authentication);
     }
 
     private static LasUserPrincipal principal(Authentication authentication) {
@@ -101,11 +104,9 @@ public class ProfileController {
 
     public record ProfileUpdateRequest(
             @NotBlank @Size(max = 512) String displayName,
-            @Size(max = 128) String avatarResourceId) {
-    }
+            @Size(max = 128) String avatarResourceId) {}
 
     public record UsernameChangeRequest(
             @NotBlank @Size(max = 24) String newUsername,
-            @NotBlank @Size(max = 512) String currentPassword) {
-    }
+            @NotBlank @Size(max = 512) String currentPassword) {}
 }

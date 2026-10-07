@@ -6,7 +6,6 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
-
 import org.las.sso.access.ServiceAccessEligibilityService;
 import org.las.sso.identity.UuidV7Generator;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -49,7 +48,10 @@ public class AdminDeletionRequestService {
         String normalizedStatus = normalizeStatus(status);
         int limit = Math.max(1, Math.min(requestedLimit, MAX_PAGE_SIZE));
         AdminAuditQueryService.Cursor position = AdminAuditQueryService.decodeCursor(cursor);
-        List<DeletionRequest> rows = jdbcClient.sql("""
+        List<DeletionRequest> rows =
+                jdbcClient
+                        .sql(
+                                """
                 SELECT r.id, r.user_id, un.username, r.status::text, r.requested_at,
                        r.execute_after, r.hold_until, r.hold_reason, r.hold_public_summary,
                        u.account_status::text AS account_status
@@ -62,30 +64,35 @@ public class AdminDeletionRequestService {
                             CAST(:cursorTime AS timestamptz), CAST(:cursorId AS uuid)))
                  ORDER BY r.requested_at DESC, r.id DESC
                  LIMIT :limit
-                """).param("status", normalizedStatus)
-                .param("cursorTime", position == null ? null : position.occurredAt().toString())
-                .param("cursorId", position == null ? null : position.id().toString())
-                .param("limit", limit + 1)
-                .query((rs, rowNum) -> new DeletionRequest(
-                        rs.getObject("id", UUID.class),
-                        rs.getObject("user_id", UUID.class),
-                        rs.getString("username"),
-                        rs.getString("status"),
-                        rs.getObject("requested_at", OffsetDateTime.class),
-                        rs.getObject("execute_after", OffsetDateTime.class),
-                        rs.getObject("hold_until", OffsetDateTime.class),
-                        rs.getString("hold_reason"),
-                        rs.getString("hold_public_summary"),
-                        rs.getString("account_status")))
-                .list();
+                """)
+                        .param("status", normalizedStatus)
+                        .param(
+                                "cursorTime",
+                                position == null ? null : position.occurredAt().toString())
+                        .param("cursorId", position == null ? null : position.id().toString())
+                        .param("limit", limit + 1)
+                        .query(
+                                (rs, rowNum) ->
+                                        new DeletionRequest(
+                                                rs.getObject("id", UUID.class),
+                                                rs.getObject("user_id", UUID.class),
+                                                rs.getString("username"),
+                                                rs.getString("status"),
+                                                rs.getObject("requested_at", OffsetDateTime.class),
+                                                rs.getObject("execute_after", OffsetDateTime.class),
+                                                rs.getObject("hold_until", OffsetDateTime.class),
+                                                rs.getString("hold_reason"),
+                                                rs.getString("hold_public_summary"),
+                                                rs.getString("account_status")))
+                        .list();
         boolean hasMore = rows.size() > limit;
-        List<DeletionRequest> items = hasMore
-                ? List.copyOf(rows.subList(0, limit))
-                : List.copyOf(rows);
-        String nextCursor = hasMore
-                ? AdminAuditQueryService.encodeCursor(
-                        items.getLast().requestedAt(), items.getLast().id())
-                : null;
+        List<DeletionRequest> items =
+                hasMore ? List.copyOf(rows.subList(0, limit)) : List.copyOf(rows);
+        String nextCursor =
+                hasMore
+                        ? AdminAuditQueryService.encodeCursor(
+                                items.getLast().requestedAt(), items.getLast().id())
+                        : null;
         return new DeletionPage(items, nextCursor);
     }
 
@@ -110,7 +117,10 @@ public class AdminDeletionRequestService {
         if (holdUntil.isBefore(now) || holdUntil.isAfter(now.plus(HOLD_MAX))) {
             throw new AdminUserManagementException("INVALID_HOLD_UNTIL");
         }
-        int updated = jdbcClient.sql("""
+        int updated =
+                jdbcClient
+                        .sql(
+                                """
                 UPDATE account_deletion_requests
                    SET status = 'HELD', hold_until = :holdUntil,
                        held_by_user_id = :actorUserId, hold_reason = :reason,
@@ -118,18 +128,27 @@ public class AdminDeletionRequestService {
                   WHERE id = :requestId
                     AND user_id = :userId
                     AND status = 'PENDING'
-                """).param("holdUntil", holdUntil)
-                .param("actorUserId", actorUserId)
-                .param("reason", reason)
-                .param("publicSummary", publicSummary)
-                .param("requestId", requestId).param("userId", userId).update();
+                """)
+                        .param("holdUntil", holdUntil)
+                        .param("actorUserId", actorUserId)
+                        .param("reason", reason)
+                        .param("publicSummary", publicSummary)
+                        .param("requestId", requestId)
+                        .param("userId", userId)
+                        .update();
         if (updated == 0) {
             throw new AdminUserManagementException("ACCOUNT_STATE_CONFLICT");
         }
         serviceAccess.advanceStateVersion(userId, now);
         securityEvent(userId, "DELETION_HELD_BY_ADMIN", "HIGH", requestRequestId, now);
-        insertAudit(actorUserId, actorSid, userId, "ADMIN_DELETION_HOLD",
-                reason, requestRequestId, now);
+        insertAudit(
+                actorUserId,
+                actorSid,
+                userId,
+                "ADMIN_DELETION_HOLD",
+                reason,
+                requestRequestId,
+                now);
     }
 
     @Transactional
@@ -141,7 +160,10 @@ public class AdminDeletionRequestService {
             UUID requestRequestId) {
         UUID userId = lockUserId(requestId);
         OffsetDateTime now = now();
-        int updated = jdbcClient.sql("""
+        int updated =
+                jdbcClient
+                        .sql(
+                                """
                 UPDATE account_deletion_requests
                    SET status = 'PENDING', hold_until = NULL,
                        held_by_user_id = NULL, hold_reason = NULL,
@@ -149,30 +171,55 @@ public class AdminDeletionRequestService {
                   WHERE id = :requestId
                     AND user_id = :userId
                     AND status = 'HELD'
-                """).param("requestId", requestId).param("userId", userId).update();
+                """)
+                        .param("requestId", requestId)
+                        .param("userId", userId)
+                        .update();
         if (updated == 0) {
             throw new AdminUserManagementException("ACCOUNT_STATE_CONFLICT");
         }
         serviceAccess.advanceStateVersion(userId, now);
         securityEvent(userId, "DELETION_RELEASED_BY_ADMIN", "INFO", requestRequestId, now);
-        insertAudit(actorUserId, actorSid, userId, "ADMIN_DELETION_RELEASE",
-                reason, requestRequestId, now);
+        insertAudit(
+                actorUserId,
+                actorSid,
+                userId,
+                "ADMIN_DELETION_RELEASE",
+                reason,
+                requestRequestId,
+                now);
     }
 
     private UUID lockUserId(UUID requestId) {
-        UUID candidate = jdbcClient.sql("""
+        UUID candidate =
+                jdbcClient
+                        .sql(
+                                """
                 SELECT user_id FROM account_deletion_requests WHERE id = :requestId
-                """).param("requestId", requestId)
-                .query(UUID.class).optional()
+                """)
+                        .param("requestId", requestId)
+                        .query(UUID.class)
+                        .optional()
+                        .orElseThrow(
+                                () -> new AdminUserManagementException("ADMIN_TARGET_NOT_FOUND"));
+        jdbcClient
+                .sql("SELECT id FROM users WHERE id = :id FOR UPDATE")
+                .param("id", candidate)
+                .query(UUID.class)
+                .optional()
                 .orElseThrow(() -> new AdminUserManagementException("ADMIN_TARGET_NOT_FOUND"));
-        jdbcClient.sql("SELECT id FROM users WHERE id = :id FOR UPDATE")
-                .param("id", candidate).query(UUID.class).optional()
-                .orElseThrow(() -> new AdminUserManagementException("ADMIN_TARGET_NOT_FOUND"));
-        // Candidate lookup was not authorization or a lock; recheck ownership after user serialization.
-        return jdbcClient.sql("""
+        // Candidate lookup was not authorization or a lock; recheck ownership after user
+        // serialization.
+        return jdbcClient
+                .sql(
+                        """
                 SELECT user_id FROM account_deletion_requests
                  WHERE id = :requestId AND user_id = :userId FOR UPDATE
-                """).param("requestId", requestId).param("userId", candidate).query(UUID.class).optional()
+                """)
+                .param("requestId", requestId)
+                .param("userId", candidate)
+                .query(UUID.class)
+                .optional()
                 .orElseThrow(() -> new AdminUserManagementException("ADMIN_TARGET_NOT_FOUND"));
     }
 
@@ -184,31 +231,55 @@ public class AdminDeletionRequestService {
             String reason,
             UUID requestId,
             OffsetDateTime now) {
-        UUID actorSessionId = actorSid == null ? null : jdbcClient.sql("""
+        UUID actorSessionId =
+                actorSid == null
+                        ? null
+                        : jdbcClient
+                                .sql(
+                                        """
                 SELECT id FROM user_sessions WHERE sid = :sid AND user_id = :actorUserId
-                """).param("sid", actorSid).param("actorUserId", actorUserId)
-                .query(UUID.class).optional().orElse(null);
-        jdbcClient.sql("""
+                """)
+                                .param("sid", actorSid)
+                                .param("actorUserId", actorUserId)
+                                .query(UUID.class)
+                                .optional()
+                                .orElse(null);
+        jdbcClient
+                .sql(
+                        """
                 INSERT INTO admin_audit_events
                     (id, occurred_at, actor_user_id, actor_session_id, action,
                      target_type, target_id, request_id, result, reason)
                 VALUES (:id, :now, :actorUserId, :actorSessionId, :action,
                         'USER', :targetId, :requestId, 'SUCCESS', :reason)
-                """).param("id", uuidGenerator.generate()).param("now", now)
-                .param("actorUserId", actorUserId).param("actorSessionId", actorSessionId)
-                .param("action", action).param("targetId", targetUserId.toString())
-                .param("requestId", requestId).param("reason", reason).update();
+                """)
+                .param("id", uuidGenerator.generate())
+                .param("now", now)
+                .param("actorUserId", actorUserId)
+                .param("actorSessionId", actorSessionId)
+                .param("action", action)
+                .param("targetId", targetUserId.toString())
+                .param("requestId", requestId)
+                .param("reason", reason)
+                .update();
     }
 
     private void securityEvent(
             UUID userId, String type, String severity, UUID requestId, OffsetDateTime now) {
-        jdbcClient.sql("""
+        jdbcClient
+                .sql(
+                        """
                 INSERT INTO security_events
                     (id, occurred_at, user_id, event_type, severity, request_id, details_json)
                 VALUES (:id, :now, :userId, :type, :severity, :requestId, '{}'::jsonb)
-                """).param("id", uuidGenerator.generate()).param("now", now)
-                .param("userId", userId).param("type", type).param("severity", severity)
-                .param("requestId", requestId).update();
+                """)
+                .param("id", uuidGenerator.generate())
+                .param("now", now)
+                .param("userId", userId)
+                .param("type", type)
+                .param("severity", severity)
+                .param("requestId", requestId)
+                .update();
     }
 
     private static String normalizeStatus(String status) {
@@ -236,8 +307,7 @@ public class AdminDeletionRequestService {
             OffsetDateTime holdUntil,
             String holdReason,
             String holdPublicSummary,
-            String accountStatus) {
-    }
+            String accountStatus) {}
 
     public record DeletionPage(List<DeletionRequest> items, String nextCursor) {
         public DeletionPage {

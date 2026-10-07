@@ -6,7 +6,6 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Set;
 import java.util.stream.Collectors;
-
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
 
@@ -45,8 +44,9 @@ public final class PasswordPolicy {
 
     private static Set<String> loadRejectedPasswords() {
         var resource = new ClassPathResource("security/common-passwords.txt");
-        try (var reader = new BufferedReader(
-                new InputStreamReader(resource.getInputStream(), StandardCharsets.UTF_8))) {
+        try (var reader =
+                new BufferedReader(
+                        new InputStreamReader(resource.getInputStream(), StandardCharsets.UTF_8))) {
             return reader.lines()
                     .map(String::strip)
                     .filter(line -> !line.isEmpty() && !line.startsWith("#"))

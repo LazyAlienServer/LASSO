@@ -20,39 +20,45 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @Testcontainers(disabledWithoutDocker = true)
 class AdminBootstrapFreshDatabaseTest {
 
-    @Container
-    @ServiceConnection
+    @Container @ServiceConnection
     static final PostgreSQLContainer<?> POSTGRES =
             new PostgreSQLContainer<>("postgres:18.4-alpine");
 
-    @Autowired
-    AdminBootstrapService bootstrapService;
+    @Autowired AdminBootstrapService bootstrapService;
 
-    @Autowired
-    JdbcLasUserDetailsService userDetailsService;
+    @Autowired JdbcLasUserDetailsService userDetailsService;
 
-    @Autowired
-    JdbcClient jdbcClient;
+    @Autowired JdbcClient jdbcClient;
 
-    @Autowired
-    PasswordEncoder passwordEncoder;
+    @Autowired PasswordEncoder passwordEncoder;
 
     @Test
     void createsOnlyFirstUserAsAdministratorWithExpiringTemporaryPasswordAndAudit() {
-        var result = bootstrapService.createFirstUser(
-                "InitialAdmin", "Initial Administrator", "initial administrator passphrase");
+        var result =
+                bootstrapService.createFirstUser(
+                        "InitialAdmin",
+                        "Initial Administrator",
+                        "initial administrator passphrase");
 
         assertThat(result.userId().version()).isEqualTo(7);
         assertThat(result.temporaryPasswordExpiresAt())
                 .isAfter(java.time.OffsetDateTime.now(java.time.ZoneOffset.UTC).plusHours(23));
         var principal = (LasUserPrincipal) userDetailsService.loadUserByUsername("InitialAdmin");
         assertThat(principal.passwordChangeRequired()).isTrue();
-        assertThat(principal.getAuthorities()).extracting("authority")
-                .contains("ROLE_SSO_ADMIN");
-        assertThat(passwordEncoder.matches("initial administrator passphrase", principal.getPassword())).isTrue();
-        Long auditCount = jdbcClient.sql("""
+        assertThat(principal.getAuthorities()).extracting("authority").contains("ROLE_SSO_ADMIN");
+        assertThat(
+                        passwordEncoder.matches(
+                                "initial administrator passphrase", principal.getPassword()))
+                .isTrue();
+        Long auditCount =
+                jdbcClient
+                        .sql(
+                                """
                 SELECT COUNT(*) FROM admin_audit_events WHERE id = :auditId
-                """).param("auditId", result.auditEventId()).query(Long.class).single();
+                """)
+                        .param("auditId", result.auditEventId())
+                        .query(Long.class)
+                        .single();
         assertThat(auditCount).isOne();
     }
 }

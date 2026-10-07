@@ -1,18 +1,16 @@
 package org.las.sso.config;
 
+import com.nimbusds.jose.jwk.JWKSet;
+import com.nimbusds.jose.jwk.RSAKey;
+import com.nimbusds.jose.jwk.source.ImmutableJWKSet;
+import com.nimbusds.jose.jwk.source.JWKSource;
+import com.nimbusds.jose.proc.SecurityContext;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.KeyStore;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
-
-import com.nimbusds.jose.jwk.RSAKey;
-import com.nimbusds.jose.jwk.JWKSet;
-import com.nimbusds.jose.jwk.source.ImmutableJWKSet;
-import com.nimbusds.jose.jwk.source.JWKSource;
-import com.nimbusds.jose.proc.SecurityContext;
-
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
@@ -28,7 +26,8 @@ class PersistentSigningKeyConfiguration {
         if (!StringUtils.hasText(signingKey.path())
                 || !StringUtils.hasText(signingKey.password())
                 || !StringUtils.hasText(signingKey.alias())) {
-            throw new IllegalStateException("Production signing key path, password and alias are required");
+            throw new IllegalStateException(
+                    "Production signing key path, password and alias are required");
         }
 
         try (InputStream input = Files.newInputStream(Path.of(signingKey.path()))) {
@@ -41,13 +40,13 @@ class PersistentSigningKeyConfiguration {
                     || !(certificate.getPublicKey() instanceof RSAPublicKey rsaPublicKey)) {
                 throw new IllegalStateException("Configured signing key must be an RSA key pair");
             }
-            var rsaKey = new RSAKey.Builder(rsaPublicKey)
-                    .privateKey(rsaPrivateKey)
-                    .keyID(signingKey.keyId())
-                    .build();
+            var rsaKey =
+                    new RSAKey.Builder(rsaPublicKey)
+                            .privateKey(rsaPrivateKey)
+                            .keyID(signingKey.keyId())
+                            .build();
             return new ImmutableJWKSet<>(new JWKSet(rsaKey));
-        }
-        catch (Exception exception) {
+        } catch (Exception exception) {
             throw new IllegalStateException("Unable to load persistent signing key", exception);
         }
     }

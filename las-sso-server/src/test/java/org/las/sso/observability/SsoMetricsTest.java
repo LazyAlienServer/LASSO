@@ -19,13 +19,16 @@ class SsoMetricsTest {
             TransactionSynchronizationManager.initSynchronization();
             try {
                 metrics.committedRefreshReuse();
-                var synchronization = TransactionSynchronizationManager.getSynchronizations().getFirst();
+                var synchronization =
+                        TransactionSynchronizationManager.getSynchronizations().getFirst();
                 synchronization.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK);
                 assertThat(registry.get("las.sso.refresh.reuse").counter().count()).isZero();
             } finally {
                 TransactionSynchronizationManager.clearSynchronization();
             }
-        } finally { registry.close(); }
+        } finally {
+            registry.close();
+        }
     }
 
     @Test
@@ -42,32 +45,64 @@ class SsoMetricsTest {
             } finally {
                 TransactionSynchronizationManager.clearSynchronization();
             }
-        } finally { registry.close(); }
+        } finally {
+            registry.close();
+        }
     }
 
     @Test
     void encoderPreservesResultUpgradeAndExceptionsWithoutSecretTags() {
         var registry = new SimpleMeterRegistry();
         try {
-            var encoder = new MeteredPasswordEncoder(new PasswordEncoder() {
-                public String encode(CharSequence raw) { return "{argon2id}fixture"; }
-                public boolean matches(CharSequence raw, String encoded) {
-                    if (encoded.equals("malformed")) throw new IllegalArgumentException("fixture");
-                    return raw.toString().equals("correct-secret");
-                }
-                public boolean upgradeEncoding(String encoded) { return true; }
-            }, new SsoMetrics(registry));
+            var encoder =
+                    new MeteredPasswordEncoder(
+                            new PasswordEncoder() {
+                                public String encode(CharSequence raw) {
+                                    return "{argon2id}fixture";
+                                }
+
+                                public boolean matches(CharSequence raw, String encoded) {
+                                    if (encoded.equals("malformed"))
+                                        throw new IllegalArgumentException("fixture");
+                                    return raw.toString().equals("correct-secret");
+                                }
+
+                                public boolean upgradeEncoding(String encoded) {
+                                    return true;
+                                }
+                            },
+                            new SsoMetrics(registry));
             assertThat(encoder.encode("correct-secret")).isEqualTo("{argon2id}fixture");
             assertThat(encoder.matches("correct-secret", "{argon2id}fixture")).isTrue();
             assertThat(encoder.matches("incorrect-secret", "{argon2id}fixture")).isFalse();
             assertThat(encoder.upgradeEncoding("{argon2id}fixture")).isTrue();
             assertThatThrownBy(() -> encoder.matches("correct-secret", "malformed"))
                     .isInstanceOf(IllegalArgumentException.class);
-            assertThat(registry.getMeters()).allSatisfy(meter ->
-                    assertThat(meter.getId().getTags().toString()).doesNotContain("secret", "fixture", "malformed"));
-            assertThat(registry.get("las.sso.password.hash").tags("operation", "match", "result", "success").timer().count()).isEqualTo(1);
-            assertThat(registry.get("las.sso.password.hash").tags("operation", "match", "result", "mismatch").timer().count()).isEqualTo(1);
-            assertThat(registry.get("las.sso.password.hash").tags("operation", "match", "result", "error").timer().count()).isEqualTo(1);
-        } finally { registry.close(); }
+            assertThat(registry.getMeters())
+                    .allSatisfy(
+                            meter ->
+                                    assertThat(meter.getId().getTags().toString())
+                                            .doesNotContain("secret", "fixture", "malformed"));
+            assertThat(
+                            registry.get("las.sso.password.hash")
+                                    .tags("operation", "match", "result", "success")
+                                    .timer()
+                                    .count())
+                    .isEqualTo(1);
+            assertThat(
+                            registry.get("las.sso.password.hash")
+                                    .tags("operation", "match", "result", "mismatch")
+                                    .timer()
+                                    .count())
+                    .isEqualTo(1);
+            assertThat(
+                            registry.get("las.sso.password.hash")
+                                    .tags("operation", "match", "result", "error")
+                                    .timer()
+                                    .count())
+                    .isEqualTo(1);
+        } finally {
+            registry.close();
+        }
     }
 }

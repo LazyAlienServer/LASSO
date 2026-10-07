@@ -7,7 +7,6 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import org.las.sso.identity.LasUserPrincipal;
 import org.las.sso.security.SameOriginVerifier;
-
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -23,8 +22,7 @@ public final class PasswordChangeController {
     private final SameOriginVerifier sameOriginVerifier;
 
     public PasswordChangeController(
-            PasswordChangeService passwordChangeService,
-            SameOriginVerifier sameOriginVerifier) {
+            PasswordChangeService passwordChangeService, SameOriginVerifier sameOriginVerifier) {
         this.passwordChangeService = passwordChangeService;
         this.sameOriginVerifier = sameOriginVerifier;
     }
@@ -38,9 +36,10 @@ public final class PasswordChangeController {
         if (!(authentication.getPrincipal() instanceof LasUserPrincipal principal)) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        String currentCredential = principal.passwordChangeRequired()
-                ? body.temporaryPassword()
-                : body.currentPassword();
+        String currentCredential =
+                principal.passwordChangeRequired()
+                        ? body.temporaryPassword()
+                        : body.currentPassword();
         passwordChangeService.changePassword(
                 principal.userId(),
                 principal.passwordChangeRequired(),
@@ -55,21 +54,21 @@ public final class PasswordChangeController {
 
     @ExceptionHandler({PasswordChangeException.class, PasswordPolicyException.class})
     ResponseEntity<PasswordChangeError> passwordChangeError(RuntimeException exception) {
-        String code = exception instanceof PasswordChangeException change
-                ? change.code()
-                : ((PasswordPolicyException) exception).code();
-        HttpStatus status = "CURRENT_PASSWORD_INVALID".equals(code)
-                ? HttpStatus.UNAUTHORIZED
-                : HttpStatus.BAD_REQUEST;
+        String code =
+                exception instanceof PasswordChangeException change
+                        ? change.code()
+                        : ((PasswordPolicyException) exception).code();
+        HttpStatus status =
+                "CURRENT_PASSWORD_INVALID".equals(code)
+                        ? HttpStatus.UNAUTHORIZED
+                        : HttpStatus.BAD_REQUEST;
         return ResponseEntity.status(status).body(new PasswordChangeError(code));
     }
 
     record PasswordChangeRequest(
             @Size(max = 512) String currentPassword,
             @Size(max = 512) String temporaryPassword,
-            @NotBlank @Size(max = 512) String newPassword) {
-    }
+            @NotBlank @Size(max = 512) String newPassword) {}
 
-    record PasswordChangeError(String code) {
-    }
+    record PasswordChangeError(String code) {}
 }

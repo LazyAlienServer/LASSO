@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-
 import org.junit.jupiter.api.Test;
 
 class AccountProfileTemplateContractTest {
@@ -25,7 +24,8 @@ class AccountProfileTemplateContractTest {
     @Test
     void usernameEditorGroupsFieldsForStableVerticalSpacing() throws IOException {
         try (var templateStream = getClass().getResourceAsStream("/templates/account.html");
-                var stylesheetStream = getClass().getResourceAsStream("/static/assets/passport.css")) {
+                var stylesheetStream =
+                        getClass().getResourceAsStream("/static/assets/passport.css")) {
             assertThat(templateStream).isNotNull();
             assertThat(stylesheetStream).isNotNull();
             String template = new String(templateStream.readAllBytes(), StandardCharsets.UTF_8);

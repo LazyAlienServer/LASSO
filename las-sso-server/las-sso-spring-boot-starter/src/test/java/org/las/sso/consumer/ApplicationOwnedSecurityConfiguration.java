@@ -11,15 +11,27 @@ import org.springframework.security.web.SecurityFilterChain;
 public class ApplicationOwnedSecurityConfiguration {
 
     @Bean
-    SecurityFilterChain applicationChain(HttpSecurity http, LasSsoSecurityConfigurer las) throws Exception {
-        http.authorizeHttpRequests(authorize -> authorize
-                .requestMatchers("/internal/oidc/backchannel-logout", "/error", "/app-success", "/api/auth/login").permitAll()
-                .requestMatchers("/app/admin").hasRole("BUSINESS_ADMIN")
-                .anyRequest().authenticated());
-        las.configure(http, (request, response, authentication) -> {
-            response.setHeader("X-Application-Success", "called");
-            response.sendRedirect("/app-success");
-        });
+    SecurityFilterChain applicationChain(HttpSecurity http, LasSsoSecurityConfigurer las)
+            throws Exception {
+        http.authorizeHttpRequests(
+                authorize ->
+                        authorize
+                                .requestMatchers(
+                                        "/internal/oidc/backchannel-logout",
+                                        "/error",
+                                        "/app-success",
+                                        "/api/auth/login")
+                                .permitAll()
+                                .requestMatchers("/app/admin")
+                                .hasRole("BUSINESS_ADMIN")
+                                .anyRequest()
+                                .authenticated());
+        las.configure(
+                http,
+                (request, response, authentication) -> {
+                    response.setHeader("X-Application-Success", "called");
+                    response.sendRedirect("/app-success");
+                });
         return http.build();
     }
 }

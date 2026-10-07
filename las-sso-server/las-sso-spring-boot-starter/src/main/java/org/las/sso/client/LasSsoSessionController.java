@@ -1,8 +1,8 @@
 package org.las.sso.client;
 
+import jakarta.servlet.http.HttpServletRequest;
 import java.net.URI;
 import java.util.Map;
-
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -11,7 +11,6 @@ import org.springframework.security.oauth2.client.authentication.OAuth2Authentic
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
-import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.util.UriComponentsBuilder;
 
 @RestController
@@ -27,12 +26,20 @@ public class LasSsoSessionController {
     ResponseEntity<Void> login(HttpServletRequest request) {
         try {
             String target = LasSsoReturnTo.parameter(request);
-            var location = UriComponentsBuilder.fromPath(request.getContextPath()
-                    + "/oauth2/authorization/" + properties.registrationId());
+            var location =
+                    UriComponentsBuilder.fromPath(
+                            request.getContextPath()
+                                    + "/oauth2/authorization/"
+                                    + properties.registrationId());
             if (target != null) location.queryParam("returnTo", "{target}");
-            URI uri = target == null ? location.build().toUri()
-                    : location.encode().buildAndExpand(target).toUri();
-            return ResponseEntity.status(HttpStatus.FOUND).location(uri).cacheControl(CacheControl.noStore()).build();
+            URI uri =
+                    target == null
+                            ? location.build().toUri()
+                            : location.encode().buildAndExpand(target).toUri();
+            return ResponseEntity.status(HttpStatus.FOUND)
+                    .location(uri)
+                    .cacheControl(CacheControl.noStore())
+                    .build();
         } catch (IllegalArgumentException exception) {
             return ResponseEntity.badRequest().cacheControl(CacheControl.noStore()).build();
         }
@@ -41,9 +48,7 @@ public class LasSsoSessionController {
     @GetMapping("/api/auth/session")
     ResponseEntity<SessionSnapshot> session(Authentication authentication) {
         SessionSnapshot snapshot = snapshot(authentication);
-        return ResponseEntity.ok()
-                .cacheControl(CacheControl.noStore())
-                .body(snapshot);
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(snapshot);
     }
 
     static SessionSnapshot snapshot(Authentication authentication) {
@@ -56,13 +61,12 @@ public class LasSsoSessionController {
         if (username == null || username.isBlank()) {
             username = oidcUser.getSubject();
         }
-        return new SessionSnapshot(true, new UserSnapshot(
-                oidcUser.getSubject(), username, Map.of()));
+        return new SessionSnapshot(
+                true, new UserSnapshot(oidcUser.getSubject(), username, Map.of()));
     }
 
-    public record SessionSnapshot(boolean authenticated, UserSnapshot user) {
-    }
+    public record SessionSnapshot(boolean authenticated, UserSnapshot user) {}
 
-    public record UserSnapshot(String sub, String username, Map<String, Object> businessPermissions) {
-    }
+    public record UserSnapshot(
+            String sub, String username, Map<String, Object> businessPermissions) {}
 }

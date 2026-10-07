@@ -1,16 +1,14 @@
 package org.las.sso.security;
 
+import jakarta.servlet.AsyncContext;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.function.LongSupplier;
-
-import jakarta.servlet.AsyncContext;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
-
 import org.las.sso.config.LoginRiskProperties;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -25,9 +23,11 @@ public final class LoginFailureResponseJitter {
 
     @Autowired
     public LoginFailureResponseJitter(
-            ScheduledExecutorService scheduler,
-            LoginRiskProperties properties) {
-        this(scheduler, properties.jitterMin(), properties.jitterMax(),
+            ScheduledExecutorService scheduler, LoginRiskProperties properties) {
+        this(
+                scheduler,
+                properties.jitterMin(),
+                properties.jitterMax(),
                 () -> ThreadLocalRandom.current().nextLong());
     }
 
@@ -42,10 +42,8 @@ public final class LoginFailureResponseJitter {
         this.randomOffset = randomOffset;
     }
 
-    public void redirect(
-            HttpServletRequest request,
-            HttpServletResponse response,
-            String location) throws IOException {
+    public void redirect(HttpServletRequest request, HttpServletResponse response, String location)
+            throws IOException {
         long delayMillis = delayMillis();
         if (delayMillis == 0 || !request.isAsyncSupported()) {
             response.sendRedirect(location);
@@ -54,15 +52,18 @@ public final class LoginFailureResponseJitter {
 
         AsyncContext async = request.startAsync();
         async.setTimeout(maximum.toMillis() + 5_000);
-        scheduler.schedule(() -> {
-            try {
-                response.sendRedirect(location);
-            } catch (IOException exception) {
-                response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-            } finally {
-                async.complete();
-            }
-        }, delayMillis, TimeUnit.MILLISECONDS);
+        scheduler.schedule(
+                () -> {
+                    try {
+                        response.sendRedirect(location);
+                    } catch (IOException exception) {
+                        response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+                    } finally {
+                        async.complete();
+                    }
+                },
+                delayMillis,
+                TimeUnit.MILLISECONDS);
     }
 
     private long delayMillis() {

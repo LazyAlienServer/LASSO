@@ -2,7 +2,6 @@ package org.las.sso.maintenance;
 
 import java.io.Console;
 import java.util.Arrays;
-
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -36,7 +35,8 @@ public final class AdminPasswordResetCommand implements ApplicationRunner {
         console.printf(
                 "Current SSO administrator:%nusername=%s%nuserId=%s%n",
                 administrator.username(), administrator.userId());
-        String confirmation = console.readLine("Reset this administrator password? Type YES to continue: ");
+        String confirmation =
+                console.readLine("Reset this administrator password? Type YES to continue: ");
         if (!"YES".equals(confirmation)) {
             throw new AdminPasswordResetException("RESET_NOT_CONFIRMED");
         }
@@ -47,8 +47,8 @@ public final class AdminPasswordResetCommand implements ApplicationRunner {
             if (first == null || second == null || !Arrays.equals(first, second)) {
                 throw new AdminPasswordResetException("PASSWORD_CONFIRMATION_MISMATCH");
             }
-            AdminPasswordResetService.ResetResult result = service.resetPassword(
-                    administrator.userId(), new String(first));
+            AdminPasswordResetService.ResetResult result =
+                    service.resetPassword(administrator.userId(), new String(first));
             console.printf(
                     "Administrator password reset completed.%nusername=%s%nuserId=%s%nauditEventId=%s%n",
                     result.username(), result.userId(), result.auditEventId());

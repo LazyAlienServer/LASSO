@@ -1,14 +1,13 @@
 package org.las.sso.client;
 
-import java.util.Set;
+import jakarta.servlet.http.HttpSession;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-
-import jakarta.servlet.http.HttpSession;
 
 public final class LasSsoBackChannelSessionRegistry implements LasSsoBackChannelSessionStore {
 
@@ -32,13 +31,17 @@ public final class LasSsoBackChannelSessionRegistry implements LasSsoBackChannel
     }
 
     LasSsoBackChannelSessionRegistry(Duration revocationRetention, Clock clock) {
-        if (revocationRetention == null || revocationRetention.isNegative() || revocationRetention.isZero()
+        if (revocationRetention == null
+                || revocationRetention.isNegative()
+                || revocationRetention.isZero()
                 || revocationRetention.compareTo(Duration.ofDays(14)) > 0) {
-            throw new IllegalArgumentException("Revocation retention must be between 0 and 14 days");
+            throw new IllegalArgumentException(
+                    "Revocation retention must be between 0 and 14 days");
         }
         this.revocationRetention = revocationRetention;
         this.clock = java.util.Objects.requireNonNull(clock);
     }
+
     @Override
     public void register(String sid, String subject, HttpSession session) {
         // Never call session/lifecycle code while holding the registry state lock.
@@ -49,13 +52,17 @@ public final class LasSsoBackChannelSessionRegistry implements LasSsoBackChannel
             if (sid != null && !sid.isBlank()) {
                 Instant revokedUntil = revokedSids.get(sid);
                 if (revokedUntil != null && revokedUntil.isAfter(now)) {
-                    throw new IllegalStateException("SSO session was revoked before local registration");
+                    throw new IllegalStateException(
+                            "SSO session was revoked before local registration");
                 }
                 revokedSids.remove(sid);
-                bySid.computeIfAbsent(sid, ignored -> new ConcurrentHashMap<>()).put(sessionId, session);
+                bySid.computeIfAbsent(sid, ignored -> new ConcurrentHashMap<>())
+                        .put(sessionId, session);
             }
             if (subject != null && !subject.isBlank()) {
-                bySubject.computeIfAbsent(subject, ignored -> new ConcurrentHashMap<>()).put(sessionId, session);
+                bySubject
+                        .computeIfAbsent(subject, ignored -> new ConcurrentHashMap<>())
+                        .put(sessionId, session);
             }
         }
     }
@@ -67,12 +74,17 @@ public final class LasSsoBackChannelSessionRegistry implements LasSsoBackChannel
             Instant now = clock.instant();
             cleanupRevocations(now);
             if (sid != null && !sid.isBlank()) {
-                // Record even no-match and failed invalidations: late callbacks must not revive this sid.
-                revokedSids.merge(sid, now.plus(revocationRetention),
-                        (previous, candidate) -> previous.isAfter(candidate) ? previous : candidate);
+                // Record even no-match and failed invalidations: late callbacks must not revive
+                // this sid.
+                revokedSids.merge(
+                        sid,
+                        now.plus(revocationRetention),
+                        (previous, candidate) ->
+                                previous.isAfter(candidate) ? previous : candidate);
                 collect(sessions, bySid.get(sid));
             } else if (subject != null && !subject.isBlank()) {
-                // Legacy direct subject invalidation only targets the current snapshot; wire Logout requires sid.
+                // Legacy direct subject invalidation only targets the current snapshot; wire Logout
+                // requires sid.
                 collect(sessions, bySubject.get(subject));
             }
         }
@@ -95,7 +107,8 @@ public final class LasSsoBackChannelSessionRegistry implements LasSsoBackChannel
                 else failure = exception; // Keep the live session indexed for a subsequent retry.
             }
         }
-        if (failure != null) throw new IllegalStateException("Local session invalidation incomplete");
+        if (failure != null)
+            throw new IllegalStateException("Local session invalidation incomplete");
         return invalidated;
     }
 

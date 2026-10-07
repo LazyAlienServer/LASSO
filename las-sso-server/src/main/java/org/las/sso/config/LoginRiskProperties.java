@@ -1,10 +1,8 @@
 package org.las.sso.config;
 
-import java.time.Duration;
-
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
-
+import java.time.Duration;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
 import org.springframework.validation.annotation.Validated;
@@ -17,5 +15,4 @@ public record LoginRiskProperties(
         @NotNull @DefaultValue("PT15M") Duration captchaWindow,
         @NotNull @DefaultValue("PT30M") Duration blockWindow,
         @NotNull @DefaultValue("PT0.15S") Duration jitterMin,
-        @NotNull @DefaultValue("PT0.45S") Duration jitterMax) {
-}
+        @NotNull @DefaultValue("PT0.45S") Duration jitterMax) {}

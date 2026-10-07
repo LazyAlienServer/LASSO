@@ -1,9 +1,8 @@
 package org.las.sso.security;
 
+import jakarta.servlet.http.HttpServletRequest;
 import java.time.Duration;
 import java.time.OffsetDateTime;
-
-import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.web.authentication.AuthenticationConverter;
 
@@ -17,28 +16,30 @@ public final class ClientAuthenticationRateLimitConverter implements Authenticat
     private final ClientNetworkKey clientNetworkKey;
 
     public ClientAuthenticationRateLimitConverter(
-            PostgresRateLimiter rateLimiter,
-            ClientNetworkKey clientNetworkKey) {
+            PostgresRateLimiter rateLimiter, ClientNetworkKey clientNetworkKey) {
         this.rateLimiter = rateLimiter;
         this.clientNetworkKey = clientNetworkKey;
     }
 
     @Override
     public Authentication convert(HttpServletRequest request) {
-        var clientObservation = rateLimiter.current(
-                "CLIENT_SECRET_FAILURE_CLIENT",
-                ClientAuthenticationFailureHandler.clientId(request),
-                CLIENT_LIMIT,
-                WINDOW);
-        var ipObservation = rateLimiter.current(
-                "CLIENT_SECRET_FAILURE_IP",
-                clientNetworkKey.fromRemoteAddress(request.getRemoteAddr()),
-                IP_LIMIT,
-                WINDOW);
+        var clientObservation =
+                rateLimiter.current(
+                        "CLIENT_SECRET_FAILURE_CLIENT",
+                        ClientAuthenticationFailureHandler.clientId(request),
+                        CLIENT_LIMIT,
+                        WINDOW);
+        var ipObservation =
+                rateLimiter.current(
+                        "CLIENT_SECRET_FAILURE_IP",
+                        clientNetworkKey.fromRemoteAddress(request.getRemoteAddr()),
+                        IP_LIMIT,
+                        WINDOW);
         if (clientObservation.thresholdReached() || ipObservation.thresholdReached()) {
-            OffsetDateTime resetsAt = clientObservation.resetsAt().isAfter(ipObservation.resetsAt())
-                    ? clientObservation.resetsAt()
-                    : ipObservation.resetsAt();
+            OffsetDateTime resetsAt =
+                    clientObservation.resetsAt().isAfter(ipObservation.resetsAt())
+                            ? clientObservation.resetsAt()
+                            : ipObservation.resetsAt();
             throw new ClientAuthenticationRateLimitException(resetsAt);
         }
         return null;

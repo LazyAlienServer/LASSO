@@ -12,7 +12,6 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
-
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockFilterChain;
@@ -44,11 +43,12 @@ class LasSsoAuthorizedClientRefreshFilterTest {
         Instant now = Instant.parse("2026-08-04T00:00:00Z");
         var refreshed = new AtomicBoolean();
         var repository = mock(OAuth2AuthorizedClientRepository.class);
-        var filter = new LasSsoAuthorizedClientRefreshFilter(
-                new LasSsoClientProperties("las-sso", null),
-                (authentication, request, response) -> refreshed.set(true),
-                repository,
-                Clock.fixed(now, ZoneOffset.UTC));
+        var filter =
+                new LasSsoAuthorizedClientRefreshFilter(
+                        new LasSsoClientProperties("las-sso", null),
+                        (authentication, request, response) -> refreshed.set(true),
+                        repository,
+                        Clock.fixed(now, ZoneOffset.UTC));
         var authentication = authentication();
         SecurityContextHolder.getContext().setAuthentication(authentication);
         var request = new MockHttpServletRequest("GET", "/protected");
@@ -68,12 +68,12 @@ class LasSsoAuthorizedClientRefreshFilterTest {
         Instant now = Instant.parse("2026-08-04T00:00:00Z");
         var repository = mock(OAuth2AuthorizedClientRepository.class);
         var authentication = authentication();
-        var filter = new LasSsoAuthorizedClientRefreshFilter(
-                new LasSsoClientProperties("las-sso", null),
-                (ignoredAuthentication, request, response) -> {
-                },
-                repository,
-                Clock.fixed(now, ZoneOffset.UTC));
+        var filter =
+                new LasSsoAuthorizedClientRefreshFilter(
+                        new LasSsoClientProperties("las-sso", null),
+                        (ignoredAuthentication, request, response) -> {},
+                        repository,
+                        Clock.fixed(now, ZoneOffset.UTC));
         SecurityContextHolder.getContext().setAuthentication(authentication);
         var request = new MockHttpServletRequest("GET", "/api/private-data");
         when(repository.loadAuthorizedClient("las-sso", authentication, request))
@@ -94,16 +94,17 @@ class LasSsoAuthorizedClientRefreshFilterTest {
     @Test
     void fourteenDayAbsoluteSessionBoundaryExpiresBeforeTokenRefresh() throws Exception {
         var session = new MockHttpSession();
-        Instant now = Instant.ofEpochMilli(session.getCreationTime())
-                .plus(java.time.Duration.ofDays(14));
+        Instant now =
+                Instant.ofEpochMilli(session.getCreationTime()).plus(java.time.Duration.ofDays(14));
         var refreshed = new AtomicBoolean();
         var repository = mock(OAuth2AuthorizedClientRepository.class);
         var authentication = authentication();
-        var filter = new LasSsoAuthorizedClientRefreshFilter(
-                new LasSsoClientProperties("las-sso", null),
-                (ignoredAuthentication, request, response) -> refreshed.set(true),
-                repository,
-                Clock.fixed(now, ZoneOffset.UTC));
+        var filter =
+                new LasSsoAuthorizedClientRefreshFilter(
+                        new LasSsoClientProperties("las-sso", null),
+                        (ignoredAuthentication, request, response) -> refreshed.set(true),
+                        repository,
+                        Clock.fixed(now, ZoneOffset.UTC));
         SecurityContextHolder.getContext().setAuthentication(authentication);
         var request = new MockHttpServletRequest("GET", "/api/private-data");
         request.setSession(session);
@@ -121,12 +122,14 @@ class LasSsoAuthorizedClientRefreshFilterTest {
     void apiRefreshFailureRemovesTheClientInvalidatesTheSessionAndReturnsNoStore401()
             throws Exception {
         var repository = mock(OAuth2AuthorizedClientRepository.class);
-        var filter = new LasSsoAuthorizedClientRefreshFilter(
-                new LasSsoClientProperties("las-sso", null),
-                (authentication, request, response) -> {
-                    throw new OAuth2AuthorizationException(new OAuth2Error("invalid_grant"));
-                },
-                repository);
+        var filter =
+                new LasSsoAuthorizedClientRefreshFilter(
+                        new LasSsoClientProperties("las-sso", null),
+                        (authentication, request, response) -> {
+                            throw new OAuth2AuthorizationException(
+                                    new OAuth2Error("invalid_grant"));
+                        },
+                        repository);
         var authentication = authentication();
         SecurityContextHolder.getContext().setAuthentication(authentication);
         var request = new MockHttpServletRequest("GET", "/api/private-data");
@@ -146,12 +149,14 @@ class LasSsoAuthorizedClientRefreshFilterTest {
 
     @Test
     void htmlRefreshFailureRedirectsToTheLoginEntryPoint() throws Exception {
-        var filter = new LasSsoAuthorizedClientRefreshFilter(
-                new LasSsoClientProperties("las-sso", null),
-                (authentication, request, response) -> {
-                    throw new OAuth2AuthorizationException(new OAuth2Error("invalid_grant"));
-                },
-                mock(OAuth2AuthorizedClientRepository.class));
+        var filter =
+                new LasSsoAuthorizedClientRefreshFilter(
+                        new LasSsoClientProperties("las-sso", null),
+                        (authentication, request, response) -> {
+                            throw new OAuth2AuthorizationException(
+                                    new OAuth2Error("invalid_grant"));
+                        },
+                        mock(OAuth2AuthorizedClientRepository.class));
         SecurityContextHolder.getContext().setAuthentication(authentication());
         var request = new MockHttpServletRequest("GET", "/protected");
         var response = new MockHttpServletResponse();
@@ -164,12 +169,13 @@ class LasSsoAuthorizedClientRefreshFilterTest {
     @Test
     void transientSsoFailurePreservesTheSessionAndReturnsNoStore503() throws Exception {
         var repository = mock(OAuth2AuthorizedClientRepository.class);
-        var filter = new LasSsoAuthorizedClientRefreshFilter(
-                new LasSsoClientProperties("las-sso", null),
-                (authentication, request, response) -> {
-                    throw new OAuth2AuthorizationException(new OAuth2Error("server_error"));
-                },
-                repository);
+        var filter =
+                new LasSsoAuthorizedClientRefreshFilter(
+                        new LasSsoClientProperties("las-sso", null),
+                        (authentication, request, response) -> {
+                            throw new OAuth2AuthorizationException(new OAuth2Error("server_error"));
+                        },
+                        repository);
         SecurityContextHolder.getContext().setAuthentication(authentication());
         var request = new MockHttpServletRequest("GET", "/protected");
         var session = new MockHttpSession();
@@ -194,16 +200,26 @@ class LasSsoAuthorizedClientRefreshFilterTest {
         var request = new MockHttpServletRequest("GET", "/api/private-data");
         request.setSession(session);
         SecurityContextHolder.getContext().setAuthentication(authentication);
-        var filter = new LasSsoAuthorizedClientRefreshFilter(new LasSsoClientProperties("las-sso", null),
-                (principal, req, res) -> { throw new OAuth2AuthorizationException(new OAuth2Error("invalid_grant")); },
-                repository, (req, res, failure) -> {
-                    assertThat(failure).isEqualTo(LasSsoClientErrorHandler.Failure.SESSION_EXPIRED);
-                    assertThat(session.isInvalid()).isTrue();
-                    assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
-                    verify(repository).removeAuthorizedClient("las-sso", authentication, request, res);
-                    res.setStatus(401);
-                    res.setHeader("X-Application-Error", "expired");
-                });
+        var filter =
+                new LasSsoAuthorizedClientRefreshFilter(
+                        new LasSsoClientProperties("las-sso", null),
+                        (principal, req, res) -> {
+                            throw new OAuth2AuthorizationException(
+                                    new OAuth2Error("invalid_grant"));
+                        },
+                        repository,
+                        (req, res, failure) -> {
+                            assertThat(failure)
+                                    .isEqualTo(LasSsoClientErrorHandler.Failure.SESSION_EXPIRED);
+                            assertThat(session.isInvalid()).isTrue();
+                            assertThat(SecurityContextHolder.getContext().getAuthentication())
+                                    .isNull();
+                            verify(repository)
+                                    .removeAuthorizedClient(
+                                            "las-sso", authentication, request, res);
+                            res.setStatus(401);
+                            res.setHeader("X-Application-Error", "expired");
+                        });
         var response = new MockHttpServletResponse();
         var chain = new MockFilterChain();
 
@@ -214,15 +230,22 @@ class LasSsoAuthorizedClientRefreshFilterTest {
     }
 
     @Test
-    void customErrorHandlerForTemporaryFailurePreservesSessionAndStopsProtectedRequest() throws Exception {
+    void customErrorHandlerForTemporaryFailurePreservesSessionAndStopsProtectedRequest()
+            throws Exception {
         var repository = mock(OAuth2AuthorizedClientRepository.class);
-        var filter = new LasSsoAuthorizedClientRefreshFilter(new LasSsoClientProperties("las-sso", null),
-                (principal, req, res) -> { throw new OAuth2AuthorizationException(new OAuth2Error("server_error")); },
-                repository, (req, res, failure) -> {
-                    assertThat(failure).isEqualTo(LasSsoClientErrorHandler.Failure.SSO_UNAVAILABLE);
-                    res.setStatus(503);
-                    res.setHeader("X-Application-Error", "unavailable");
-                });
+        var filter =
+                new LasSsoAuthorizedClientRefreshFilter(
+                        new LasSsoClientProperties("las-sso", null),
+                        (principal, req, res) -> {
+                            throw new OAuth2AuthorizationException(new OAuth2Error("server_error"));
+                        },
+                        repository,
+                        (req, res, failure) -> {
+                            assertThat(failure)
+                                    .isEqualTo(LasSsoClientErrorHandler.Failure.SSO_UNAVAILABLE);
+                            res.setStatus(503);
+                            res.setHeader("X-Application-Error", "unavailable");
+                        });
         var request = new MockHttpServletRequest("GET", "/api/private-data");
         var session = new MockHttpSession();
         request.setSession(session);
@@ -240,28 +263,39 @@ class LasSsoAuthorizedClientRefreshFilterTest {
 
     private static OAuth2AuthenticationToken authentication() {
         Instant now = Instant.now();
-        var idToken = new OidcIdToken("server-side-only", now, now.plusSeconds(600), Map.of(
-                IdTokenClaimNames.ISS, "http://127.0.0.1:9000",
-                IdTokenClaimNames.SUB, "019fc000-0000-7000-8000-000000000001",
-                IdTokenClaimNames.AUD, List.of("laslog-bff"),
-                "preferred_username", "CaseSensitiveUser"));
+        var idToken =
+                new OidcIdToken(
+                        "server-side-only",
+                        now,
+                        now.plusSeconds(600),
+                        Map.of(
+                                IdTokenClaimNames.ISS,
+                                "http://127.0.0.1:9000",
+                                IdTokenClaimNames.SUB,
+                                "019fc000-0000-7000-8000-000000000001",
+                                IdTokenClaimNames.AUD,
+                                List.of("laslog-bff"),
+                                "preferred_username",
+                                "CaseSensitiveUser"));
         var principal = new DefaultOidcUser(List.of(), idToken, "preferred_username");
         return new OAuth2AuthenticationToken(principal, List.of(), "las-sso");
     }
 
     private static OAuth2AuthorizedClient authorizedClient(Instant expiresAt) {
-        var registration = ClientRegistration.withRegistrationId("las-sso")
-                .clientId("laslog-bff")
-                .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
-                .redirectUri("http://127.0.0.1:8088/login/oauth2/code/las-sso")
-                .authorizationUri("http://127.0.0.1:9000/oauth2/authorize")
-                .tokenUri("http://127.0.0.1:9000/oauth2/token")
-                .build();
-        var accessToken = new OAuth2AccessToken(
-                OAuth2AccessToken.TokenType.BEARER,
-                "server-side-access-token",
-                expiresAt.minusSeconds(60),
-                expiresAt);
+        var registration =
+                ClientRegistration.withRegistrationId("las-sso")
+                        .clientId("laslog-bff")
+                        .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
+                        .redirectUri("http://127.0.0.1:8088/login/oauth2/code/las-sso")
+                        .authorizationUri("http://127.0.0.1:9000/oauth2/authorize")
+                        .tokenUri("http://127.0.0.1:9000/oauth2/token")
+                        .build();
+        var accessToken =
+                new OAuth2AccessToken(
+                        OAuth2AccessToken.TokenType.BEARER,
+                        "server-side-access-token",
+                        expiresAt.minusSeconds(60),
+                        expiresAt);
         return new OAuth2AuthorizedClient(registration, "user-id", accessToken);
     }
 }

@@ -1,16 +1,15 @@
 package org.las.sso.config;
 
 import org.las.sso.identity.UuidV7Generator;
-
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
 import org.springframework.security.oauth2.core.oidc.OidcScopes;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
 import org.springframework.security.oauth2.server.authorization.settings.ClientSettings;
@@ -78,36 +77,40 @@ class LocalClientConfiguration {
             String resourceAudience) {
         RegisteredClient client = clients.findByClientId(clientId);
         if (client == null) {
-            client = RegisteredClient.withId(uuidGenerator.generate().toString())
-                    .clientId(clientId)
-                    .clientName(clientName)
-                    .clientSecret(passwordEncoder.encode(clientSecret))
-                    .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
-                    .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
-                    .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
-                    .redirectUri(redirectUri)
-                    .redirectUri(alternateRedirectUri)
-                    .postLogoutRedirectUri(postLogoutRedirectUri)
-                    .postLogoutRedirectUri(alternatePostLogoutRedirectUri)
-                    .scope(OidcScopes.OPENID)
-                    .scope(OidcScopes.PROFILE)
-                    .clientSettings(ClientSettings.builder()
-                            .requireProofKey(true)
-                            .requireAuthorizationConsent(false)
-                            .build())
-                    .tokenSettings(tokenSettings)
-                    .build();
+            client =
+                    RegisteredClient.withId(uuidGenerator.generate().toString())
+                            .clientId(clientId)
+                            .clientName(clientName)
+                            .clientSecret(passwordEncoder.encode(clientSecret))
+                            .clientAuthenticationMethod(
+                                    ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
+                            .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
+                            .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
+                            .redirectUri(redirectUri)
+                            .redirectUri(alternateRedirectUri)
+                            .postLogoutRedirectUri(postLogoutRedirectUri)
+                            .postLogoutRedirectUri(alternatePostLogoutRedirectUri)
+                            .scope(OidcScopes.OPENID)
+                            .scope(OidcScopes.PROFILE)
+                            .clientSettings(
+                                    ClientSettings.builder()
+                                            .requireProofKey(true)
+                                            .requireAuthorizationConsent(false)
+                                            .build())
+                            .tokenSettings(tokenSettings)
+                            .build();
             clients.save(client);
         } else if (!passwordEncoder.matches(clientSecret, client.getClientSecret())
                 || !client.getRedirectUris().contains(redirectUri)
                 || !client.getRedirectUris().contains(alternateRedirectUri)
                 || !client.getPostLogoutRedirectUris().contains(postLogoutRedirectUri)
                 || !client.getPostLogoutRedirectUris().contains(alternatePostLogoutRedirectUri)) {
-            var builder = RegisteredClient.from(client)
-                    .redirectUri(redirectUri)
-                    .redirectUri(alternateRedirectUri)
-                    .postLogoutRedirectUri(postLogoutRedirectUri)
-                    .postLogoutRedirectUri(alternatePostLogoutRedirectUri);
+            var builder =
+                    RegisteredClient.from(client)
+                            .redirectUri(redirectUri)
+                            .redirectUri(alternateRedirectUri)
+                            .postLogoutRedirectUri(postLogoutRedirectUri)
+                            .postLogoutRedirectUri(alternatePostLogoutRedirectUri);
             if (!passwordEncoder.matches(clientSecret, client.getClientSecret())) {
                 builder.clientSecret(passwordEncoder.encode(clientSecret));
             }
@@ -115,7 +118,9 @@ class LocalClientConfiguration {
             clients.save(client);
         }
 
-        jdbcClient.sql("""
+        jdbcClient
+                .sql(
+                        """
                 INSERT INTO registered_client_metadata
                     (registered_client_id, client_type, status, config_version,
                      resource_audiences, require_pkce, updated_at)
@@ -128,7 +133,9 @@ class LocalClientConfiguration {
                 .param("id", client.getId())
                 .param("audience", resourceAudience)
                 .update();
-        jdbcClient.sql("""
+        jdbcClient
+                .sql(
+                        """
                 INSERT INTO registered_client_backchannel_logout_uris
                     (registered_client_id, uri, session_required)
                 VALUES (:id, :uri, true)

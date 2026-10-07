@@ -1,16 +1,13 @@
 package org.las.sso.security;
 
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
-
-import jakarta.servlet.ServletException;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
-
 import org.las.sso.config.LoginRiskProperties;
-
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.web.authentication.AuthenticationFailureHandler;
 import org.springframework.stereotype.Component;
@@ -44,34 +41,51 @@ public final class LasAuthenticationFailureHandler implements AuthenticationFail
     public void onAuthenticationFailure(
             HttpServletRequest request,
             HttpServletResponse response,
-            AuthenticationException exception) throws IOException, ServletException {
-        var reason = exception instanceof org.springframework.security.authentication.LockedException
-                ? org.las.sso.observability.SsoMetrics.LoginReason.LOCKED
-                : exception instanceof org.springframework.security.authentication.DisabledException
-                ? org.las.sso.observability.SsoMetrics.LoginReason.DISABLED
-                : exception instanceof org.springframework.security.authentication.CredentialsExpiredException
-                ? org.las.sso.observability.SsoMetrics.LoginReason.EXPIRED
-                : exception instanceof org.springframework.security.authentication.BadCredentialsException
-                ? org.las.sso.observability.SsoMetrics.LoginReason.CREDENTIALS
-                : org.las.sso.observability.SsoMetrics.LoginReason.OTHER;
+            AuthenticationException exception)
+            throws IOException, ServletException {
+        var reason =
+                exception instanceof org.springframework.security.authentication.LockedException
+                        ? org.las.sso.observability.SsoMetrics.LoginReason.LOCKED
+                        : exception
+                                        instanceof
+                                        org.springframework.security.authentication
+                                                .DisabledException
+                                ? org.las.sso.observability.SsoMetrics.LoginReason.DISABLED
+                                : exception
+                                                instanceof
+                                                org.springframework.security.authentication
+                                                        .CredentialsExpiredException
+                                        ? org.las.sso.observability.SsoMetrics.LoginReason.EXPIRED
+                                        : exception
+                                                        instanceof
+                                                        org.springframework.security.authentication
+                                                                .BadCredentialsException
+                                                ? org.las.sso.observability.SsoMetrics.LoginReason
+                                                        .CREDENTIALS
+                                                : org.las.sso.observability.SsoMetrics.LoginReason
+                                                        .OTHER;
         metrics.login(org.las.sso.observability.SsoMetrics.LoginResult.REJECTED, reason);
         String username = request.getParameter("username");
         if (username != null && !username.isBlank()) {
             loginAttempts.recordFailure(username);
         }
-        var ipLimit = rateLimiter.consume(
-                "LOGIN_FAILURE_IP_BLOCK",
-                clientNetworkKey.fromRemoteAddress(request.getRemoteAddr()),
-                properties.blockIpFailures(),
-                properties.blockWindow());
+        var ipLimit =
+                rateLimiter.consume(
+                        "LOGIN_FAILURE_IP_BLOCK",
+                        clientNetworkKey.fromRemoteAddress(request.getRemoteAddr()),
+                        properties.blockIpFailures(),
+                        properties.blockWindow());
         rateLimiter.consume(
                 "LOGIN_FAILURE_IP_CAPTCHA",
                 clientNetworkKey.fromRemoteAddress(request.getRemoteAddr()),
                 properties.captchaIpFailures(),
                 properties.captchaWindow());
         if (!ipLimit.allowed()) {
-            long retryAfter = Math.max(1, Duration.between(
-                    OffsetDateTime.now(ZoneOffset.UTC), ipLimit.resetsAt()).toSeconds());
+            long retryAfter =
+                    Math.max(
+                            1,
+                            Duration.between(OffsetDateTime.now(ZoneOffset.UTC), ipLimit.resetsAt())
+                                    .toSeconds());
             response.setStatus(429);
             response.setHeader("Retry-After", Long.toString(retryAfter));
             response.setContentType("text/plain;charset=UTF-8");

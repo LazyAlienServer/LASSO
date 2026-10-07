@@ -4,7 +4,6 @@ import java.security.SecureRandom;
 import java.time.Clock;
 import java.util.Objects;
 import java.util.UUID;
-
 import org.springframework.stereotype.Component;
 
 /** Generates RFC 9562 UUID version 7 identifiers. */

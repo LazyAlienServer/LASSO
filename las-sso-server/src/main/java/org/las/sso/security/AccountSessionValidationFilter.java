@@ -1,23 +1,22 @@
 package org.las.sso.security;
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.util.UUID;
-
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.UUID;
 import org.las.sso.identity.LasUserPrincipal;
 import org.las.sso.session.UserSessionService;
-import org.springframework.http.MediaType;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.stereotype.Component;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.security.web.util.matcher.RequestMatcher;
+import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 @Component
@@ -36,9 +35,8 @@ public final class AccountSessionValidationFilter extends OncePerRequestFilter {
 
     @Override
     protected void doFilterInternal(
-            HttpServletRequest request,
-            HttpServletResponse response,
-            FilterChain filterChain) throws ServletException, IOException {
+            HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
+            throws ServletException, IOException {
         var authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null
                 || !authentication.isAuthenticated()
@@ -54,8 +52,7 @@ public final class AccountSessionValidationFilter extends OncePerRequestFilter {
             expireOrRestartAuthorization(request, response, filterChain);
             return;
         }
-        if (!isDeletionRestricted(principal.userId())
-                || isDeletionScopeAllowed(request)) {
+        if (!isDeletionRestricted(principal.userId()) || isDeletionScopeAllowed(request)) {
             filterChain.doFilter(request, response);
             return;
         }
@@ -71,9 +68,8 @@ public final class AccountSessionValidationFilter extends OncePerRequestFilter {
     }
 
     private static void expireOrRestartAuthorization(
-            HttpServletRequest request,
-            HttpServletResponse response,
-            FilterChain filterChain) throws IOException, ServletException {
+            HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
+            throws IOException, ServletException {
         SecurityContextHolder.clearContext();
         HttpSession session = request.getSession(false);
         if (session != null) {
@@ -98,14 +94,20 @@ public final class AccountSessionValidationFilter extends OncePerRequestFilter {
     }
 
     private boolean isDeletionRestricted(UUID userId) {
-        Boolean restricted = jdbcClient.sql("""
+        Boolean restricted =
+                jdbcClient
+                        .sql(
+                                """
                 SELECT EXISTS (
                     SELECT 1
                       FROM account_deletion_requests
                      WHERE user_id = :userId
                        AND status IN ('PENDING', 'HELD')
                 )
-                """).param("userId", userId).query(Boolean.class).single();
+                """)
+                        .param("userId", userId)
+                        .query(Boolean.class)
+                        .single();
         return Boolean.TRUE.equals(restricted);
     }
 
@@ -131,7 +133,9 @@ public final class AccountSessionValidationFilter extends OncePerRequestFilter {
     }
 
     private boolean isCurrent(LasUserPrincipal principal) {
-        return jdbcClient.sql("""
+        return jdbcClient
+                .sql(
+                        """
                 SELECT EXISTS (
                     SELECT 1
                       FROM users u
@@ -141,8 +145,10 @@ public final class AccountSessionValidationFilter extends OncePerRequestFilter {
                        AND pc.state IN ('ACTIVE', 'PASSWORD_CHANGE_REQUIRED')
                        AND pc.credentials_version = :credentialsVersion
                 )
-                """).param("userId", principal.userId())
+                """)
+                .param("userId", principal.userId())
                 .param("credentialsVersion", principal.credentialsVersion())
-                .query(Boolean.class).single();
+                .query(Boolean.class)
+                .single();
     }
 }

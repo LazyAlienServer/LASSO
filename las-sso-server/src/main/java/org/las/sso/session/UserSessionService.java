@@ -1,20 +1,19 @@
 package org.las.sso.session;
 
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpSession;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
-
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpSession;
 import org.las.sso.identity.LasUserPrincipal;
 import org.las.sso.identity.UuidV7Generator;
 import org.las.sso.logout.BackChannelLogoutOutbox;
@@ -28,8 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class UserSessionService {
 
-    public static final String SID_SESSION_ATTRIBUTE =
-            UserSessionService.class.getName() + ".SID";
+    public static final String SID_SESSION_ATTRIBUTE = UserSessionService.class.getName() + ".SID";
     private static final Duration USER_IDLE = Duration.ofHours(24);
     private static final Duration USER_ABSOLUTE = Duration.ofDays(14);
     private static final Duration REMEMBERED_IDLE = Duration.ofDays(14);
@@ -54,7 +52,13 @@ public class UserSessionService {
             ClientNetworkKey networkKey,
             TransientSecurityKeyHasher keyHasher,
             BackChannelLogoutOutbox backChannelLogout) {
-        this(jdbcClient, uuidGenerator, networkKey, keyHasher, backChannelLogout, Clock.systemUTC());
+        this(
+                jdbcClient,
+                uuidGenerator,
+                networkKey,
+                keyHasher,
+                backChannelLogout,
+                Clock.systemUTC());
     }
 
     UserSessionService(
@@ -81,23 +85,29 @@ public class UserSessionService {
         }
 
         OffsetDateTime now = now();
-        boolean administrator = principal.getAuthorities().stream()
-                .anyMatch(authority -> "ROLE_SSO_ADMIN".equals(authority.getAuthority()));
-        boolean remembered = !administrator && "true".equals(request.getParameter("rememberDevice"));
-        Duration idleDuration = administrator
-                ? ADMIN_IDLE : remembered ? REMEMBERED_IDLE : USER_IDLE;
-        Duration absoluteDuration = administrator
-                ? ADMIN_ABSOLUTE : remembered ? REMEMBERED_ABSOLUTE : USER_ABSOLUTE;
+        boolean administrator =
+                principal.getAuthorities().stream()
+                        .anyMatch(authority -> "ROLE_SSO_ADMIN".equals(authority.getAuthority()));
+        boolean remembered =
+                !administrator && "true".equals(request.getParameter("rememberDevice"));
+        Duration idleDuration =
+                administrator ? ADMIN_IDLE : remembered ? REMEMBERED_IDLE : USER_IDLE;
+        Duration absoluteDuration =
+                administrator ? ADMIN_ABSOLUTE : remembered ? REMEMBERED_ABSOLUTE : USER_ABSOLUTE;
         httpSession.setMaxInactiveInterval(Math.toIntExact(idleDuration.toSeconds()));
         String sid = oidcSessionIdHash(httpSession.getId());
-        String securityEpoch = jdbcClient.sql(
-                        "SELECT security_epoch FROM system_security_state WHERE id = 1")
-                .query(String.class).single();
+        String securityEpoch =
+                jdbcClient
+                        .sql("SELECT security_epoch FROM system_security_state WHERE id = 1")
+                        .query(String.class)
+                        .single();
         String network = networkKey.fromRemoteAddress(request.getRemoteAddr());
         byte[] ipPrefixHash = keyHasher.hash("user-session-ip", network);
         String userAgent = summarizeUserAgent(request.getHeader("User-Agent"));
 
-        jdbcClient.sql("""
+        jdbcClient
+                .sql(
+                        """
                 INSERT INTO user_sessions
                     (id, sid, user_id, status, remembered, admin_session,
                      credentials_version, security_epoch, created_at, last_seen_at,
@@ -107,7 +117,8 @@ public class UserSessionService {
                         :credentialsVersion, :securityEpoch, :now, :now,
                         :idleExpiresAt, :absoluteExpiresAt, :now,
                         :ipPrefixHash, :userAgent)
-                """).param("id", uuidGenerator.generate())
+                """)
+                .param("id", uuidGenerator.generate())
                 .param("sid", sid)
                 .param("userId", principal.userId())
                 .param("remembered", remembered)
@@ -135,7 +146,10 @@ public class UserSessionService {
         }
 
         OffsetDateTime now = now();
-        int updated = jdbcClient.sql("""
+        int updated =
+                jdbcClient
+                        .sql(
+                                """
                 UPDATE user_sessions s
                    SET last_seen_at = CASE
                          WHEN s.last_seen_at <= :touchBefore THEN :now
@@ -157,13 +171,14 @@ public class UserSessionService {
                    AND pc.user_id = s.user_id
                    AND u.account_status = 'ACTIVE'
                    AND pc.state IN ('ACTIVE', 'PASSWORD_CHANGE_REQUIRED')
-                """).param("touchBefore", now.minus(TOUCH_INTERVAL))
-                .param("now", now)
-                .param("nextIdleExpiry", now.plus(idleDuration(principal, session)))
-                .param("sid", sid)
-                .param("userId", principal.userId())
-                .param("credentialsVersion", principal.credentialsVersion())
-                .update();
+                """)
+                        .param("touchBefore", now.minus(TOUCH_INTERVAL))
+                        .param("now", now)
+                        .param("nextIdleExpiry", now.plus(idleDuration(principal, session)))
+                        .param("sid", sid)
+                        .param("userId", principal.userId())
+                        .param("credentialsVersion", principal.credentialsVersion())
+                        .update();
         if (updated == 0) {
             expireIfNecessary(sid, now);
             return false;
@@ -175,11 +190,16 @@ public class UserSessionService {
     public void updateRecentPasswordAuthentication(HttpServletRequest request) {
         String sid = currentSid(request);
         if (sid != null) {
-            jdbcClient.sql("""
+            jdbcClient
+                    .sql(
+                            """
                     UPDATE user_sessions
                        SET last_password_auth_at = :now
                      WHERE sid = :sid AND status = 'ACTIVE'
-                    """).param("now", now()).param("sid", sid).update();
+                    """)
+                    .param("now", now())
+                    .param("sid", sid)
+                    .update();
         }
     }
 
@@ -187,7 +207,9 @@ public class UserSessionService {
     public List<SessionView> sessions(UUID userId, HttpServletRequest request) {
         String currentSid = currentSid(request);
         OffsetDateTime now = now();
-        return jdbcClient.sql("""
+        return jdbcClient
+                .sql(
+                        """
                 SELECT sid, remembered, admin_session, created_at, last_seen_at,
                        idle_expires_at, absolute_expires_at, user_agent_summary
                   FROM user_sessions
@@ -197,26 +219,35 @@ public class UserSessionService {
                    AND absolute_expires_at > :now
                  ORDER BY CASE WHEN sid = :currentSid THEN 0 ELSE 1 END,
                           last_seen_at DESC
-                """).param("userId", userId)
+                """)
+                .param("userId", userId)
                 .param("now", now)
                 .param("currentSid", currentSid == null ? "" : currentSid)
-                .query((rs, rowNum) -> {
-                    OffsetDateTime lastSeen = rs.getObject("last_seen_at", OffsetDateTime.class);
-                    OffsetDateTime idleExpiry = rs.getObject("idle_expires_at", OffsetDateTime.class);
-                    OffsetDateTime absoluteExpiry = rs.getObject("absolute_expires_at", OffsetDateTime.class);
-                    OffsetDateTime expiry = idleExpiry.isBefore(absoluteExpiry) ? idleExpiry : absoluteExpiry;
-                    String sid = rs.getString("sid");
-                    return new SessionView(
-                            sid,
-                            sid.equals(currentSid),
-                            rs.getBoolean("remembered"),
-                            rs.getBoolean("admin_session"),
-                            rs.getString("user_agent_summary"),
-                            lastSeen,
-                            expiry,
-                            DISPLAY_TIME.format(lastSeen),
-                            DISPLAY_TIME.format(expiry));
-                }).list();
+                .query(
+                        (rs, rowNum) -> {
+                            OffsetDateTime lastSeen =
+                                    rs.getObject("last_seen_at", OffsetDateTime.class);
+                            OffsetDateTime idleExpiry =
+                                    rs.getObject("idle_expires_at", OffsetDateTime.class);
+                            OffsetDateTime absoluteExpiry =
+                                    rs.getObject("absolute_expires_at", OffsetDateTime.class);
+                            OffsetDateTime expiry =
+                                    idleExpiry.isBefore(absoluteExpiry)
+                                            ? idleExpiry
+                                            : absoluteExpiry;
+                            String sid = rs.getString("sid");
+                            return new SessionView(
+                                    sid,
+                                    sid.equals(currentSid),
+                                    rs.getBoolean("remembered"),
+                                    rs.getBoolean("admin_session"),
+                                    rs.getString("user_agent_summary"),
+                                    lastSeen,
+                                    expiry,
+                                    DISPLAY_TIME.format(lastSeen),
+                                    DISPLAY_TIME.format(expiry));
+                        })
+                .list();
     }
 
     @Transactional
@@ -226,21 +257,33 @@ public class UserSessionService {
             logoutAll(userId, "CURRENT_SESSION_REVOKED");
             return RevocationResult.CURRENT;
         }
-        int updated = jdbcClient.sql("""
+        int updated =
+                jdbcClient
+                        .sql(
+                                """
                 UPDATE user_sessions
                    SET status = 'REVOKED', revoked_at = :now, revoke_reason = 'USER_REVOKED'
                  WHERE user_id = :userId AND sid = :sid AND status = 'ACTIVE'
-                """).param("now", now()).param("userId", userId).param("sid", sid).update();
+                """)
+                        .param("now", now())
+                        .param("userId", userId)
+                        .param("sid", sid)
+                        .update();
         if (updated != 0) {
             OffsetDateTime now = now();
             backChannelLogout.enqueueForSession(userId, sid, "USER_REVOKED", now);
-            jdbcClient.sql("""
+            jdbcClient
+                    .sql(
+                            """
                     DELETE FROM oauth2_authorization a
                      USING oauth2_authorization_security security
                      WHERE a.id = security.authorization_id
                        AND a.principal_name = :principalName
                        AND security.sid = :sid
-                    """).param("principalName", userId.toString()).param("sid", sid).update();
+                    """)
+                    .param("principalName", userId.toString())
+                    .param("sid", sid)
+                    .update();
         }
         return updated == 0 ? RevocationResult.NOT_FOUND : RevocationResult.OTHER;
     }
@@ -248,26 +291,37 @@ public class UserSessionService {
     @Transactional
     public void logoutAll(UUID userId, String reason) {
         OffsetDateTime now = now();
-        jdbcClient.sql("""
+        jdbcClient
+                .sql(
+                        """
                 UPDATE user_sessions
                    SET status = 'REVOKED', revoked_at = :now, revoke_reason = :reason
                  WHERE user_id = :userId AND status = 'ACTIVE'
-                """).param("now", now).param("reason", reason)
-                .param("userId", userId).update();
+                """)
+                .param("now", now)
+                .param("reason", reason)
+                .param("userId", userId)
+                .update();
         backChannelLogout.enqueueForUser(userId, reason, now);
-        jdbcClient.sql("DELETE FROM oauth2_authorization WHERE principal_name = :principalName")
-                .param("principalName", userId.toString()).update();
-        jdbcClient.sql("""
+        jdbcClient
+                .sql("DELETE FROM oauth2_authorization WHERE principal_name = :principalName")
+                .param("principalName", userId.toString())
+                .update();
+        jdbcClient
+                .sql(
+                        """
                 INSERT INTO outbox_events
                     (id, aggregate_type, aggregate_id, event_type, payload_json,
                      created_at, available_at)
                 VALUES (:id, 'USER', :userId, 'GLOBAL_LOGOUT_REQUESTED',
                         jsonb_build_object('userId', :userId, 'reason', :reason),
                         :now, :now)
-                """).param("id", uuidGenerator.generate())
+                """)
+                .param("id", uuidGenerator.generate())
                 .param("userId", userId.toString())
                 .param("reason", reason)
-                .param("now", now).update();
+                .param("now", now)
+                .update();
     }
 
     public String currentSid(HttpServletRequest request) {
@@ -281,8 +335,9 @@ public class UserSessionService {
 
     static String oidcSessionIdHash(String sessionId) {
         try {
-            byte[] digest = MessageDigest.getInstance("SHA-256")
-                    .digest(sessionId.getBytes(StandardCharsets.US_ASCII));
+            byte[] digest =
+                    MessageDigest.getInstance("SHA-256")
+                            .digest(sessionId.getBytes(StandardCharsets.US_ASCII));
             return Base64.getUrlEncoder().withoutPadding().encodeToString(digest);
         } catch (NoSuchAlgorithmException exception) {
             throw new IllegalStateException("SHA-256 is unavailable", exception);
@@ -290,23 +345,30 @@ public class UserSessionService {
     }
 
     private void expireIfNecessary(String sid, OffsetDateTime now) {
-        jdbcClient.sql("""
+        jdbcClient
+                .sql(
+                        """
                 UPDATE user_sessions
                    SET status = 'EXPIRED', revoked_at = :now, revoke_reason = 'SESSION_EXPIRED'
                  WHERE sid = :sid AND status = 'ACTIVE'
                    AND (idle_expires_at <= :now OR absolute_expires_at <= :now)
-                """).param("now", now).param("sid", sid).update();
+                """)
+                .param("now", now)
+                .param("sid", sid)
+                .update();
     }
 
     private static Duration idleDuration(LasUserPrincipal principal, HttpSession session) {
-        boolean administrator = principal.getAuthorities().stream()
-                .anyMatch(authority -> "ROLE_SSO_ADMIN".equals(authority.getAuthority()));
+        boolean administrator =
+                principal.getAuthorities().stream()
+                        .anyMatch(authority -> "ROLE_SSO_ADMIN".equals(authority.getAuthority()));
         if (administrator) return ADMIN_IDLE;
         if (session.getAttribute(SID_SESSION_ATTRIBUTE) instanceof String) {
             // The persistent row remains authoritative; this branch avoids an extra read
             // for ordinary sessions and keeps remembered sessions sliding for 30 days.
             return session.getMaxInactiveInterval() > USER_IDLE.toSeconds()
-                    ? REMEMBERED_IDLE : USER_IDLE;
+                    ? REMEMBERED_IDLE
+                    : USER_IDLE;
         }
         return USER_IDLE;
     }
@@ -337,7 +399,11 @@ public class UserSessionService {
         return OffsetDateTime.ofInstant(clock.instant(), ZoneOffset.UTC);
     }
 
-    public enum RevocationResult { CURRENT, OTHER, NOT_FOUND }
+    public enum RevocationResult {
+        CURRENT,
+        OTHER,
+        NOT_FOUND
+    }
 
     public record SessionView(
             String sid,
@@ -348,6 +414,5 @@ public class UserSessionService {
             OffsetDateTime lastSeenAt,
             OffsetDateTime expiresAt,
             String lastSeenLabel,
-            String expiresLabel) {
-    }
+            String expiresLabel) {}
 }

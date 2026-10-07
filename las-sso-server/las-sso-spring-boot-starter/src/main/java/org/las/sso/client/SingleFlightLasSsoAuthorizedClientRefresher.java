@@ -1,11 +1,10 @@
 package org.las.sso.client;
 
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
-
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.client.OAuth2AuthorizeRequest;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientManager;
@@ -16,7 +15,8 @@ final class SingleFlightLasSsoAuthorizedClientRefresher implements LasSsoAuthori
 
     private final OAuth2AuthorizedClientManager authorizedClientManager;
     private final LasSsoClientProperties properties;
-    private final ConcurrentHashMap<String, CompletableFuture<Void>> inFlight = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, CompletableFuture<Void>> inFlight =
+            new ConcurrentHashMap<>();
 
     SingleFlightLasSsoAuthorizedClientRefresher(
             OAuth2AuthorizedClientManager authorizedClientManager,
@@ -39,17 +39,18 @@ final class SingleFlightLasSsoAuthorizedClientRefresher implements LasSsoAuthori
         }
 
         try {
-            var authorizeRequest = OAuth2AuthorizeRequest
-                    .withClientRegistrationId(properties.registrationId())
-                    .principal(authentication)
-                    .attribute(HttpServletRequest.class.getName(), request)
-                    .attribute(HttpServletResponse.class.getName(), response)
-                    .build();
+            var authorizeRequest =
+                    OAuth2AuthorizeRequest.withClientRegistrationId(properties.registrationId())
+                            .principal(authentication)
+                            .attribute(HttpServletRequest.class.getName(), request)
+                            .attribute(HttpServletResponse.class.getName(), response)
+                            .build();
             if (authorizedClientManager.authorize(authorizeRequest) == null) {
-                throw new OAuth2AuthorizationException(new OAuth2Error(
-                        "authorized_client_missing",
-                        "The server-side OAuth2 authorized client is missing.",
-                        null));
+                throw new OAuth2AuthorizationException(
+                        new OAuth2Error(
+                                "authorized_client_missing",
+                                "The server-side OAuth2 authorized client is missing.",
+                                null));
             }
             owned.complete(null);
         } catch (RuntimeException exception) {

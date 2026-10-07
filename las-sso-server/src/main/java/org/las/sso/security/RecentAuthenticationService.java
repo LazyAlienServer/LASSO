@@ -1,19 +1,17 @@
 package org.las.sso.security;
 
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpSession;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
-
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpSession;
-
 import org.las.sso.identity.JdbcLasUserDetailsService;
 import org.las.sso.identity.LasUserPrincipal;
 import org.las.sso.session.UserSessionService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -53,27 +51,31 @@ public final class RecentAuthenticationService {
 
     public boolean isRecent(HttpServletRequest request) {
         return passwordAuthenticatedAt(request)
-                .filter(at -> at.plus(FRESHNESS).isAfter(clock.instant())).isPresent();
+                .filter(at -> at.plus(FRESHNESS).isAfter(clock.instant()))
+                .isPresent();
     }
 
     public Optional<Instant> passwordAuthenticatedAt(HttpServletRequest request) {
         HttpSession session = request.getSession(false);
-        if (session == null || !(session.getAttribute(SESSION_ATTRIBUTE) instanceof Instant authenticatedAt)) {
+        if (session == null
+                || !(session.getAttribute(SESSION_ATTRIBUTE) instanceof Instant authenticatedAt)) {
             return Optional.empty();
         }
-        return authenticatedAt.isAfter(clock.instant()) ? Optional.empty() : Optional.of(authenticatedAt);
+        return authenticatedAt.isAfter(clock.instant())
+                ? Optional.empty()
+                : Optional.of(authenticatedAt);
     }
 
     public void reauthenticate(
-            LasUserPrincipal principal,
-            String password,
-            HttpServletRequest request) {
+            LasUserPrincipal principal, String password, HttpServletRequest request) {
         if (principal.passwordChangeRequired()) {
             throw new RecentAuthenticationException("PASSWORD_CHANGE_REQUIRED");
         }
         LasUserPrincipal current;
         try {
-            current = (LasUserPrincipal) userDetailsService.loadUserByUsername(principal.loginUsername());
+            current =
+                    (LasUserPrincipal)
+                            userDetailsService.loadUserByUsername(principal.loginUsername());
         } catch (UsernameNotFoundException exception) {
             throw new RecentAuthenticationException("REAUTHENTICATION_FAILED");
         }

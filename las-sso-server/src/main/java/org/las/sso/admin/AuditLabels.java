@@ -7,8 +7,7 @@ import java.util.Map;
 /**
  * 审计动作与安全事件的中文说明注册表。
  *
- * <p>新增事件类型时在此登记展示文案；未登记的类型在页面上显示原文和「未登记」标记，
- * 不阻塞查询，但说明运营侧尚未评审该类型的展示口径。
+ * <p>新增事件类型时在此登记展示文案；未登记的类型在页面上显示原文和「未登记」标记， 不阻塞查询，但说明运营侧尚未评审该类型的展示口径。
  */
 public final class AuditLabels {
 
@@ -42,10 +41,8 @@ public final class AuditLabels {
         SECURITY_EVENTS.put("PASSWORD_CHANGED", "密码已修改");
         SECURITY_EVENTS.put("AUTHORIZATION_REVOKED", "用户撤销应用授权");
         SECURITY_EVENTS.put("ADMIN_PASSWORD_RESET_BY_MAINTENANCE", "维护命令重置密码");
-        SECURITY_EVENTS.put("REFRESH_TOKEN_SECURITY_STATE_INVALID",
-                "刷新令牌安全状态失效（账号或版本变化），令牌族已撤销");
-        SECURITY_EVENTS.put("REFRESH_TOKEN_REUSE_DETECTED",
-                "检测到旧刷新令牌重用，令牌族已撤销并通知业务系统退出");
+        SECURITY_EVENTS.put("REFRESH_TOKEN_SECURITY_STATE_INVALID", "刷新令牌安全状态失效（账号或版本变化），令牌族已撤销");
+        SECURITY_EVENTS.put("REFRESH_TOKEN_REUSE_DETECTED", "检测到旧刷新令牌重用，令牌族已撤销并通知业务系统退出");
         SECURITY_EVENTS.put("DELETION_REQUESTED", "用户申请注销，进入 30 天等待期并全局退出");
         SECURITY_EVENTS.put("DELETION_CANCELLED", "用户取消注销申请");
         SECURITY_EVENTS.put("DELETION_HELD_BY_ADMIN", "管理员暂缓注销申请");
@@ -60,8 +57,7 @@ public final class AuditLabels {
         SECURITY_EVENTS.put("USERNAME_CHANGED", "用户修改用户名（含历史名复用）");
     }
 
-    private AuditLabels() {
-    }
+    private AuditLabels() {}
 
     public static Map<String, String> auditActions() {
         return Collections.unmodifiableMap(new LinkedHashMap<>(AUDIT_ACTIONS));

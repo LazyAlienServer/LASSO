@@ -25,7 +25,8 @@ public class AdminAuditController {
             @RequestParam(required = false) String to,
             @RequestParam(required = false) String cursor,
             @RequestParam(defaultValue = "50") int limit) {
-        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noStore())
                 .body(auditEvents.auditEvents(action, targetId, from, to, cursor, limit));
     }
 
@@ -38,7 +39,8 @@ public class AdminAuditController {
             @RequestParam(required = false) String to,
             @RequestParam(required = false) String cursor,
             @RequestParam(defaultValue = "50") int limit) {
-        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noStore())
                 .body(auditEvents.securityEvents(type, severity, userId, from, to, cursor, limit));
     }
 }

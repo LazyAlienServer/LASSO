@@ -1,14 +1,12 @@
 package org.las.sso.admin;
 
-import java.util.UUID;
-
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
-
-import org.las.sso.api.RequestIdFilter;
+import java.util.UUID;
 import org.las.sso.account.OperationIdempotencyService;
+import org.las.sso.api.RequestIdFilter;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -16,8 +14,8 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -47,7 +45,8 @@ public class AdminUserController {
             @RequestParam(required = false) String status,
             @RequestParam(required = false) UUID cursor,
             @RequestParam(defaultValue = "50") int limit) {
-        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noStore())
                 .body(users.users(query, status, cursor, limit));
     }
 
@@ -65,13 +64,20 @@ public class AdminUserController {
             HttpServletRequest request) {
         AdminOperationGuard.Context context = adminGuard.authorizeWrite(authentication, request);
         idempotency.executeWithoutResult(
-                context.principal().userId(), "ADMIN_USER_FREEZE", idempotencyKey,
+                context.principal().userId(),
+                "ADMIN_USER_FREEZE",
+                idempotencyKey,
                 userId + "\u0000" + body.reason(),
                 () -> {
-                    users.freeze(context.principal().userId(), context.sid(), userId,
-                            body.reason(), requestId(request));
+                    users.freeze(
+                            context.principal().userId(),
+                            context.sid(),
+                            userId,
+                            body.reason(),
+                            requestId(request));
                     return Boolean.TRUE;
-                }, () -> Boolean.TRUE);
+                },
+                () -> Boolean.TRUE);
         return ResponseEntity.noContent().build();
     }
 
@@ -84,13 +90,20 @@ public class AdminUserController {
             HttpServletRequest request) {
         AdminOperationGuard.Context context = adminGuard.authorizeWrite(authentication, request);
         idempotency.executeWithoutResult(
-                context.principal().userId(), "ADMIN_USER_UNFREEZE", idempotencyKey,
+                context.principal().userId(),
+                "ADMIN_USER_UNFREEZE",
+                idempotencyKey,
                 userId + "\u0000" + body.reason(),
                 () -> {
-                    users.unfreeze(context.principal().userId(), context.sid(), userId,
-                            body.reason(), requestId(request));
+                    users.unfreeze(
+                            context.principal().userId(),
+                            context.sid(),
+                            userId,
+                            body.reason(),
+                            requestId(request));
                     return Boolean.TRUE;
-                }, () -> Boolean.TRUE);
+                },
+                () -> Boolean.TRUE);
         return ResponseEntity.noContent().build();
     }
 
@@ -103,13 +116,20 @@ public class AdminUserController {
             HttpServletRequest request) {
         AdminOperationGuard.Context context = adminGuard.authorizeWrite(authentication, request);
         idempotency.executeWithoutResult(
-                context.principal().userId(), "ADMIN_USER_REVOKE_SESSIONS", idempotencyKey,
+                context.principal().userId(),
+                "ADMIN_USER_REVOKE_SESSIONS",
+                idempotencyKey,
                 userId + "\u0000" + body.reason(),
                 () -> {
-                    users.revokeSessions(context.principal().userId(), context.sid(), userId,
-                            body.reason(), requestId(request));
+                    users.revokeSessions(
+                            context.principal().userId(),
+                            context.sid(),
+                            userId,
+                            body.reason(),
+                            requestId(request));
                     return Boolean.TRUE;
-                }, () -> Boolean.TRUE);
+                },
+                () -> Boolean.TRUE);
         return ResponseEntity.noContent().build();
     }
 
@@ -121,16 +141,25 @@ public class AdminUserController {
             @Valid @RequestBody ActionRequest body,
             HttpServletRequest request) {
         AdminOperationGuard.Context context = adminGuard.authorizeWrite(authentication, request);
-        AdminRecoveryCredentialService.IssuedCredential issued = idempotency.execute(
-                context.principal().userId(), "ADMIN_RECOVERY_CREDENTIAL_ISSUE",
-                idempotencyKey, userId + "\u0000" + body.reason(),
-                () -> recoveryCredentials.issue(
-                        context.principal().userId(), context.sid(), userId,
-                        body.reason(), requestId(request)),
-                result -> new OperationIdempotencyService.StoredResult(
-                        userId.toString(), result.expiresAt()),
-                stored -> new AdminRecoveryCredentialService.IssuedCredential(
-                        null, stored.resultTime(), false, true));
+        AdminRecoveryCredentialService.IssuedCredential issued =
+                idempotency.execute(
+                        context.principal().userId(),
+                        "ADMIN_RECOVERY_CREDENTIAL_ISSUE",
+                        idempotencyKey,
+                        userId + "\u0000" + body.reason(),
+                        () ->
+                                recoveryCredentials.issue(
+                                        context.principal().userId(),
+                                        context.sid(),
+                                        userId,
+                                        body.reason(),
+                                        requestId(request)),
+                        result ->
+                                new OperationIdempotencyService.StoredResult(
+                                        userId.toString(), result.expiresAt()),
+                        stored ->
+                                new AdminRecoveryCredentialService.IssuedCredential(
+                                        null, stored.resultTime(), false, true));
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(issued);
     }
 
@@ -140,6 +169,5 @@ public class AdminUserController {
         throw new IllegalStateException("Request ID filter must run before admin operations");
     }
 
-    public record ActionRequest(@NotBlank @Size(max = 500) String reason) {
-    }
+    public record ActionRequest(@NotBlank @Size(max = 500) String reason) {}
 }

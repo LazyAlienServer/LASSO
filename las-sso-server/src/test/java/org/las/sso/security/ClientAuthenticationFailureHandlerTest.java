@@ -11,7 +11,6 @@ import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Base64;
-
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
@@ -32,8 +31,13 @@ class ClientAuthenticationFailureHandlerTest {
         var handler = new ClientAuthenticationFailureHandler(limiter, networkKey);
         var request = new MockHttpServletRequest("POST", "/oauth2/token");
         request.setRemoteAddr("192.0.2.10");
-        request.addHeader("Authorization", "Basic " + Base64.getEncoder().encodeToString(
-                "client-a:do-not-store-this-secret".getBytes(StandardCharsets.UTF_8)));
+        request.addHeader(
+                "Authorization",
+                "Basic "
+                        + Base64.getEncoder()
+                                .encodeToString(
+                                        "client-a:do-not-store-this-secret"
+                                                .getBytes(StandardCharsets.UTF_8)));
         var response = new MockHttpServletResponse();
 
         handler.onAuthenticationFailure(
@@ -41,7 +45,8 @@ class ClientAuthenticationFailureHandlerTest {
 
         assertThat(response.getStatus()).isEqualTo(429);
         assertThat(response.getHeader("Retry-After")).isNotBlank();
-        assertThat(response.getContentAsString()).isEqualTo("{\"error\":\"temporarily_unavailable\"}");
+        assertThat(response.getContentAsString())
+                .isEqualTo("{\"error\":\"temporarily_unavailable\"}");
         verify(limiter).consume(eq("CLIENT_SECRET_FAILURE_CLIENT"), eq("client-a"), eq(10), any());
     }
 }

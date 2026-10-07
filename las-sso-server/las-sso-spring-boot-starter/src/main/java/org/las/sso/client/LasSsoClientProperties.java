@@ -1,7 +1,6 @@
 package org.las.sso.client;
 
 import java.time.Duration;
-
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.ConstructorBinding;
 
@@ -25,31 +24,35 @@ public record LasSsoClientProperties(
             String postLogoutRedirectUri,
             String logoutSuccessUri,
             Duration logoutStateTtl) {
-        this(registrationId, refreshBeforeExpiry, postLogoutRedirectUri,
-                logoutSuccessUri, logoutStateTtl, null, null);
+        this(
+                registrationId,
+                refreshBeforeExpiry,
+                postLogoutRedirectUri,
+                logoutSuccessUri,
+                logoutStateTtl,
+                null,
+                null);
     }
 
     @ConstructorBinding
     public LasSsoClientProperties {
-        registrationId = registrationId == null || registrationId.isBlank()
-                ? "las-sso"
-                : registrationId;
-        refreshBeforeExpiry = refreshBeforeExpiry == null
-                ? Duration.ofSeconds(60)
-                : refreshBeforeExpiry;
-        postLogoutRedirectUri = postLogoutRedirectUri == null || postLogoutRedirectUri.isBlank()
-                ? "{baseUrl}/logged-out"
-                : postLogoutRedirectUri;
-        logoutSuccessUri = logoutSuccessUri == null || logoutSuccessUri.isBlank()
-                ? "/"
-                : logoutSuccessUri;
+        registrationId =
+                registrationId == null || registrationId.isBlank() ? "las-sso" : registrationId;
+        refreshBeforeExpiry =
+                refreshBeforeExpiry == null ? Duration.ofSeconds(60) : refreshBeforeExpiry;
+        postLogoutRedirectUri =
+                postLogoutRedirectUri == null || postLogoutRedirectUri.isBlank()
+                        ? "{baseUrl}/logged-out"
+                        : postLogoutRedirectUri;
+        logoutSuccessUri =
+                logoutSuccessUri == null || logoutSuccessUri.isBlank() ? "/" : logoutSuccessUri;
         logoutStateTtl = logoutStateTtl == null ? Duration.ofMinutes(5) : logoutStateTtl;
-        sessionCookieName = sessionCookieName == null || sessionCookieName.isBlank()
-                ? "JSESSIONID"
-                : sessionCookieName;
-        sessionAbsoluteLifetime = sessionAbsoluteLifetime == null
-                ? Duration.ofDays(14)
-                : sessionAbsoluteLifetime;
+        sessionCookieName =
+                sessionCookieName == null || sessionCookieName.isBlank()
+                        ? "JSESSIONID"
+                        : sessionCookieName;
+        sessionAbsoluteLifetime =
+                sessionAbsoluteLifetime == null ? Duration.ofDays(14) : sessionAbsoluteLifetime;
         if (refreshBeforeExpiry.isNegative()) {
             throw new IllegalArgumentException("refreshBeforeExpiry must not be negative");
         }

@@ -2,10 +2,9 @@ package org.las.sso.access;
 
 import java.time.OffsetDateTime;
 import java.util.UUID;
-
 import org.las.sso.config.LasSsoProperties;
-import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.dao.DataRetrievalFailureException;
+import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -15,16 +14,16 @@ public class ServiceAccessEligibilityService {
     private final JdbcClient jdbcClient;
     private final LasSsoProperties properties;
 
-    public ServiceAccessEligibilityService(
-            JdbcClient jdbcClient,
-            LasSsoProperties properties) {
+    public ServiceAccessEligibilityService(JdbcClient jdbcClient, LasSsoProperties properties) {
         this.jdbcClient = jdbcClient;
         this.properties = properties;
     }
 
     @Transactional(readOnly = true)
     public Decision evaluate(UUID subject) {
-        return jdbcClient.sql("""
+        return jdbcClient
+                .sql(
+                        """
                 SELECT u.id AS subject_id, state.security_epoch AS state_epoch,
                        u.account_status::text AS account_status,
                        u.service_access_state_version,
@@ -43,32 +42,51 @@ public class ServiceAccessEligibilityService {
                         LIMIT 1
                   ) deletion ON true
                  WHERE state.id = 1
-                """).param("subject", subject)
-                .query((rs, rowNum) -> rs.getObject("subject_id", UUID.class) == null
-                        ? denied(subject, rs.getString("state_epoch"), "PRINCIPAL_NOT_FOUND", 0, null)
-                        : decide(
-                                subject,
-                                rs.getString("state_epoch"),
-                                rs.getString("account_status"),
-                                rs.getLong("service_access_state_version"),
-                                rs.getObject("service_access_changed_at", OffsetDateTime.class),
-                                rs.getString("credential_state"),
-                                rs.getString("deletion_status")))
+                """)
+                .param("subject", subject)
+                .query(
+                        (rs, rowNum) ->
+                                rs.getObject("subject_id", UUID.class) == null
+                                        ? denied(
+                                                subject,
+                                                rs.getString("state_epoch"),
+                                                "PRINCIPAL_NOT_FOUND",
+                                                0,
+                                                null)
+                                        : decide(
+                                                subject,
+                                                rs.getString("state_epoch"),
+                                                rs.getString("account_status"),
+                                                rs.getLong("service_access_state_version"),
+                                                rs.getObject(
+                                                        "service_access_changed_at",
+                                                        OffsetDateTime.class),
+                                                rs.getString("credential_state"),
+                                                rs.getString("deletion_status")))
                 .optional()
-                .orElseThrow(() -> new DataRetrievalFailureException("Service-access security epoch is unavailable"));
+                .orElseThrow(
+                        () ->
+                                new DataRetrievalFailureException(
+                                        "Service-access security epoch is unavailable"));
     }
 
     /**
-     * Advances the version of the subject's service-access state in the same
-     * transaction as the account, credential, or deletion-state mutation.
+     * Advances the version of the subject's service-access state in the same transaction as the
+     * account, credential, or deletion-state mutation.
      */
     public void advanceStateVersion(UUID subject, OffsetDateTime changedAt) {
-        int updated = jdbcClient.sql("""
+        int updated =
+                jdbcClient
+                        .sql(
+                                """
                 UPDATE users
                    SET service_access_state_version = service_access_state_version + 1,
                        service_access_changed_at = :changedAt
                  WHERE id = :subject
-                """).param("subject", subject).param("changedAt", changedAt).update();
+                """)
+                        .param("subject", subject)
+                        .param("changedAt", changedAt)
+                        .update();
         if (updated != 1) {
             throw new IllegalStateException("Service-access subject disappeared during update");
         }
@@ -139,7 +157,8 @@ public class ServiceAccessEligibilityService {
             OffsetDateTime changedAt) {
         public Decision {
             if (stateEpoch == null || stateEpoch.isBlank()) {
-                throw new DataRetrievalFailureException("Service-access security epoch is unavailable");
+                throw new DataRetrievalFailureException(
+                        "Service-access security epoch is unavailable");
             }
         }
     }

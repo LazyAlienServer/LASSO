@@ -4,10 +4,8 @@ import java.time.Clock;
 import java.time.Duration;
 import java.util.Map;
 import java.util.Objects;
-
 import org.las.sso.config.LasSsoProperties;
 import org.las.sso.identity.UuidV7Generator;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.oauth2.jose.jws.JwsAlgorithms;
 import org.springframework.security.oauth2.jwt.JwsHeader;
@@ -29,9 +27,7 @@ public final class LogoutTokenIssuer {
 
     @Autowired
     public LogoutTokenIssuer(
-            JwtEncoder jwtEncoder,
-            UuidV7Generator uuidGenerator,
-            LasSsoProperties properties) {
+            JwtEncoder jwtEncoder, UuidV7Generator uuidGenerator, LasSsoProperties properties) {
         this(jwtEncoder, uuidGenerator, properties, Clock.systemUTC());
     }
 
@@ -52,13 +48,14 @@ public final class LogoutTokenIssuer {
         }
 
         var now = clock.instant();
-        var claims = JwtClaimsSet.builder()
-                .issuer(properties.issuer().toString())
-                .audience(java.util.List.of(clientId))
-                .issuedAt(now)
-                .expiresAt(now.plus(Duration.ofMinutes(2)))
-                .id(uuidGenerator.generate().toString())
-                .claim("events", Map.of(BACK_CHANNEL_LOGOUT_EVENT, Map.of()));
+        var claims =
+                JwtClaimsSet.builder()
+                        .issuer(properties.issuer().toString())
+                        .audience(java.util.List.of(clientId))
+                        .issuedAt(now)
+                        .expiresAt(now.plus(Duration.ofMinutes(2)))
+                        .id(uuidGenerator.generate().toString())
+                        .claim("events", Map.of(BACK_CHANNEL_LOGOUT_EVENT, Map.of()));
         if (subject != null && !subject.isBlank()) {
             claims.subject(subject);
         }
@@ -66,9 +63,9 @@ public final class LogoutTokenIssuer {
             claims.claim("sid", sid);
         }
 
-        var headers = JwsHeader.with(() -> JwsAlgorithms.RS256)
-                .type("logout+jwt")
-                .build();
-        return jwtEncoder.encode(JwtEncoderParameters.from(headers, claims.build())).getTokenValue();
+        var headers = JwsHeader.with(() -> JwsAlgorithms.RS256).type("logout+jwt").build();
+        return jwtEncoder
+                .encode(JwtEncoderParameters.from(headers, claims.build()))
+                .getTokenValue();
     }
 }

@@ -1,15 +1,14 @@
 package org.las.sso.client;
 
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.Base64;
-
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
-import jakarta.servlet.http.HttpSession;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -39,8 +38,7 @@ public final class LasSsoGlobalLogoutController {
     private final SecureRandom secureRandom = new SecureRandom();
 
     LasSsoGlobalLogoutController(
-            ClientRegistrationRepository registrations,
-            LasSsoClientProperties properties) {
+            ClientRegistrationRepository registrations, LasSsoClientProperties properties) {
         this.registrations = registrations;
         this.properties = properties;
     }
@@ -56,15 +54,18 @@ public final class LasSsoGlobalLogoutController {
                     .cacheControl(CacheControl.noStore())
                     .build();
         }
-        ClientRegistration registration = registrations.findByRegistrationId(
-                oauth2.getAuthorizedClientRegistrationId());
+        ClientRegistration registration =
+                registrations.findByRegistrationId(oauth2.getAuthorizedClientRegistrationId());
         if (registration == null) {
             return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                     .cacheControl(CacheControl.noStore())
                     .build();
         }
-        Object endpointValue = registration.getProviderDetails()
-                .getConfigurationMetadata().get("end_session_endpoint");
+        Object endpointValue =
+                registration
+                        .getProviderDetails()
+                        .getConfigurationMetadata()
+                        .get("end_session_endpoint");
         if (endpointValue == null) {
             return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                     .cacheControl(CacheControl.noStore())
@@ -73,13 +74,14 @@ public final class LasSsoGlobalLogoutController {
 
         String state = newState();
         String postLogoutRedirectUri = resolvePostLogoutRedirectUri(request);
-        URI endpoint = UriComponentsBuilder.fromUriString(endpointValue.toString())
-                .queryParam("id_token_hint", oidcUser.getIdToken().getTokenValue())
-                .queryParam("post_logout_redirect_uri", postLogoutRedirectUri)
-                .queryParam("state", state)
-                .encode(StandardCharsets.UTF_8)
-                .build()
-                .toUri();
+        URI endpoint =
+                UriComponentsBuilder.fromUriString(endpointValue.toString())
+                        .queryParam("id_token_hint", oidcUser.getIdToken().getTokenValue())
+                        .queryParam("post_logout_redirect_uri", postLogoutRedirectUri)
+                        .queryParam("state", state)
+                        .encode(StandardCharsets.UTF_8)
+                        .build()
+                        .toUri();
 
         new SecurityContextLogoutHandler().logout(request, response, authentication);
         HttpSession pendingLogout = request.getSession(true);
@@ -115,12 +117,13 @@ public final class LasSsoGlobalLogoutController {
     }
 
     private String resolvePostLogoutRedirectUri(HttpServletRequest request) {
-        String baseUrl = UriComponentsBuilder.fromUriString(UrlUtils.buildFullRequestUrl(request))
-                .replacePath(request.getContextPath())
-                .replaceQuery(null)
-                .fragment(null)
-                .build()
-                .toUriString();
+        String baseUrl =
+                UriComponentsBuilder.fromUriString(UrlUtils.buildFullRequestUrl(request))
+                        .replacePath(request.getContextPath())
+                        .replaceQuery(null)
+                        .fragment(null)
+                        .build()
+                        .toUriString();
         return properties.postLogoutRedirectUri().replace("{baseUrl}", baseUrl);
     }
 

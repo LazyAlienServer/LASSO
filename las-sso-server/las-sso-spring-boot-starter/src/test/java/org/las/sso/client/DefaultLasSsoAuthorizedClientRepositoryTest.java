@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Instant;
 import java.util.List;
-
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
@@ -21,17 +20,20 @@ class DefaultLasSsoAuthorizedClientRepositoryTest {
     @Test
     void authorizedClientsAreIsolatedByLocalHttpSessionEvenForTheSamePrincipal() {
         var repository = new DefaultLasSsoAuthorizedClientRepository();
-        Authentication principal = UsernamePasswordAuthenticationToken.authenticated(
-                "same-subject", null, List.of());
-        ClientRegistration registration = ClientRegistration.withRegistrationId("las-sso")
-                .clientId("laslog-bff")
-                .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
-                .redirectUri("https://client.example/callback")
-                .authorizationUri("https://sso.example/oauth2/authorize")
-                .tokenUri("https://sso.example/oauth2/token")
-                .build();
-        OAuth2AuthorizedClient sessionAClient = client(registration, principal.getName(), "access-a");
-        OAuth2AuthorizedClient sessionBClient = client(registration, principal.getName(), "access-b");
+        Authentication principal =
+                UsernamePasswordAuthenticationToken.authenticated("same-subject", null, List.of());
+        ClientRegistration registration =
+                ClientRegistration.withRegistrationId("las-sso")
+                        .clientId("laslog-bff")
+                        .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
+                        .redirectUri("https://client.example/callback")
+                        .authorizationUri("https://sso.example/oauth2/authorize")
+                        .tokenUri("https://sso.example/oauth2/token")
+                        .build();
+        OAuth2AuthorizedClient sessionAClient =
+                client(registration, principal.getName(), "access-a");
+        OAuth2AuthorizedClient sessionBClient =
+                client(registration, principal.getName(), "access-b");
 
         MockHttpServletRequest requestA = request(new MockHttpSession());
         MockHttpServletRequest requestB = request(new MockHttpSession());
@@ -41,16 +43,24 @@ class DefaultLasSsoAuthorizedClientRepositoryTest {
         repository.saveAuthorizedClient(sessionAClient, principal, requestA, responseA);
         repository.saveAuthorizedClient(sessionBClient, principal, requestB, responseB);
 
-        assertThat(repository.loadAuthorizedClient("las-sso", principal, requestA)
-                .getAccessToken().getTokenValue()).isEqualTo("access-a");
-        assertThat(repository.loadAuthorizedClient("las-sso", principal, requestB)
-                .getAccessToken().getTokenValue()).isEqualTo("access-b");
+        assertThat(
+                        repository
+                                .loadAuthorizedClient("las-sso", principal, requestA)
+                                .getAccessToken()
+                                .getTokenValue())
+                .isEqualTo("access-a");
+        assertThat(
+                        repository
+                                .loadAuthorizedClient("las-sso", principal, requestB)
+                                .getAccessToken()
+                                .getTokenValue())
+                .isEqualTo("access-b");
 
         repository.removeAuthorizedClient("las-sso", principal, requestA, responseA);
-        OAuth2AuthorizedClient afterA = repository.loadAuthorizedClient(
-                "las-sso", principal, requestA);
-        OAuth2AuthorizedClient afterB = repository.loadAuthorizedClient(
-                "las-sso", principal, requestB);
+        OAuth2AuthorizedClient afterA =
+                repository.loadAuthorizedClient("las-sso", principal, requestA);
+        OAuth2AuthorizedClient afterB =
+                repository.loadAuthorizedClient("las-sso", principal, requestB);
         assertThat(afterA).isNull();
         assertThat(afterB.getAccessToken().getTokenValue()).isEqualTo("access-b");
     }

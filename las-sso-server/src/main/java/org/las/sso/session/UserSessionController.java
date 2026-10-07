@@ -1,9 +1,8 @@
 package org.las.sso.session;
 
-import java.util.List;
-
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
+import java.util.List;
 import org.las.sso.account.OperationIdempotencyService;
 import org.las.sso.identity.LasUserPrincipal;
 import org.las.sso.security.SameOriginVerifier;
@@ -38,8 +37,7 @@ public class UserSessionController {
 
     @GetMapping("/sessions")
     ResponseEntity<List<UserSessionService.SessionView>> sessions(
-            Authentication authentication,
-            HttpServletRequest request) {
+            Authentication authentication, HttpServletRequest request) {
         LasUserPrincipal principal = principal(authentication);
         return ResponseEntity.ok()
                 .cacheControl(CacheControl.noStore())
@@ -48,12 +46,11 @@ public class UserSessionController {
 
     @DeleteMapping("/sessions/{sid}")
     ResponseEntity<Void> revoke(
-            @PathVariable String sid,
-            Authentication authentication,
-            HttpServletRequest request) {
+            @PathVariable String sid, Authentication authentication, HttpServletRequest request) {
         sameOriginVerifier.verify(request);
         LasUserPrincipal principal = principal(authentication);
-        UserSessionService.RevocationResult result = sessions.revoke(principal.userId(), sid, request);
+        UserSessionService.RevocationResult result =
+                sessions.revoke(principal.userId(), sid, request);
         if (result == UserSessionService.RevocationResult.NOT_FOUND) {
             return ResponseEntity.notFound().build();
         }

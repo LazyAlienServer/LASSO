@@ -13,20 +13,35 @@ import org.springframework.security.web.authentication.SimpleUrlAuthenticationSu
 @Configuration(proxyBeanMethods = false)
 public class ReturnToSecurityConfiguration {
     @Bean
-    SecurityFilterChain returnToChain(HttpSecurity http, LasSsoSecurityConfigurer las) throws Exception {
-        http.authorizeHttpRequests(authorize -> authorize
-                .requestMatchers("/api/auth/login", "/error", "/internal/oidc/backchannel-logout").permitAll()
-                .anyRequest().authenticated());
-        var redirect = new LasSsoReturnToSuccessHandler(new SimpleUrlAuthenticationSuccessHandler("/app-success"));
-        las.configure(http, (request, response, authentication) -> {
-            response.setHeader("X-Business-Success", "checked");
-            if (LasSsoReturnTo.target(request).filter("/blocked"::equals).isPresent()) {
-                response.setStatus(403); // Fixture business check: do not reach the final redirect hook.
-                return;
-            }
-            LasSsoReturnTo.target(request).ifPresent(target -> response.setHeader("X-Verified-Target", target));
-            redirect.onAuthenticationSuccess(request, response, authentication);
-        });
+    SecurityFilterChain returnToChain(HttpSecurity http, LasSsoSecurityConfigurer las)
+            throws Exception {
+        http.authorizeHttpRequests(
+                authorize ->
+                        authorize
+                                .requestMatchers(
+                                        "/api/auth/login",
+                                        "/error",
+                                        "/internal/oidc/backchannel-logout")
+                                .permitAll()
+                                .anyRequest()
+                                .authenticated());
+        var redirect =
+                new LasSsoReturnToSuccessHandler(
+                        new SimpleUrlAuthenticationSuccessHandler("/app-success"));
+        las.configure(
+                http,
+                (request, response, authentication) -> {
+                    response.setHeader("X-Business-Success", "checked");
+                    if (LasSsoReturnTo.target(request).filter("/blocked"::equals).isPresent()) {
+                        response.setStatus(
+                                403); // Fixture business check: do not reach the final redirect
+                        // hook.
+                        return;
+                    }
+                    LasSsoReturnTo.target(request)
+                            .ifPresent(target -> response.setHeader("X-Verified-Target", target));
+                    redirect.onAuthenticationSuccess(request, response, authentication);
+                });
         return http.build();
     }
 }

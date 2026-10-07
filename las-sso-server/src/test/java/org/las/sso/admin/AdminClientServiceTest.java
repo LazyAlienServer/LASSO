@@ -8,16 +8,15 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import java.time.Instant;
-import java.time.Clock;
 import java.security.SecureRandom;
+import java.time.Clock;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-
 import org.junit.jupiter.api.Test;
 import org.las.sso.account.AccountRegistrationService;
 import org.las.sso.identity.LasUserPrincipal;
@@ -31,11 +30,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.jdbc.core.simple.JdbcClient;
-import org.springframework.security.oauth2.server.authorization.settings.TokenSettings;
-import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.support.TransactionTemplate;
-import org.springframework.mock.web.MockHttpSession;
 import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.mock.web.MockHttpSession;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
@@ -43,181 +39,289 @@ import org.springframework.security.oauth2.server.authorization.OAuth2Authorizat
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
+import org.springframework.security.oauth2.server.authorization.settings.TokenSettings;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
-@SpringBootTest(properties = "spring.autoconfigure.exclude="
-        + "org.springframework.boot.session.jdbc.autoconfigure.JdbcSessionAutoConfiguration")
+@SpringBootTest(
+        properties =
+                "spring.autoconfigure.exclude="
+                        + "org.springframework.boot.session.jdbc.autoconfigure.JdbcSessionAutoConfiguration")
 @ActiveProfiles("test")
 @AutoConfigureMockMvc
 @Testcontainers(disabledWithoutDocker = true)
 class AdminClientServiceTest {
 
-    @Container
-    @ServiceConnection
+    @Container @ServiceConnection
     static final PostgreSQLContainer<?> POSTGRES =
             new PostgreSQLContainer<>("postgres:18.4-alpine");
 
-    @Autowired
-    AccountRegistrationService registrationService;
+    @Autowired AccountRegistrationService registrationService;
 
-    @Autowired
-    AdminBootstrapService adminBootstrapService;
+    @Autowired AdminBootstrapService adminBootstrapService;
 
-    @Autowired
-    AdminClientService clients;
+    @Autowired AdminClientService clients;
 
-    @Autowired
-    RegisteredClientRepository registeredClients;
+    @Autowired RegisteredClientRepository registeredClients;
 
-    @Autowired
-    TokenSettings tokenSettings;
+    @Autowired TokenSettings tokenSettings;
 
-    @Autowired
-    BackChannelLogoutOutbox backChannelLogout;
+    @Autowired BackChannelLogoutOutbox backChannelLogout;
 
-    @Autowired
-    UuidV7Generator uuidGenerator;
+    @Autowired UuidV7Generator uuidGenerator;
 
-    @Autowired
-    PlatformTransactionManager transactionManager;
+    @Autowired PlatformTransactionManager transactionManager;
 
-    @Autowired
-    JdbcClient jdbcClient;
+    @Autowired JdbcClient jdbcClient;
 
-    @Autowired
-    PasswordEncoder passwordEncoder;
+    @Autowired PasswordEncoder passwordEncoder;
 
-    @Autowired
-    OAuth2AuthorizationService authorizationService;
+    @Autowired OAuth2AuthorizationService authorizationService;
 
-    @Autowired
-    UserSessionService userSessions;
+    @Autowired UserSessionService userSessions;
 
-    @Autowired
-    MockMvc mockMvc;
+    @Autowired MockMvc mockMvc;
 
     @Test
     void createStoresClientMetadataAndReturnsSecretOnce() {
         UUID adminId = administrator("ClientAdminCreate");
-        AdminClientService.CreateResult result = clients.create(
-                new AdminClientService.CreateRequest(
-                        "partner-demo",
-                        "Partner Demo",
-                        "REVIEWED_PARTNER",
-                        List.of("https://partner.example/callback"),
-                        List.of("https://partner.example/logged-out"),
-                        List.of("openid", "profile"),
-                        List.of("urn:las:resource:partner"),
-                        "https://partner.example/internal/oidc/backchannel-logout"),
-                adminId, null, "partner onboarding", UUID.randomUUID());
+        AdminClientService.CreateResult result =
+                clients.create(
+                        new AdminClientService.CreateRequest(
+                                "partner-demo",
+                                "Partner Demo",
+                                "REVIEWED_PARTNER",
+                                List.of("https://partner.example/callback"),
+                                List.of("https://partner.example/logged-out"),
+                                List.of("openid", "profile"),
+                                List.of("urn:las:resource:partner"),
+                                "https://partner.example/internal/oidc/backchannel-logout"),
+                        adminId,
+                        null,
+                        "partner onboarding",
+                        UUID.randomUUID());
 
         assertThat(result.clientId()).isEqualTo("partner-demo");
         assertThat(result.clientSecret()).startsWith("las_client_");
         assertThat(result.configVersion()).isOne();
         RegisteredClient stored = clients.findByClientId("partner-demo");
-        assertThat(passwordEncoder.matches(result.clientSecret(), stored.getClientSecret())).isTrue();
-        String type = jdbcClient.sql("""
+        assertThat(passwordEncoder.matches(result.clientSecret(), stored.getClientSecret()))
+                .isTrue();
+        String type =
+                jdbcClient
+                        .sql(
+                                """
                 SELECT client_type::text FROM registered_client_metadata
                  WHERE registered_client_id = :id
-                """).param("id", stored.getId()).query(String.class).single();
+                """)
+                        .param("id", stored.getId())
+                        .query(String.class)
+                        .single();
         assertThat(type).isEqualTo("REVIEWED_PARTNER");
-        Long audit = jdbcClient.sql("""
+        Long audit =
+                jdbcClient
+                        .sql(
+                                """
                 SELECT COUNT(*) FROM admin_audit_events
                  WHERE action = 'ADMIN_CLIENT_CREATE' AND target_id = 'partner-demo'
-                """).query(Long.class).single();
+                """)
+                        .query(Long.class)
+                        .single();
         assertThat(audit).isOne();
     }
 
     @Test
     void createRejectsInvalidUrisScopesAudiencesAndDuplicateIds() {
         UUID adminId = administrator("ClientAdminValidate");
-        AdminClientService.CreateRequest base = new AdminClientService.CreateRequest(
-                null, "Validate", "FIRST_PARTY",
-                List.of("https://valid.example/callback"), List.of(),
-                List.of("openid", "profile"), List.of("urn:las:resource:validate"), null);
-
-        assertThatThrownBy(() -> clients.create(withUris(base, List.of("http://evil.example/callback")),
-                adminId, null, "r", UUID.randomUUID()))
-                .extracting("code").isEqualTo("INVALID_REDIRECT_URI");
-        assertThatThrownBy(() -> clients.create(withUris(base, List.of("https://ok.example/cb#frag")),
-                adminId, null, "r", UUID.randomUUID()))
-                .extracting("code").isEqualTo("INVALID_REDIRECT_URI");
-        assertThatThrownBy(() -> clients.create(withUris(base, List.of("https://ok.example/*")),
-                adminId, null, "r", UUID.randomUUID()))
-                .extracting("code").isEqualTo("INVALID_REDIRECT_URI");
-        assertThatThrownBy(() -> clients.create(withScopes(base, List.of("openid", "email")),
-                adminId, null, "r", UUID.randomUUID()))
-                .extracting("code").isEqualTo("INVALID_SCOPE");
-        assertThatThrownBy(() -> clients.create(withAudiences(base, List.of()),
-                adminId, null, "r", UUID.randomUUID()))
-                .extracting("code").isEqualTo("AUDIENCE_REQUIRED");
-        assertThatThrownBy(() -> clients.create(withClientId(base, "ab"),
-                adminId, null, "r", UUID.randomUUID()))
-                .extracting("code").isEqualTo("INVALID_CLIENT_ID");
-        assertThatThrownBy(() -> clients.create(
+        AdminClientService.CreateRequest base =
                 new AdminClientService.CreateRequest(
-                        null, "Invalid type", "TYPO_PARTNER", base.redirectUris(),
-                        base.postLogoutRedirectUris(), base.scopes(),
-                        base.resourceAudiences(), base.backchannelLogoutUri()),
-                adminId, null, "r", UUID.randomUUID()))
-                .extracting("code").isEqualTo("INVALID_CLIENT_TYPE");
+                        null,
+                        "Validate",
+                        "FIRST_PARTY",
+                        List.of("https://valid.example/callback"),
+                        List.of(),
+                        List.of("openid", "profile"),
+                        List.of("urn:las:resource:validate"),
+                        null);
 
-        AdminClientService.CreateRequest first = withClientId(withUris(base,
-                List.of("https://dup.example/callback")), "dup-client");
+        assertThatThrownBy(
+                        () ->
+                                clients.create(
+                                        withUris(base, List.of("http://evil.example/callback")),
+                                        adminId,
+                                        null,
+                                        "r",
+                                        UUID.randomUUID()))
+                .extracting("code")
+                .isEqualTo("INVALID_REDIRECT_URI");
+        assertThatThrownBy(
+                        () ->
+                                clients.create(
+                                        withUris(base, List.of("https://ok.example/cb#frag")),
+                                        adminId,
+                                        null,
+                                        "r",
+                                        UUID.randomUUID()))
+                .extracting("code")
+                .isEqualTo("INVALID_REDIRECT_URI");
+        assertThatThrownBy(
+                        () ->
+                                clients.create(
+                                        withUris(base, List.of("https://ok.example/*")),
+                                        adminId,
+                                        null,
+                                        "r",
+                                        UUID.randomUUID()))
+                .extracting("code")
+                .isEqualTo("INVALID_REDIRECT_URI");
+        assertThatThrownBy(
+                        () ->
+                                clients.create(
+                                        withScopes(base, List.of("openid", "email")),
+                                        adminId,
+                                        null,
+                                        "r",
+                                        UUID.randomUUID()))
+                .extracting("code")
+                .isEqualTo("INVALID_SCOPE");
+        assertThatThrownBy(
+                        () ->
+                                clients.create(
+                                        withAudiences(base, List.of()),
+                                        adminId,
+                                        null,
+                                        "r",
+                                        UUID.randomUUID()))
+                .extracting("code")
+                .isEqualTo("AUDIENCE_REQUIRED");
+        assertThatThrownBy(
+                        () ->
+                                clients.create(
+                                        withClientId(base, "ab"),
+                                        adminId,
+                                        null,
+                                        "r",
+                                        UUID.randomUUID()))
+                .extracting("code")
+                .isEqualTo("INVALID_CLIENT_ID");
+        assertThatThrownBy(
+                        () ->
+                                clients.create(
+                                        new AdminClientService.CreateRequest(
+                                                null,
+                                                "Invalid type",
+                                                "TYPO_PARTNER",
+                                                base.redirectUris(),
+                                                base.postLogoutRedirectUris(),
+                                                base.scopes(),
+                                                base.resourceAudiences(),
+                                                base.backchannelLogoutUri()),
+                                        adminId,
+                                        null,
+                                        "r",
+                                        UUID.randomUUID()))
+                .extracting("code")
+                .isEqualTo("INVALID_CLIENT_TYPE");
+
+        AdminClientService.CreateRequest first =
+                withClientId(withUris(base, List.of("https://dup.example/callback")), "dup-client");
         clients.create(first, adminId, null, "r", UUID.randomUUID());
         assertThatThrownBy(() -> clients.create(first, adminId, null, "r", UUID.randomUUID()))
-                .extracting("code").isEqualTo("CLIENT_ID_CONFLICT");
+                .extracting("code")
+                .isEqualTo("CLIENT_ID_CONFLICT");
     }
 
     @Test
     void patchScopeShrinkRevokesAndBumpsVersion() {
         UUID adminId = administrator("ClientAdminShrink");
-        var user = registrationService.register(
-                "ClientShrinkUser", "Client Shrink User", "client shrink passphrase");
-        clients.create(new AdminClientService.CreateRequest(
-                "shrink-client", "Shrink", "FIRST_PARTY",
-                List.of("https://shrink.example/callback"), List.of(),
-                List.of("openid", "profile"), List.of("urn:las:resource:shrink"), null),
-                adminId, null, "r", UUID.randomUUID());
+        var user =
+                registrationService.register(
+                        "ClientShrinkUser", "Client Shrink User", "client shrink passphrase");
+        clients.create(
+                new AdminClientService.CreateRequest(
+                        "shrink-client",
+                        "Shrink",
+                        "FIRST_PARTY",
+                        List.of("https://shrink.example/callback"),
+                        List.of(),
+                        List.of("openid", "profile"),
+                        List.of("urn:las:resource:shrink"),
+                        null),
+                adminId,
+                null,
+                "r",
+                UUID.randomUUID());
         insertAuthorization("shrink-client", user.userId().toString());
 
-        AdminClientService.PatchResult result = clients.patch(
-                "shrink-client",
-                new AdminClientService.PatchRequest(
-                        "Shrink", "FIRST_PARTY",
-                        List.of("https://shrink.example/callback"), List.of(),
-                        List.of("openid"), List.of("urn:las:resource:shrink"), null),
-                adminId, null, "scope tightened", UUID.randomUUID());
+        AdminClientService.PatchResult result =
+                clients.patch(
+                        "shrink-client",
+                        new AdminClientService.PatchRequest(
+                                "Shrink",
+                                "FIRST_PARTY",
+                                List.of("https://shrink.example/callback"),
+                                List.of(),
+                                List.of("openid"),
+                                List.of("urn:las:resource:shrink"),
+                                null),
+                        adminId,
+                        null,
+                        "scope tightened",
+                        UUID.randomUUID());
 
         assertThat(result.revocationTriggered()).isTrue();
         assertThat(result.revokedAuthorizationCount()).isOne();
         assertThat(result.configVersion()).isEqualTo(2);
-        Long remaining = jdbcClient.sql("""
+        Long remaining =
+                jdbcClient
+                        .sql(
+                                """
                 SELECT COUNT(*) FROM oauth2_authorization WHERE registered_client_id = :id
-                """).param("id", registeredClientId("shrink-client")).query(Long.class).single();
+                """)
+                        .param("id", registeredClientId("shrink-client"))
+                        .query(Long.class)
+                        .single();
         assertThat(remaining).isZero();
     }
 
     @Test
     void patchNameOnlyKeepsVersion() {
         UUID adminId = administrator("ClientAdminName");
-        clients.create(new AdminClientService.CreateRequest(
-                "name-client", "Old Name", "FIRST_PARTY",
-                List.of("https://name.example/callback"), List.of(),
-                List.of("openid", "profile"), List.of("urn:las:resource:name"), null),
-                adminId, null, "r", UUID.randomUUID());
+        clients.create(
+                new AdminClientService.CreateRequest(
+                        "name-client",
+                        "Old Name",
+                        "FIRST_PARTY",
+                        List.of("https://name.example/callback"),
+                        List.of(),
+                        List.of("openid", "profile"),
+                        List.of("urn:las:resource:name"),
+                        null),
+                adminId,
+                null,
+                "r",
+                UUID.randomUUID());
 
-        AdminClientService.PatchResult result = clients.patch(
-                "name-client",
-                new AdminClientService.PatchRequest(
-                        "New Name", "FIRST_PARTY",
-                        List.of("https://name.example/callback"), List.of(),
-                        List.of("openid", "profile"), List.of("urn:las:resource:name"), null),
-                adminId, null, "rename", UUID.randomUUID());
+        AdminClientService.PatchResult result =
+                clients.patch(
+                        "name-client",
+                        new AdminClientService.PatchRequest(
+                                "New Name",
+                                "FIRST_PARTY",
+                                List.of("https://name.example/callback"),
+                                List.of(),
+                                List.of("openid", "profile"),
+                                List.of("urn:las:resource:name"),
+                                null),
+                        adminId,
+                        null,
+                        "rename",
+                        UUID.randomUUID());
 
         assertThat(result.revocationTriggered()).isFalse();
         assertThat(result.configVersion()).isOne();
@@ -226,20 +330,36 @@ class AdminClientServiceTest {
     @Test
     void patchScopeExpansionBumpsVersionWithoutRevokingExistingAuthorization() {
         UUID adminId = administrator("ClientAdminExpand");
-        clients.create(new AdminClientService.CreateRequest(
-                "expand-client", "Expand", "REVIEWED_PARTNER",
-                List.of("https://expand.example/callback"), List.of(),
-                List.of("openid"), List.of("urn:las:resource:expand"), null),
-                adminId, null, "r", UUID.randomUUID());
+        clients.create(
+                new AdminClientService.CreateRequest(
+                        "expand-client",
+                        "Expand",
+                        "REVIEWED_PARTNER",
+                        List.of("https://expand.example/callback"),
+                        List.of(),
+                        List.of("openid"),
+                        List.of("urn:las:resource:expand"),
+                        null),
+                adminId,
+                null,
+                "r",
+                UUID.randomUUID());
 
-        AdminClientService.PatchResult result = clients.patch(
-                "expand-client",
-                new AdminClientService.PatchRequest(
-                        "Expand", "REVIEWED_PARTNER",
-                        List.of("https://expand.example/callback"), List.of(),
-                        List.of("openid", "profile"),
-                        List.of("urn:las:resource:expand"), null),
-                adminId, null, "scope expanded", UUID.randomUUID());
+        AdminClientService.PatchResult result =
+                clients.patch(
+                        "expand-client",
+                        new AdminClientService.PatchRequest(
+                                "Expand",
+                                "REVIEWED_PARTNER",
+                                List.of("https://expand.example/callback"),
+                                List.of(),
+                                List.of("openid", "profile"),
+                                List.of("urn:las:resource:expand"),
+                                null),
+                        adminId,
+                        null,
+                        "scope expanded",
+                        UUID.randomUUID());
 
         assertThat(result.revocationTriggered()).isFalse();
         assertThat(result.configVersion()).isEqualTo(2);
@@ -248,103 +368,189 @@ class AdminClientServiceTest {
     @Test
     void disableRevokesAndRejectsNewAuthorizations() {
         UUID adminId = administrator("ClientAdminDisable");
-        var user = registrationService.register(
-                "ClientDisableUser", "Client Disable User", "client disable passphrase");
-        clients.create(new AdminClientService.CreateRequest(
-                "disable-client", "Disable", "FIRST_PARTY",
-                List.of("https://disable.example/callback"), List.of(),
-                List.of("openid", "profile"), List.of("urn:las:resource:disable"),
-                "https://disable.example/internal/oidc/backchannel-logout"),
-                adminId, null, "r", UUID.randomUUID());
+        var user =
+                registrationService.register(
+                        "ClientDisableUser", "Client Disable User", "client disable passphrase");
+        clients.create(
+                new AdminClientService.CreateRequest(
+                        "disable-client",
+                        "Disable",
+                        "FIRST_PARTY",
+                        List.of("https://disable.example/callback"),
+                        List.of(),
+                        List.of("openid", "profile"),
+                        List.of("urn:las:resource:disable"),
+                        "https://disable.example/internal/oidc/backchannel-logout"),
+                adminId,
+                null,
+                "r",
+                UUID.randomUUID());
         insertAuthorization("disable-client", user.userId().toString());
 
-        long version = clients.disable("disable-client", adminId, null,
-                "compromised callback", UUID.randomUUID());
+        long version =
+                clients.disable(
+                        "disable-client", adminId, null, "compromised callback", UUID.randomUUID());
 
         assertThat(version).isEqualTo(2);
-        Long disabled = jdbcClient.sql("""
+        Long disabled =
+                jdbcClient
+                        .sql(
+                                """
                 SELECT COUNT(*) FROM registered_client_metadata
                  WHERE registered_client_id = :id AND status = 'DISABLED'
-                """).param("id", registeredClientId("disable-client")).query(Long.class).single();
+                """)
+                        .param("id", registeredClientId("disable-client"))
+                        .query(Long.class)
+                        .single();
         assertThat(disabled).isOne();
-        Long outbox = jdbcClient.sql("""
+        Long outbox =
+                jdbcClient
+                        .sql(
+                                """
                 SELECT COUNT(*) FROM outbox_events WHERE event_type = 'BACKCHANNEL_LOGOUT_REQUESTED'
-                """).query(Long.class).single();
+                """)
+                        .query(Long.class)
+                        .single();
         assertThat(outbox).isPositive();
 
         var authorization = newAuthorization("disable-client", user.userId().toString());
         assertThatThrownBy(() -> authorizationService.save(authorization))
-                .isInstanceOf(org.springframework.security.oauth2.core.OAuth2AuthenticationException.class);
+                .isInstanceOf(
+                        org.springframework.security.oauth2.core.OAuth2AuthenticationException
+                                .class);
     }
 
     @Test
     void rotateSecretInvalidatesOldSecret() {
         UUID adminId = administrator("ClientAdminRotate");
-        var user = registrationService.register(
-                "ClientRotateUser", "Client Rotate User", "client rotate passphrase");
-        AdminClientService.CreateResult created = clients.create(
-                new AdminClientService.CreateRequest(
-                        "rotate-client", "Rotate", "FIRST_PARTY",
-                        List.of("https://rotate.example/callback"), List.of(),
-                        List.of("openid", "profile"), List.of("urn:las:resource:rotate"), null),
-                adminId, null, "r", UUID.randomUUID());
+        var user =
+                registrationService.register(
+                        "ClientRotateUser", "Client Rotate User", "client rotate passphrase");
+        AdminClientService.CreateResult created =
+                clients.create(
+                        new AdminClientService.CreateRequest(
+                                "rotate-client",
+                                "Rotate",
+                                "FIRST_PARTY",
+                                List.of("https://rotate.example/callback"),
+                                List.of(),
+                                List.of("openid", "profile"),
+                                List.of("urn:las:resource:rotate"),
+                                null),
+                        adminId,
+                        null,
+                        "r",
+                        UUID.randomUUID());
         insertAuthorization("rotate-client", user.userId().toString());
 
-        AdminClientService.RotationResult rotated = clients.rotateSecret(
-                "rotate-client", adminId, null, "secret leaked", UUID.randomUUID());
+        AdminClientService.RotationResult rotated =
+                clients.rotateSecret(
+                        "rotate-client", adminId, null, "secret leaked", UUID.randomUUID());
 
         assertThat(rotated.clientSecret()).isNotEqualTo(created.clientSecret());
         assertThat(rotated.configVersion()).isEqualTo(2);
-        String storedSecret = jdbcClient.sql("""
+        String storedSecret =
+                jdbcClient
+                        .sql(
+                                """
                 SELECT client_secret FROM oauth2_registered_client WHERE client_id = 'rotate-client'
-                """).query(String.class).single();
+                """)
+                        .query(String.class)
+                        .single();
         assertThat(passwordEncoder.matches(rotated.clientSecret(), storedSecret)).isTrue();
         assertThat(passwordEncoder.matches(created.clientSecret(), storedSecret)).isFalse();
-        Long remaining = jdbcClient.sql("""
+        Long remaining =
+                jdbcClient
+                        .sql(
+                                """
                 SELECT COUNT(*) FROM oauth2_authorization WHERE registered_client_id = :id
-                """).param("id", registeredClientId("rotate-client")).query(Long.class).single();
+                """)
+                        .param("id", registeredClientId("rotate-client"))
+                        .query(Long.class)
+                        .single();
         assertThat(remaining).isZero();
     }
 
     @Test
     void clientPatchCannotRestoreSecretAfterConcurrentRotation() throws Exception {
         UUID adminId = administrator("ClientAdminConcurrent");
-        AdminClientService.CreateResult created = clients.create(
-                new AdminClientService.CreateRequest(
-                        "concurrent-client", "Concurrent", "FIRST_PARTY",
-                        List.of("https://concurrent.example/callback"), List.of(),
-                        List.of("openid", "profile"), List.of("urn:las:resource:concurrent"), null),
-                adminId, null, "r", UUID.randomUUID());
+        AdminClientService.CreateResult created =
+                clients.create(
+                        new AdminClientService.CreateRequest(
+                                "concurrent-client",
+                                "Concurrent",
+                                "FIRST_PARTY",
+                                List.of("https://concurrent.example/callback"),
+                                List.of(),
+                                List.of("openid", "profile"),
+                                List.of("urn:las:resource:concurrent"),
+                                null),
+                        adminId,
+                        null,
+                        "r",
+                        UUID.randomUUID());
         BlockingRegisteredClientRepository blocking =
                 new BlockingRegisteredClientRepository(registeredClients, "concurrent-client");
-        AdminClientService stalePatchService = new AdminClientService(
-                jdbcClient, blocking, tokenSettings, passwordEncoder, backChannelLogout,
-                uuidGenerator, new SecureRandom(), Clock.systemUTC(), true);
+        AdminClientService stalePatchService =
+                new AdminClientService(
+                        jdbcClient,
+                        blocking,
+                        tokenSettings,
+                        passwordEncoder,
+                        backChannelLogout,
+                        uuidGenerator,
+                        new SecureRandom(),
+                        Clock.systemUTC(),
+                        true);
         TransactionTemplate transaction = new TransactionTemplate(transactionManager);
 
         try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
-            var patch = executor.submit(() -> transaction.executeWithoutResult(status ->
-                    stalePatchService.patch(
-                            "concurrent-client",
-                            new AdminClientService.PatchRequest(
-                                    "Edited", "FIRST_PARTY",
-                                    List.of("https://concurrent.example/callback"), List.of(),
-                                    List.of("openid", "profile"),
-                                    List.of("urn:las:resource:concurrent"), null),
-                            adminId, null, "edit", UUID.randomUUID())));
+            var patch =
+                    executor.submit(
+                            () ->
+                                    transaction.executeWithoutResult(
+                                            status ->
+                                                    stalePatchService.patch(
+                                                            "concurrent-client",
+                                                            new AdminClientService.PatchRequest(
+                                                                    "Edited",
+                                                                    "FIRST_PARTY",
+                                                                    List.of(
+                                                                            "https://concurrent.example/callback"),
+                                                                    List.of(),
+                                                                    List.of("openid", "profile"),
+                                                                    List.of(
+                                                                            "urn:las:resource:concurrent"),
+                                                                    null),
+                                                            adminId,
+                                                            null,
+                                                            "edit",
+                                                            UUID.randomUUID())));
             assertThat(blocking.readStarted.await(5, TimeUnit.SECONDS)).isTrue();
 
-            var rotation = executor.submit(() -> clients.rotateSecret(
-                    "concurrent-client", adminId, null, "rotate during edit", UUID.randomUUID()));
+            var rotation =
+                    executor.submit(
+                            () ->
+                                    clients.rotateSecret(
+                                            "concurrent-client",
+                                            adminId,
+                                            null,
+                                            "rotate during edit",
+                                            UUID.randomUUID()));
             assertThatThrownBy(() -> rotation.get(250, TimeUnit.MILLISECONDS))
                     .isInstanceOf(TimeoutException.class);
 
             blocking.releaseRead.countDown();
             patch.get(5, TimeUnit.SECONDS);
             AdminClientService.RotationResult rotated = rotation.get(5, TimeUnit.SECONDS);
-            String storedSecret = jdbcClient.sql("""
+            String storedSecret =
+                    jdbcClient
+                            .sql(
+                                    """
                     SELECT client_secret FROM oauth2_registered_client WHERE client_id = 'concurrent-client'
-                    """).query(String.class).single();
+                    """)
+                            .query(String.class)
+                            .single();
             assertThat(passwordEncoder.matches(rotated.clientSecret(), storedSecret)).isTrue();
             assertThat(passwordEncoder.matches(created.clientSecret(), storedSecret)).isFalse();
         }
@@ -353,49 +559,81 @@ class AdminClientServiceTest {
     @Test
     void clientsPageRendersForAdmin() throws Exception {
         UUID adminId = administrator("ClientAdminPage");
-        clients.create(new AdminClientService.CreateRequest(
-                "page-client", "Page Client", "FIRST_PARTY",
-                List.of("https://page.example/callback"), List.of(),
-                List.of("openid", "profile"), List.of("urn:las:resource:page"), null),
-                adminId, null, "r", UUID.randomUUID());
-        var actor = registrationService.register(
-                "ClientPageActor", "Client Page Actor", "client page actor passphrase");
+        clients.create(
+                new AdminClientService.CreateRequest(
+                        "page-client",
+                        "Page Client",
+                        "FIRST_PARTY",
+                        List.of("https://page.example/callback"),
+                        List.of(),
+                        List.of("openid", "profile"),
+                        List.of("urn:las:resource:page"),
+                        null),
+                adminId,
+                null,
+                "r",
+                UUID.randomUUID());
+        var actor =
+                registrationService.register(
+                        "ClientPageActor", "Client Page Actor", "client page actor passphrase");
         LasUserPrincipal admin = principal(actor.userId(), "ClientPageActor", true);
         var adminSession = new MockHttpSession();
 
         mockMvc.perform(get("/admin/clients").session(adminSession).with(user(admin)))
                 .andExpect(status().isOk())
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
-                        .content().string(org.hamcrest.Matchers.containsString("接入应用")))
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
-                        .content().string(org.hamcrest.Matchers.containsString("page-client")));
+                .andExpect(
+                        org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                                .string(org.hamcrest.Matchers.containsString("接入应用")))
+                .andExpect(
+                        org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                                .string(org.hamcrest.Matchers.containsString("page-client")));
     }
 
     @Test
     void listFiltersByStatusAndHidesDisabledByDefault() {
         UUID adminId = administrator("ClientAdminFilter");
-        clients.create(new AdminClientService.CreateRequest(
-                "filter-active", "Filter Active", "FIRST_PARTY",
-                List.of("https://filter-active.example/callback"), List.of(),
-                List.of("openid", "profile"), List.of("urn:las:resource:filter-active"), null),
-                adminId, null, "r", UUID.randomUUID());
-        clients.create(new AdminClientService.CreateRequest(
-                "filter-disabled", "Filter Disabled", "FIRST_PARTY",
-                List.of("https://filter-disabled.example/callback"), List.of(),
-                List.of("openid", "profile"), List.of("urn:las:resource:filter-disabled"), null),
-                adminId, null, "r", UUID.randomUUID());
+        clients.create(
+                new AdminClientService.CreateRequest(
+                        "filter-active",
+                        "Filter Active",
+                        "FIRST_PARTY",
+                        List.of("https://filter-active.example/callback"),
+                        List.of(),
+                        List.of("openid", "profile"),
+                        List.of("urn:las:resource:filter-active"),
+                        null),
+                adminId,
+                null,
+                "r",
+                UUID.randomUUID());
+        clients.create(
+                new AdminClientService.CreateRequest(
+                        "filter-disabled",
+                        "Filter Disabled",
+                        "FIRST_PARTY",
+                        List.of("https://filter-disabled.example/callback"),
+                        List.of(),
+                        List.of("openid", "profile"),
+                        List.of("urn:las:resource:filter-disabled"),
+                        null),
+                adminId,
+                null,
+                "r",
+                UUID.randomUUID());
         clients.disable("filter-disabled", adminId, null, "retired", UUID.randomUUID());
 
         AdminClientService.ClientPage defaults = clients.list(null, null, null, 50);
-        assertThat(defaults.items()).extracting("clientId")
-                .contains("filter-active").doesNotContain("filter-disabled");
+        assertThat(defaults.items())
+                .extracting("clientId")
+                .contains("filter-active")
+                .doesNotContain("filter-disabled");
 
         AdminClientService.ClientPage all = clients.list(null, "ALL", null, 50);
-        assertThat(all.items()).extracting("clientId")
-                .contains("filter-active", "filter-disabled");
+        assertThat(all.items()).extracting("clientId").contains("filter-active", "filter-disabled");
 
         AdminClientService.ClientPage disabled = clients.list(null, "DISABLED", null, 50);
-        assertThat(disabled.items()).extracting("clientId")
+        assertThat(disabled.items())
+                .extracting("clientId")
                 .contains("filter-disabled")
                 .doesNotContain("filter-active");
         assertThat(disabled.items()).allMatch(item -> "DISABLED".equals(item.status()));
@@ -403,13 +641,16 @@ class AdminClientServiceTest {
 
     @Test
     void endpointsRequireAdminRoleAndRecentAuthentication() throws Exception {
-        var actor = registrationService.register(
-                "ClientActorUser", "Client Actor User", "client actor passphrase");
+        var actor =
+                registrationService.register(
+                        "ClientActorUser", "Client Actor User", "client actor passphrase");
         LasUserPrincipal ordinary = principal(actor.userId(), "ClientActorUser", false);
         LasUserPrincipal admin = principal(actor.userId(), "ClientActorUser", true);
         jdbcClient.sql("UPDATE users SET is_sso_admin = false WHERE is_sso_admin = true").update();
-        jdbcClient.sql("UPDATE users SET is_sso_admin = true WHERE id = :userId")
-                .param("userId", actor.userId()).update();
+        jdbcClient
+                .sql("UPDATE users SET is_sso_admin = true WHERE id = :userId")
+                .param("userId", actor.userId())
+                .update();
 
         mockMvc.perform(get("/api/v1/admin/clients").with(user(ordinary)))
                 .andExpect(status().isForbidden());
@@ -417,37 +658,51 @@ class AdminClientServiceTest {
         var loginRequest = new MockHttpServletRequest();
         var adminSession = (MockHttpSession) loginRequest.getSession(true);
         userSessions.registerLogin(admin, loginRequest);
-        mockMvc.perform(post("/api/v1/admin/clients").session(adminSession).with(user(admin))
-                        .with(csrf()).header("Origin", "http://127.0.0.1:9000")
-                        .contentType("application/json")
-                        .content("{\"clientName\":\"x\",\"clientType\":\"FIRST_PARTY\"," +
-                                "\"redirectUris\":[\"https://x.example/cb\"]," +
-                                "\"scopes\":[\"openid\",\"profile\"]," +
-                                "\"resourceAudiences\":[\"urn:las:resource:x\"],\"reason\":\"r\"}"))
+        mockMvc.perform(
+                        post("/api/v1/admin/clients")
+                                .session(adminSession)
+                                .with(user(admin))
+                                .with(csrf())
+                                .header("Origin", "http://127.0.0.1:9000")
+                                .contentType("application/json")
+                                .content(
+                                        "{\"clientName\":\"x\",\"clientType\":\"FIRST_PARTY\","
+                                                + "\"redirectUris\":[\"https://x.example/cb\"],"
+                                                + "\"scopes\":[\"openid\",\"profile\"],"
+                                                + "\"resourceAudiences\":[\"urn:las:resource:x\"],\"reason\":\"r\"}"))
                 .andExpect(status().isForbidden());
 
         adminSession.setAttribute(RecentAuthenticationService.SESSION_ATTRIBUTE, Instant.now());
-        mockMvc.perform(post("/api/v1/admin/clients").session(adminSession).with(user(admin))
-                        .with(csrf()).header("Origin", "http://127.0.0.1:9000")
-                        .contentType("application/json")
-                        .content("{\"clientName\":\"Endpoint Client\",\"clientType\":\"FIRST_PARTY\"," +
-                                "\"redirectUris\":[\"https://endpoint.example/cb\"]," +
-                                "\"scopes\":[\"openid\",\"profile\"]," +
-                                "\"resourceAudiences\":[\"urn:las:resource:endpoint\"],\"reason\":\"r\"}"))
+        mockMvc.perform(
+                        post("/api/v1/admin/clients")
+                                .session(adminSession)
+                                .with(user(admin))
+                                .with(csrf())
+                                .header("Origin", "http://127.0.0.1:9000")
+                                .contentType("application/json")
+                                .content(
+                                        "{\"clientName\":\"Endpoint Client\",\"clientType\":\"FIRST_PARTY\","
+                                                + "\"redirectUris\":[\"https://endpoint.example/cb\"],"
+                                                + "\"scopes\":[\"openid\",\"profile\"],"
+                                                + "\"resourceAudiences\":[\"urn:las:resource:endpoint\"],\"reason\":\"r\"}"))
                 .andExpect(status().isOk());
     }
 
     private void insertAuthorization(String clientId, String principalName) {
         RegisteredClient client = registeredClient(clientId);
-        jdbcClient.sql("""
+        jdbcClient
+                .sql(
+                        """
                 INSERT INTO oauth2_authorization
                     (id, registered_client_id, principal_name, authorization_grant_type,
                      authorized_scopes, attributes)
                 VALUES (:id, :rcId, :principalName, 'authorization_code',
                         'openid,profile', '{}')
-                """).param("id", UUID.randomUUID().toString())
+                """)
+                .param("id", UUID.randomUUID().toString())
                 .param("rcId", client.getId())
-                .param("principalName", principalName).update();
+                .param("principalName", principalName)
+                .update();
     }
 
     private OAuth2Authorization newAuthorization(String clientId, String principalName) {
@@ -469,45 +724,72 @@ class AdminClientServiceTest {
 
     private static AdminClientService.CreateRequest withUris(
             AdminClientService.CreateRequest base, List<String> uris) {
-        return new AdminClientService.CreateRequest(base.clientId(), base.clientName(),
-                base.clientType(), uris, base.postLogoutRedirectUris(), base.scopes(),
-                base.resourceAudiences(), base.backchannelLogoutUri());
+        return new AdminClientService.CreateRequest(
+                base.clientId(),
+                base.clientName(),
+                base.clientType(),
+                uris,
+                base.postLogoutRedirectUris(),
+                base.scopes(),
+                base.resourceAudiences(),
+                base.backchannelLogoutUri());
     }
 
     private static AdminClientService.CreateRequest withScopes(
             AdminClientService.CreateRequest base, List<String> scopes) {
-        return new AdminClientService.CreateRequest(base.clientId(), base.clientName(),
-                base.clientType(), base.redirectUris(), base.postLogoutRedirectUris(), scopes,
-                base.resourceAudiences(), base.backchannelLogoutUri());
+        return new AdminClientService.CreateRequest(
+                base.clientId(),
+                base.clientName(),
+                base.clientType(),
+                base.redirectUris(),
+                base.postLogoutRedirectUris(),
+                scopes,
+                base.resourceAudiences(),
+                base.backchannelLogoutUri());
     }
 
     private static AdminClientService.CreateRequest withAudiences(
             AdminClientService.CreateRequest base, List<String> audiences) {
-        return new AdminClientService.CreateRequest(base.clientId(), base.clientName(),
-                base.clientType(), base.redirectUris(), base.postLogoutRedirectUris(), base.scopes(),
-                audiences, base.backchannelLogoutUri());
+        return new AdminClientService.CreateRequest(
+                base.clientId(),
+                base.clientName(),
+                base.clientType(),
+                base.redirectUris(),
+                base.postLogoutRedirectUris(),
+                base.scopes(),
+                audiences,
+                base.backchannelLogoutUri());
     }
 
     private static AdminClientService.CreateRequest withClientId(
             AdminClientService.CreateRequest base, String clientId) {
-        return new AdminClientService.CreateRequest(clientId, base.clientName(),
-                base.clientType(), base.redirectUris(), base.postLogoutRedirectUris(), base.scopes(),
-                base.resourceAudiences(), base.backchannelLogoutUri());
+        return new AdminClientService.CreateRequest(
+                clientId,
+                base.clientName(),
+                base.clientType(),
+                base.redirectUris(),
+                base.postLogoutRedirectUris(),
+                base.scopes(),
+                base.resourceAudiences(),
+                base.backchannelLogoutUri());
     }
 
     private UUID administrator(String username) {
-        jdbcClient.sql("UPDATE users SET is_sso_admin = false WHERE is_sso_admin = true")
-                .update();
-        var account = registrationService.register(
-                username, "Client Admin", "client admin passphrase");
-        adminBootstrapService.promoteExistingUser(account.userId(),
-                "temporary admin passphrase");
+        jdbcClient.sql("UPDATE users SET is_sso_admin = false WHERE is_sso_admin = true").update();
+        var account =
+                registrationService.register(username, "Client Admin", "client admin passphrase");
+        adminBootstrapService.promoteExistingUser(account.userId(), "temporary admin passphrase");
         return account.userId();
     }
 
     private static LasUserPrincipal principal(UUID userId, String username, boolean ssoAdmin) {
         return new LasUserPrincipal(
-                userId, username, "{noop}irrelevant", 1, ssoAdmin, false,
+                userId,
+                username,
+                "{noop}irrelevant",
+                1,
+                ssoAdmin,
+                false,
                 List.of(new SimpleGrantedAuthority(ssoAdmin ? "ROLE_SSO_ADMIN" : "ROLE_USER")));
     }
 
@@ -541,7 +823,8 @@ class AdminClientServiceTest {
                 readStarted.countDown();
                 try {
                     if (!releaseRead.await(5, TimeUnit.SECONDS)) {
-                        throw new IllegalStateException("Timed out waiting to release stale client read");
+                        throw new IllegalStateException(
+                                "Timed out waiting to release stale client read");
                     }
                 } catch (InterruptedException exception) {
                     Thread.currentThread().interrupt();

@@ -5,13 +5,12 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 import java.util.function.Supplier;
-
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Component;
-import org.springframework.beans.factory.annotation.Autowired;
 
 @Component
 @ConditionalOnProperty(name = "las.sso.maintenance.command", havingValue = "admin-bootstrap")
@@ -26,8 +25,13 @@ public final class AdminBootstrapCommand implements ApplicationRunner {
         this(service, environment, System::console);
     }
 
-    /** Console acquisition seam; production still requires a real hidden-input interactive console. */
-    AdminBootstrapCommand(AdminBootstrapService service, Environment environment, Supplier<Console> consoleSupplier) {
+    /**
+     * Console acquisition seam; production still requires a real hidden-input interactive console.
+     */
+    AdminBootstrapCommand(
+            AdminBootstrapService service,
+            Environment environment,
+            Supplier<Console> consoleSupplier) {
         this.service = service;
         this.environment = environment;
         this.consoleSupplier = consoleSupplier;
@@ -53,9 +57,11 @@ public final class AdminBootstrapCommand implements ApplicationRunner {
                 throw new AdminBootstrapException("PASSWORD_CONFIRMATION_MISMATCH");
             }
             String temporaryPassword = new String(first);
-            AdminBootstrapService.BootstrapResult result = username != null
-                    ? service.createFirstUser(username, username, temporaryPassword)
-                    : service.promoteExistingUser(UUID.fromString(userId), temporaryPassword);
+            AdminBootstrapService.BootstrapResult result =
+                    username != null
+                            ? service.createFirstUser(username, username, temporaryPassword)
+                            : service.promoteExistingUser(
+                                    UUID.fromString(userId), temporaryPassword);
             console.printf(
                     "Administrator bootstrap completed.%nusername=%s%nuserId=%s%ntemporaryPasswordExpiresAt=%s%nauditEventId=%s%n",
                     result.username(),
@@ -64,11 +70,13 @@ public final class AdminBootstrapCommand implements ApplicationRunner {
                     result.auditEventId());
         } catch (AdminBootstrapException exception) {
             if ("DELETION_CANCELLATION_REQUIRED".equals(exception.code())) {
-                console.printf("Administrator promotion refused (DELETION_CANCELLATION_REQUIRED).%n"
-                        + "The account owner must cancel the pending/held deletion request first; "
-                        + "then retry administrator bootstrap.%n");
+                console.printf(
+                        "Administrator promotion refused (DELETION_CANCELLATION_REQUIRED).%n"
+                                + "The account owner must cancel the pending/held deletion request first; "
+                                + "then retry administrator bootstrap.%n");
             }
-            throw exception; // Preserve unsuccessful ApplicationRunner/startup, never report bootstrap success.
+            throw exception; // Preserve unsuccessful ApplicationRunner/startup, never report
+            // bootstrap success.
         } finally {
             if (first != null) {
                 Arrays.fill(first, '\0');
@@ -92,7 +100,8 @@ public final class AdminBootstrapCommand implements ApplicationRunner {
             return null;
         }
         if (values.size() != 1 || values.getFirst().isBlank()) {
-            throw new AdminBootstrapException("INVALID_OPTION_" + name.toUpperCase(java.util.Locale.ROOT));
+            throw new AdminBootstrapException(
+                    "INVALID_OPTION_" + name.toUpperCase(java.util.Locale.ROOT));
         }
         return values.getFirst();
     }

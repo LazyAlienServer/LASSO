@@ -7,14 +7,13 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicInteger;
-
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
@@ -30,14 +29,18 @@ class SingleFlightLasSsoAuthorizedClientRefresherTest {
     void passesTheCurrentServletRequestAndResponseToTheAuthorizedClientManager() {
         var manager = mock(OAuth2AuthorizedClientManager.class);
         var captured = new AtomicReference<OAuth2AuthorizeRequest>();
-        when(manager.authorize(any())).thenAnswer(invocation -> {
-            captured.set(invocation.getArgument(0));
-            return mock(OAuth2AuthorizedClient.class);
-        });
-        var refresher = new SingleFlightLasSsoAuthorizedClientRefresher(
-                manager, new LasSsoClientProperties("las-sso", null));
-        var authentication = UsernamePasswordAuthenticationToken.authenticated(
-                "user-id", null, java.util.List.of());
+        when(manager.authorize(any()))
+                .thenAnswer(
+                        invocation -> {
+                            captured.set(invocation.getArgument(0));
+                            return mock(OAuth2AuthorizedClient.class);
+                        });
+        var refresher =
+                new SingleFlightLasSsoAuthorizedClientRefresher(
+                        manager, new LasSsoClientProperties("las-sso", null));
+        var authentication =
+                UsernamePasswordAuthenticationToken.authenticated(
+                        "user-id", null, java.util.List.of());
         var request = new MockHttpServletRequest();
         var response = new MockHttpServletResponse();
 
@@ -45,10 +48,10 @@ class SingleFlightLasSsoAuthorizedClientRefresherTest {
 
         assertThat(captured.get().getClientRegistrationId()).isEqualTo("las-sso");
         assertThat(captured.get().getPrincipal()).isSameAs(authentication);
-        HttpServletRequest capturedRequest = captured.get()
-                .getAttribute(HttpServletRequest.class.getName());
-        HttpServletResponse capturedResponse = captured.get()
-                .getAttribute(HttpServletResponse.class.getName());
+        HttpServletRequest capturedRequest =
+                captured.get().getAttribute(HttpServletRequest.class.getName());
+        HttpServletResponse capturedResponse =
+                captured.get().getAttribute(HttpServletResponse.class.getName());
         assertThat(capturedRequest).isSameAs(request);
         assertThat(capturedResponse).isSameAs(response);
     }
@@ -57,14 +60,18 @@ class SingleFlightLasSsoAuthorizedClientRefresherTest {
     void concurrentRequestsForTheSameSessionShareOneRefreshAttempt() throws Exception {
         var manager = mock(OAuth2AuthorizedClientManager.class);
         var bothRequestsHaveAKey = new CountDownLatch(2);
-        when(manager.authorize(any())).thenAnswer(invocation -> {
-            assertThat(bothRequestsHaveAKey.await(5, TimeUnit.SECONDS)).isTrue();
-            return mock(OAuth2AuthorizedClient.class);
-        });
-        var refresher = new SingleFlightLasSsoAuthorizedClientRefresher(
-                manager, new LasSsoClientProperties("las-sso", null));
-        var authentication = UsernamePasswordAuthenticationToken.authenticated(
-                "user-id", null, java.util.List.of());
+        when(manager.authorize(any()))
+                .thenAnswer(
+                        invocation -> {
+                            assertThat(bothRequestsHaveAKey.await(5, TimeUnit.SECONDS)).isTrue();
+                            return mock(OAuth2AuthorizedClient.class);
+                        });
+        var refresher =
+                new SingleFlightLasSsoAuthorizedClientRefresher(
+                        manager, new LasSsoClientProperties("las-sso", null));
+        var authentication =
+                UsernamePasswordAuthenticationToken.authenticated(
+                        "user-id", null, java.util.List.of());
         var session = new CoordinatedSession(bothRequestsHaveAKey);
         var firstRequest = new MockHttpServletRequest();
         firstRequest.setSession(session);
@@ -72,10 +79,20 @@ class SingleFlightLasSsoAuthorizedClientRefresherTest {
         secondRequest.setSession(session);
 
         try (var executor = Executors.newFixedThreadPool(2)) {
-            var first = executor.submit(() -> refresher.refresh(
-                    authentication, firstRequest, new MockHttpServletResponse()));
-            var second = executor.submit(() -> refresher.refresh(
-                    authentication, secondRequest, new MockHttpServletResponse()));
+            var first =
+                    executor.submit(
+                            () ->
+                                    refresher.refresh(
+                                            authentication,
+                                            firstRequest,
+                                            new MockHttpServletResponse()));
+            var second =
+                    executor.submit(
+                            () ->
+                                    refresher.refresh(
+                                            authentication,
+                                            secondRequest,
+                                            new MockHttpServletResponse()));
             first.get(10, TimeUnit.SECONDS);
             second.get(10, TimeUnit.SECONDS);
         }
@@ -88,26 +105,40 @@ class SingleFlightLasSsoAuthorizedClientRefresherTest {
         var manager = mock(OAuth2AuthorizedClientManager.class);
         var bothRefreshesEntered = new CountDownLatch(2);
         var calls = new AtomicInteger();
-        when(manager.authorize(any())).thenAnswer(invocation -> {
-            calls.incrementAndGet();
-            bothRefreshesEntered.countDown();
-            assertThat(bothRefreshesEntered.await(5, TimeUnit.SECONDS)).isTrue();
-            return mock(OAuth2AuthorizedClient.class);
-        });
-        var refresher = new SingleFlightLasSsoAuthorizedClientRefresher(
-                manager, new LasSsoClientProperties("las-sso", null));
-        var authentication = UsernamePasswordAuthenticationToken.authenticated(
-                "same-subject", null, java.util.List.of());
+        when(manager.authorize(any()))
+                .thenAnswer(
+                        invocation -> {
+                            calls.incrementAndGet();
+                            bothRefreshesEntered.countDown();
+                            assertThat(bothRefreshesEntered.await(5, TimeUnit.SECONDS)).isTrue();
+                            return mock(OAuth2AuthorizedClient.class);
+                        });
+        var refresher =
+                new SingleFlightLasSsoAuthorizedClientRefresher(
+                        manager, new LasSsoClientProperties("las-sso", null));
+        var authentication =
+                UsernamePasswordAuthenticationToken.authenticated(
+                        "same-subject", null, java.util.List.of());
         var firstRequest = new MockHttpServletRequest();
         firstRequest.setSession(new NamedSession("session-a"));
         var secondRequest = new MockHttpServletRequest();
         secondRequest.setSession(new NamedSession("session-b"));
 
         try (var executor = Executors.newFixedThreadPool(2)) {
-            var first = executor.submit(() -> refresher.refresh(
-                    authentication, firstRequest, new MockHttpServletResponse()));
-            var second = executor.submit(() -> refresher.refresh(
-                    authentication, secondRequest, new MockHttpServletResponse()));
+            var first =
+                    executor.submit(
+                            () ->
+                                    refresher.refresh(
+                                            authentication,
+                                            firstRequest,
+                                            new MockHttpServletResponse()));
+            var second =
+                    executor.submit(
+                            () ->
+                                    refresher.refresh(
+                                            authentication,
+                                            secondRequest,
+                                            new MockHttpServletResponse()));
             first.get(10, TimeUnit.SECONDS);
             second.get(10, TimeUnit.SECONDS);
         }

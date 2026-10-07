@@ -7,6 +7,10 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 
 @Configuration(proxyBeanMethods = false)
 @Profile("durable-revocation")
-@ConditionalOnProperty(prefix = "reference.revocation", name = "worker-enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(
+        prefix = "reference.revocation",
+        name = "worker-enabled",
+        havingValue = "true",
+        matchIfMissing = true)
 @EnableScheduling
-class RevocationSchedulingConfiguration { }
+class RevocationSchedulingConfiguration {}

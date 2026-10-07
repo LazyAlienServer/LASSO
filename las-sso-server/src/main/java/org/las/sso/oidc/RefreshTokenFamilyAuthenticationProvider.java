@@ -29,16 +29,19 @@ public final class RefreshTokenFamilyAuthenticationProvider implements Authentic
     }
 
     @Override
-    public Authentication authenticate(Authentication authentication) throws AuthenticationException {
+    public Authentication authenticate(Authentication authentication)
+            throws AuthenticationException {
         var refresh = (OAuth2RefreshTokenAuthenticationToken) authentication;
         final Object result;
         try {
-            result = transactions.execute(status -> {
-                if (!tokenFamilies.lockAndValidate(refresh.getRefreshToken())) {
-                    return DENIED;
-                }
-                return delegate.authenticate(authentication);
-            });
+            result =
+                    transactions.execute(
+                            status -> {
+                                if (!tokenFamilies.lockAndValidate(refresh.getRefreshToken())) {
+                                    return DENIED;
+                                }
+                                return delegate.authenticate(authentication);
+                            });
         } catch (OAuth2AuthenticationException rejected) {
             metrics.refresh(org.las.sso.observability.SsoMetrics.RefreshResult.REJECTED);
             throw rejected;

@@ -7,7 +7,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,7 +37,10 @@ public class AdminAuditQueryService {
         Cursor position = decodeCursor(cursor);
         OffsetDateTime fromTime = parseTime(from, "Invalid audit time range");
         OffsetDateTime toTime = parseTime(to, "Invalid audit time range");
-        List<AuditEvent> rows = jdbcClient.sql("""
+        List<AuditEvent> rows =
+                jdbcClient
+                        .sql(
+                                """
                 SELECT a.id, a.occurred_at, a.actor_user_id, a.action, a.target_type,
                        a.target_id, a.request_id, a.source_ip_prefix_hash, a.result,
                        a.reason,
@@ -67,29 +69,36 @@ public class AdminAuditQueryService {
                             CAST(:cursorTime AS timestamptz), CAST(:cursorId AS uuid)))
                  ORDER BY a.occurred_at DESC, a.id DESC
                  LIMIT :limit
-                """).param("action", action == null ? "" : action)
-                .param("targetId", targetId == null ? "" : targetId)
-                .param("fromTime", fromTime).param("toTime", toTime)
-                .param("cursorTime", position == null ? null : position.occurredAt().toString())
-                .param("cursorId", position == null ? null : position.id().toString())
-                .param("limit", limit + 1)
-                .query((rs, rowNum) -> new AuditEvent(
-                        rs.getObject("id", UUID.class),
-                        rs.getObject("occurred_at", OffsetDateTime.class),
-                        rs.getObject("actor_user_id", UUID.class),
-                        rs.getString("actor_username"),
-                        rs.getString("action"),
-                        rs.getString("target_type"),
-                        rs.getString("target_id"),
-                        rs.getObject("request_id", UUID.class),
-                        maskIp(rs.getBytes("source_ip_prefix_hash")),
-                        rs.getString("result"),
-                        rs.getString("reason"),
-                        whitelistedDetails(rs.getString("previous_status"),
-                                rs.getString("next_status"),
-                                rs.getString("issued_expires_at"),
-                                rs.getString("issued_previous_status"))))
-                .list();
+                """)
+                        .param("action", action == null ? "" : action)
+                        .param("targetId", targetId == null ? "" : targetId)
+                        .param("fromTime", fromTime)
+                        .param("toTime", toTime)
+                        .param(
+                                "cursorTime",
+                                position == null ? null : position.occurredAt().toString())
+                        .param("cursorId", position == null ? null : position.id().toString())
+                        .param("limit", limit + 1)
+                        .query(
+                                (rs, rowNum) ->
+                                        new AuditEvent(
+                                                rs.getObject("id", UUID.class),
+                                                rs.getObject("occurred_at", OffsetDateTime.class),
+                                                rs.getObject("actor_user_id", UUID.class),
+                                                rs.getString("actor_username"),
+                                                rs.getString("action"),
+                                                rs.getString("target_type"),
+                                                rs.getString("target_id"),
+                                                rs.getObject("request_id", UUID.class),
+                                                maskIp(rs.getBytes("source_ip_prefix_hash")),
+                                                rs.getString("result"),
+                                                rs.getString("reason"),
+                                                whitelistedDetails(
+                                                        rs.getString("previous_status"),
+                                                        rs.getString("next_status"),
+                                                        rs.getString("issued_expires_at"),
+                                                        rs.getString("issued_previous_status"))))
+                        .list();
         return auditPage(rows, limit);
     }
 
@@ -107,7 +116,10 @@ public class AdminAuditQueryService {
         OffsetDateTime fromTime = parseTime(from, "Invalid security event time range");
         OffsetDateTime toTime = parseTime(to, "Invalid security event time range");
         UUID userIdUuid = parseUserId(userId);
-        List<SecurityEvent> rows = jdbcClient.sql("""
+        List<SecurityEvent> rows =
+                jdbcClient
+                        .sql(
+                                """
                 SELECT s.id, s.occurred_at, s.user_id, s.event_type, s.severity,
                        s.request_id, s.source_ip_prefix_hash, s.client_id,
                        (SELECT un.username FROM usernames un
@@ -126,44 +138,47 @@ public class AdminAuditQueryService {
                             CAST(:cursorTime AS timestamptz), CAST(:cursorId AS uuid)))
                  ORDER BY s.occurred_at DESC, s.id DESC
                  LIMIT :limit
-                """).param("type", type == null ? "" : type)
-                .param("severity", severity == null ? "" : severity)
-                .param("userId", userIdUuid)
-                .param("fromTime", fromTime).param("toTime", toTime)
-                .param("cursorTime", position == null ? null : position.occurredAt().toString())
-                .param("cursorId", position == null ? null : position.id().toString())
-                .param("limit", limit + 1)
-                .query((rs, rowNum) -> new SecurityEvent(
-                        rs.getObject("id", UUID.class),
-                        rs.getObject("occurred_at", OffsetDateTime.class),
-                        rs.getObject("user_id", UUID.class),
-                        rs.getString("username"),
-                        rs.getString("event_type"),
-                        rs.getString("severity"),
-                        rs.getObject("request_id", UUID.class),
-                        maskIp(rs.getBytes("source_ip_prefix_hash")),
-                        rs.getString("client_id")))
-                .list();
+                """)
+                        .param("type", type == null ? "" : type)
+                        .param("severity", severity == null ? "" : severity)
+                        .param("userId", userIdUuid)
+                        .param("fromTime", fromTime)
+                        .param("toTime", toTime)
+                        .param(
+                                "cursorTime",
+                                position == null ? null : position.occurredAt().toString())
+                        .param("cursorId", position == null ? null : position.id().toString())
+                        .param("limit", limit + 1)
+                        .query(
+                                (rs, rowNum) ->
+                                        new SecurityEvent(
+                                                rs.getObject("id", UUID.class),
+                                                rs.getObject("occurred_at", OffsetDateTime.class),
+                                                rs.getObject("user_id", UUID.class),
+                                                rs.getString("username"),
+                                                rs.getString("event_type"),
+                                                rs.getString("severity"),
+                                                rs.getObject("request_id", UUID.class),
+                                                maskIp(rs.getBytes("source_ip_prefix_hash")),
+                                                rs.getString("client_id")))
+                        .list();
         return securityPage(rows, limit);
     }
 
     private static AuditPage auditPage(List<AuditEvent> rows, int limit) {
         boolean hasMore = rows.size() > limit;
         List<AuditEvent> items = hasMore ? List.copyOf(rows.subList(0, limit)) : List.copyOf(rows);
-        String nextCursor = hasMore
-                ? encodeCursor(items.getLast().occurredAt(), items.getLast().id())
-                : null;
+        String nextCursor =
+                hasMore ? encodeCursor(items.getLast().occurredAt(), items.getLast().id()) : null;
         return new AuditPage(items, nextCursor);
     }
 
     private static SecurityEventPage securityPage(List<SecurityEvent> rows, int limit) {
         boolean hasMore = rows.size() > limit;
-        List<SecurityEvent> items = hasMore
-                ? List.copyOf(rows.subList(0, limit))
-                : List.copyOf(rows);
-        String nextCursor = hasMore
-                ? encodeCursor(items.getLast().occurredAt(), items.getLast().id())
-                : null;
+        List<SecurityEvent> items =
+                hasMore ? List.copyOf(rows.subList(0, limit)) : List.copyOf(rows);
+        String nextCursor =
+                hasMore ? encodeCursor(items.getLast().occurredAt(), items.getLast().id()) : null;
         return new SecurityEventPage(items, nextCursor);
     }
 
@@ -262,8 +277,7 @@ public class AdminAuditQueryService {
             String ipPrefix,
             String result,
             String reason,
-            Map<String, String> details) {
-    }
+            Map<String, String> details) {}
 
     public record AuditPage(List<AuditEvent> items, String nextCursor) {
         public AuditPage {
@@ -280,8 +294,7 @@ public class AdminAuditQueryService {
             String severity,
             UUID requestId,
             String ipPrefix,
-            String clientId) {
-    }
+            String clientId) {}
 
     public record SecurityEventPage(List<SecurityEvent> items, String nextCursor) {
         public SecurityEventPage {
@@ -289,6 +302,5 @@ public class AdminAuditQueryService {
         }
     }
 
-    record Cursor(OffsetDateTime occurredAt, UUID id) {
-    }
+    record Cursor(OffsetDateTime occurredAt, UUID id) {}
 }

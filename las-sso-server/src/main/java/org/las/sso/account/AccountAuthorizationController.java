@@ -1,10 +1,8 @@
 package org.las.sso.account;
 
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 import java.util.UUID;
-
-import jakarta.servlet.http.HttpServletRequest;
-
 import org.las.sso.api.RequestIdFilter;
 import org.las.sso.identity.LasUserPrincipal;
 import org.las.sso.security.RecentAuthenticationException;
@@ -49,8 +47,7 @@ public final class AccountAuthorizationController {
             @PathVariable String clientId,
             HttpServletRequest request) {
         sameOriginVerifier.verify(request);
-        authorizations.revoke(
-                principal(authentication).userId(), clientId, requestId(request));
+        authorizations.revoke(principal(authentication).userId(), clientId, requestId(request));
         return ResponseEntity.noContent().build();
     }
 
@@ -66,6 +63,7 @@ public final class AccountAuthorizationController {
     private static UUID requestId(HttpServletRequest request) {
         Object requestId = request.getAttribute(RequestIdFilter.ATTRIBUTE);
         if (requestId instanceof UUID value) return value;
-        throw new IllegalStateException("Request ID filter must run before authorization operations");
+        throw new IllegalStateException(
+                "Request ID filter must run before authorization operations");
     }
 }

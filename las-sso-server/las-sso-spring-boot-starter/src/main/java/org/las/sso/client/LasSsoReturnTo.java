@@ -1,10 +1,9 @@
 package org.las.sso.client;
 
+import jakarta.servlet.http.HttpServletRequest;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Optional;
-
-import jakarta.servlet.http.HttpServletRequest;
 
 /** Application-local return target, exposed only after verified login and session registration. */
 public final class LasSsoReturnTo {
@@ -13,7 +12,7 @@ public final class LasSsoReturnTo {
     static final String CONSUMED_ATTRIBUTE = LasSsoReturnTo.class.getName() + ".consumed";
     private static final String VERIFIED_ATTRIBUTE = LasSsoReturnTo.class.getName() + ".verified";
 
-    private LasSsoReturnTo() { }
+    private LasSsoReturnTo() {}
 
     /** Available to the application's success delegate; never trusts callback query parameters. */
     public static Optional<String> target(HttpServletRequest request) {
@@ -23,7 +22,8 @@ public final class LasSsoReturnTo {
 
     static void verified(HttpServletRequest request) {
         Object value = request.getAttribute(CONSUMED_ATTRIBUTE);
-        if (value instanceof String target) request.setAttribute(VERIFIED_ATTRIBUTE, validate(target));
+        if (value instanceof String target)
+            request.setAttribute(VERIFIED_ATTRIBUTE, validate(target));
         request.removeAttribute(CONSUMED_ATTRIBUTE);
     }
 
@@ -34,10 +34,17 @@ public final class LasSsoReturnTo {
         return validate(values[0]);
     }
 
-    /** Conservative local URI policy: one leading slash, no fragment, dot segments or nested path encoding. */
+    /**
+     * Conservative local URI policy: one leading slash, no fragment, dot segments or nested path
+     * encoding.
+     */
     static String validate(String value) {
-        if (value == null || value.isEmpty() || value.length() > 2048
-                || !value.startsWith("/") || value.startsWith("//") || unsafeCharacters(value)) {
+        if (value == null
+                || value.isEmpty()
+                || value.length() > 2048
+                || !value.startsWith("/")
+                || value.startsWith("//")
+                || unsafeCharacters(value)) {
             throw new IllegalArgumentException("Invalid return target");
         }
         try {
@@ -47,9 +54,14 @@ public final class LasSsoReturnTo {
             }
             String path = uri.getPath();
             String query = uri.getQuery();
-            if (path == null || !path.startsWith("/") || path.startsWith("//") || unsafeCharacters(path)
-                    || path.indexOf('%') >= 0 || path.indexOf(';') >= 0
-                    || path.indexOf('?') >= 0 || path.indexOf('#') >= 0
+            if (path == null
+                    || !path.startsWith("/")
+                    || path.startsWith("//")
+                    || unsafeCharacters(path)
+                    || path.indexOf('%') >= 0
+                    || path.indexOf(';') >= 0
+                    || path.indexOf('?') >= 0
+                    || path.indexOf('#') >= 0
                     || (query != null && (unsafeCharacters(query) || query.indexOf('%') >= 0))) {
                 throw new IllegalArgumentException("Invalid return target");
             }
@@ -58,7 +70,8 @@ public final class LasSsoReturnTo {
                     throw new IllegalArgumentException("Invalid return target");
                 }
             }
-            // Encoded separators in the path can acquire new structure after another proxy/router decode.
+            // Encoded separators in the path can acquire new structure after another proxy/router
+            // decode.
             String rawPath = uri.getRawPath().toLowerCase(java.util.Locale.ROOT);
             if (rawPath.contains("%2f") || rawPath.contains("%5c")) {
                 throw new IllegalArgumentException("Invalid return target");
@@ -70,7 +83,11 @@ public final class LasSsoReturnTo {
     }
 
     private static boolean unsafeCharacters(String value) {
-        return value.chars().anyMatch(character -> character == '\\'
-                || Character.isISOControl(character) || Character.isWhitespace(character));
+        return value.chars()
+                .anyMatch(
+                        character ->
+                                character == '\\'
+                                        || Character.isISOControl(character)
+                                        || Character.isWhitespace(character));
     }
 }

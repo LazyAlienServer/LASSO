@@ -4,7 +4,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
-
 import org.las.sso.identity.LasUserPrincipal;
 import org.las.sso.security.PasswordReauthenticationLimiter;
 import org.las.sso.security.RecentAuthenticationException;
@@ -61,8 +60,7 @@ public final class AccountSecurityController {
 
     @PostMapping("/recovery-codes/rotate")
     ResponseEntity<RecoveryCodeRotationService.RotationResult> rotateRecoveryCodes(
-            Authentication authentication,
-            HttpServletRequest request) {
+            Authentication authentication, HttpServletRequest request) {
         sameOriginVerifier.verify(request);
         LasUserPrincipal principal = principal(authentication);
         if (!recentAuthentication.isRecent(request)) {
@@ -82,7 +80,5 @@ public final class AccountSecurityController {
         return principal;
     }
 
-    public record ReauthenticationRequest(
-            @NotBlank @Size(max = 512) String password) {
-    }
+    public record ReauthenticationRequest(@NotBlank @Size(max = 512) String password) {}
 }

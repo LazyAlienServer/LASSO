@@ -6,9 +6,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import java.util.UUID;
 import java.net.URI;
-
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.las.sso.account.AccountRegistrationService;
 import org.las.sso.account.DeletionRequestService;
@@ -24,31 +23,24 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
-@SpringBootTest(properties = {
-        "las.sso.scheduling.enabled=false",
-        "spring.session.jdbc.cleanup-cron=-"
-})
+@SpringBootTest(
+        properties = {"las.sso.scheduling.enabled=false", "spring.session.jdbc.cleanup-cron=-"})
 @ActiveProfiles("local")
 @AutoConfigureMockMvc
 @Testcontainers(disabledWithoutDocker = true)
 class ServiceAccessEligibilityIntegrationTest {
 
-    @Container
-    @ServiceConnection
+    @Container @ServiceConnection
     static final PostgreSQLContainer<?> POSTGRES =
             new PostgreSQLContainer<>("postgres:18.4-alpine");
 
-    @Autowired
-    AccountRegistrationService registrationService;
+    @Autowired AccountRegistrationService registrationService;
 
-    @Autowired
-    DeletionRequestService deletions;
+    @Autowired DeletionRequestService deletions;
 
-    @Autowired
-    AdminUserManagementService users;
+    @Autowired AdminUserManagementService users;
 
-    @Autowired
-    MockMvc mockMvc;
+    @Autowired MockMvc mockMvc;
 
     @Test
     void allowsActiveSubjectAndReturnsNoStoreVersionedResponse() throws Exception {
@@ -89,12 +81,21 @@ class ServiceAccessEligibilityIntegrationTest {
     void encodedInternalPathCannotBypassFirstPartyAuthentication() throws Exception {
         var account = register("EncPath");
 
-        mockMvc.perform(get(URI.create("/internal/v1/%70rincipals/" + account.userId() + "/service-access")))
+        mockMvc.perform(
+                        get(
+                                URI.create(
+                                        "/internal/v1/%70rincipals/"
+                                                + account.userId()
+                                                + "/service-access")))
                 .andExpect(status().isUnauthorized())
                 .andExpect(header().string("WWW-Authenticate", "Basic realm=\"LAS SSO internal\""));
 
-        mockMvc.perform(get(URI.create("/internal/v1/%70rincipals/" + account.userId() + "/service-access"))
-                        .with(httpBasic("laslog-bff", "laslog-local-only")))
+        mockMvc.perform(
+                        get(URI.create(
+                                        "/internal/v1/%70rincipals/"
+                                                + account.userId()
+                                                + "/service-access"))
+                                .with(httpBasic("laslog-bff", "laslog-local-only")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.subject").value(account.userId().toString()))
                 .andExpect(jsonPath("$.decision").value("ALLOWED"));
@@ -142,14 +143,12 @@ class ServiceAccessEligibilityIntegrationTest {
     private AccountRegistrationService.RegistrationResult register(String prefix) {
         String suffix = UUID.randomUUID().toString().replace("-", "").substring(0, 8);
         return registrationService.register(
-                prefix + suffix,
-                prefix + " Display",
-                "correct horse battery staple " + suffix);
+                prefix + suffix, prefix + " Display", "correct horse battery staple " + suffix);
     }
 
     private ResultActions query(UUID subject) throws Exception {
-        return mockMvc.perform(get(path(subject))
-                .with(httpBasic("laslog-bff", "laslog-local-only")));
+        return mockMvc.perform(
+                get(path(subject)).with(httpBasic("laslog-bff", "laslog-local-only")));
     }
 
     private static String path(UUID subject) {

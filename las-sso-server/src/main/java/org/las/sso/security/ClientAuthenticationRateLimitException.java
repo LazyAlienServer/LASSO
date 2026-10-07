@@ -1,7 +1,6 @@
 package org.las.sso.security;
 
 import java.time.OffsetDateTime;
-
 import org.springframework.security.core.AuthenticationException;
 
 public final class ClientAuthenticationRateLimitException extends AuthenticationException {

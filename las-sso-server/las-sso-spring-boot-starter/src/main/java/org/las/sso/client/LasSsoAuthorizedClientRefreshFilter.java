@@ -1,12 +1,11 @@
 package org.las.sso.client;
 
-import java.io.IOException;
-import java.time.Clock;
-
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.time.Clock;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClient;
 import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
@@ -43,7 +42,12 @@ public final class LasSsoAuthorizedClientRefreshFilter extends OncePerRequestFil
             LasSsoAuthorizedClientRefresher refresher,
             OAuth2AuthorizedClientRepository authorizedClients,
             Clock clock) {
-        this(properties, refresher, authorizedClients, clock, new DefaultLasSsoClientErrorHandler());
+        this(
+                properties,
+                refresher,
+                authorizedClients,
+                clock,
+                new DefaultLasSsoClientErrorHandler());
     }
 
     private LasSsoAuthorizedClientRefreshFilter(
@@ -61,12 +65,13 @@ public final class LasSsoAuthorizedClientRefreshFilter extends OncePerRequestFil
 
     @Override
     protected void doFilterInternal(
-            HttpServletRequest request,
-            HttpServletResponse response,
-            FilterChain filterChain) throws ServletException, IOException {
+            HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
+            throws ServletException, IOException {
         var authentication = SecurityContextHolder.getContext().getAuthentication();
         if (!(authentication instanceof OAuth2AuthenticationToken oauth2)
-                || !properties.registrationId().equals(oauth2.getAuthorizedClientRegistrationId())) {
+                || !properties
+                        .registrationId()
+                        .equals(oauth2.getAuthorizedClientRegistrationId())) {
             filterChain.doFilter(request, response);
             return;
         }
@@ -83,8 +88,9 @@ public final class LasSsoAuthorizedClientRefreshFilter extends OncePerRequestFil
 
         try {
             refresher.refresh(authentication, request, response);
-            OAuth2AuthorizedClient authorizedClient = authorizedClients.loadAuthorizedClient(
-                    properties.registrationId(), oauth2, request);
+            OAuth2AuthorizedClient authorizedClient =
+                    authorizedClients.loadAuthorizedClient(
+                            properties.registrationId(), oauth2, request);
             requireFreshAccessToken(authorizedClient);
             filterChain.doFilter(request, response);
         } catch (OAuth2AuthorizationException exception) {
@@ -129,8 +135,12 @@ public final class LasSsoAuthorizedClientRefreshFilter extends OncePerRequestFil
 
     private static boolean isTerminalAuthorizationFailure(OAuth2AuthorizationException exception) {
         return switch (exception.getError().getErrorCode()) {
-            case "invalid_grant", "invalid_token", "unauthorized_client", "authorized_client_missing",
-                    "authorized_client_expired" -> true;
+            case "invalid_grant",
+                    "invalid_token",
+                    "unauthorized_client",
+                    "authorized_client_missing",
+                    "authorized_client_expired" ->
+                    true;
             default -> false;
         };
     }
@@ -140,11 +150,11 @@ public final class LasSsoAuthorizedClientRefreshFilter extends OncePerRequestFil
                 || authorizedClient.getAccessToken() == null
                 || authorizedClient.getAccessToken().getExpiresAt() == null
                 || !authorizedClient.getAccessToken().getExpiresAt().isAfter(clock.instant())) {
-            throw new OAuth2AuthorizationException(new OAuth2Error(
-                    "authorized_client_expired",
-                    "The Access Token freshness boundary has expired.",
-                    null));
+            throw new OAuth2AuthorizationException(
+                    new OAuth2Error(
+                            "authorized_client_expired",
+                            "The Access Token freshness boundary has expired.",
+                            null));
         }
     }
-
 }

@@ -4,7 +4,6 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
-
 import org.las.sso.identity.UuidV7Generator;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -28,7 +27,10 @@ public class AdminRecoveryExpiryJob {
     @Transactional
     public int expire() {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
-        List<ExpiredCredential> expired = jdbcClient.sql("""
+        List<ExpiredCredential> expired =
+                jdbcClient
+                        .sql(
+                                """
                 WITH selected AS (
                     SELECT id
                       FROM admin_recovery_credentials
@@ -43,39 +45,53 @@ public class AdminRecoveryExpiryJob {
                  WHERE credential.id = selected.id
                 RETURNING credential.id, credential.target_user_id,
                           credential.issued_by_user_id
-                """).param("now", now).param("limit", BATCH_SIZE)
-                .query((rs, rowNum) -> new ExpiredCredential(
-                        rs.getObject("id", UUID.class),
-                        rs.getObject("target_user_id", UUID.class),
-                        rs.getObject("issued_by_user_id", UUID.class)))
-                .list();
+                """)
+                        .param("now", now)
+                        .param("limit", BATCH_SIZE)
+                        .query(
+                                (rs, rowNum) ->
+                                        new ExpiredCredential(
+                                                rs.getObject("id", UUID.class),
+                                                rs.getObject("target_user_id", UUID.class),
+                                                rs.getObject("issued_by_user_id", UUID.class)))
+                        .list();
         for (ExpiredCredential credential : expired) {
             UUID requestId = uuidGenerator.generate();
-            jdbcClient.sql("""
+            jdbcClient
+                    .sql(
+                            """
                     INSERT INTO admin_audit_events
                         (id, occurred_at, actor_user_id, action, target_type, target_id,
                          request_id, result, details_json)
                     VALUES (:id, :now, :actorUserId, 'ADMIN_RECOVERY_CREDENTIAL_EXPIRED',
                             'USER', :targetId, :requestId, 'EXPIRED',
                             jsonb_build_object('credentialId', :credentialId))
-                    """).param("id", uuidGenerator.generate()).param("now", now)
+                    """)
+                    .param("id", uuidGenerator.generate())
+                    .param("now", now)
                     .param("actorUserId", credential.issuedByUserId())
                     .param("targetId", credential.targetUserId().toString())
                     .param("requestId", requestId)
-                    .param("credentialId", credential.id().toString()).update();
-            jdbcClient.sql("""
+                    .param("credentialId", credential.id().toString())
+                    .update();
+            jdbcClient
+                    .sql(
+                            """
                     INSERT INTO security_events
                         (id, occurred_at, user_id, event_type, severity, request_id, details_json)
                     VALUES (:id, :now, :userId, 'ADMIN_RECOVERY_CREDENTIAL_EXPIRED',
                             'INFO', :requestId,
                             jsonb_build_object('credentialId', :credentialId))
-                    """).param("id", uuidGenerator.generate()).param("now", now)
-                    .param("userId", credential.targetUserId()).param("requestId", requestId)
-                    .param("credentialId", credential.id().toString()).update();
+                    """)
+                    .param("id", uuidGenerator.generate())
+                    .param("now", now)
+                    .param("userId", credential.targetUserId())
+                    .param("requestId", requestId)
+                    .param("credentialId", credential.id().toString())
+                    .update();
         }
         return expired.size();
     }
 
-    private record ExpiredCredential(UUID id, UUID targetUserId, UUID issuedByUserId) {
-    }
+    private record ExpiredCredential(UUID id, UUID targetUserId, UUID issuedByUserId) {}
 }

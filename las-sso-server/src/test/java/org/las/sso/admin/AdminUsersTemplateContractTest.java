@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-
 import org.junit.jupiter.api.Test;
 
 class AdminUsersTemplateContractTest {
@@ -30,7 +29,8 @@ class AdminUsersTemplateContractTest {
             String stylesheet = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
             assertThat(stylesheet)
                     .contains(".admin-list-panel { display: flex; flex-direction: column; }")
-                    .contains(".admin-pagination.user-pagination { flex: 0 0 auto; margin-top: auto;");
+                    .contains(
+                            ".admin-pagination.user-pagination { flex: 0 0 auto; margin-top: auto;");
         }
     }
 }

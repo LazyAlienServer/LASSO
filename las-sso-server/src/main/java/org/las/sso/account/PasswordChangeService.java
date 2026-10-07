@@ -4,11 +4,9 @@ import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.UUID;
-
 import org.las.sso.access.ServiceAccessEligibilityService;
 import org.las.sso.identity.UuidV7Generator;
 import org.las.sso.logout.BackChannelLogoutOutbox;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -34,8 +32,14 @@ public class PasswordChangeService {
             UuidV7Generator uuidGenerator,
             BackChannelLogoutOutbox backChannelLogout,
             ServiceAccessEligibilityService serviceAccess) {
-        this(jdbcClient, passwordEncoder, passwordPolicy, uuidGenerator,
-                backChannelLogout, serviceAccess, Clock.systemUTC());
+        this(
+                jdbcClient,
+                passwordEncoder,
+                passwordPolicy,
+                uuidGenerator,
+                backChannelLogout,
+                serviceAccess,
+                Clock.systemUTC());
     }
 
     PasswordChangeService(
@@ -57,29 +61,38 @@ public class PasswordChangeService {
 
     @Transactional
     public void changePassword(
-            UUID userId,
-            boolean requiredChange,
-            String currentCredential,
-            String newPassword) {
+            UUID userId, boolean requiredChange, String currentCredential, String newPassword) {
         // The user row is the common serialization boundary for credential and recovery operations.
-        jdbcClient.sql("SELECT id FROM users WHERE id = :userId AND account_status = 'ACTIVE' FOR UPDATE")
-                .param("userId", userId).query(UUID.class).optional()
+        jdbcClient
+                .sql(
+                        "SELECT id FROM users WHERE id = :userId AND account_status = 'ACTIVE' FOR UPDATE")
+                .param("userId", userId)
+                .query(UUID.class)
+                .optional()
                 .orElseThrow(() -> new PasswordChangeException("CURRENT_PASSWORD_INVALID"));
-        Credential credential = jdbcClient.sql("""
+        Credential credential =
+                jdbcClient
+                        .sql(
+                                """
                 SELECT un.username, pc.password_hash, pc.state, pc.temporary_expires_at
                   FROM users u
                   JOIN usernames un ON un.user_id = u.id AND un.valid_to IS NULL
                   JOIN password_credentials pc ON pc.user_id = u.id
                  WHERE u.id = :userId AND u.account_status = 'ACTIVE'
                   FOR UPDATE OF un, pc
-                """).param("userId", userId)
-                .query((rs, rowNum) -> new Credential(
-                        rs.getString("username"),
-                        rs.getString("password_hash"),
-                        rs.getString("state"),
-                        rs.getObject("temporary_expires_at", OffsetDateTime.class)))
-                .optional()
-                .orElseThrow(() -> new PasswordChangeException("CURRENT_PASSWORD_INVALID"));
+                """)
+                        .param("userId", userId)
+                        .query(
+                                (rs, rowNum) ->
+                                        new Credential(
+                                                rs.getString("username"),
+                                                rs.getString("password_hash"),
+                                                rs.getString("state"),
+                                                rs.getObject(
+                                                        "temporary_expires_at",
+                                                        OffsetDateTime.class)))
+                        .optional()
+                        .orElseThrow(() -> new PasswordChangeException("CURRENT_PASSWORD_INVALID"));
 
         OffsetDateTime now = now();
         if (requiredChange) {
@@ -100,7 +113,9 @@ public class PasswordChangeService {
             throw new PasswordChangeException("NEW_PASSWORD_REUSED");
         }
 
-        jdbcClient.sql("""
+        jdbcClient
+                .sql(
+                        """
                 UPDATE password_credentials
                    SET password_hash = :passwordHash,
                        state = 'ACTIVE',
@@ -111,37 +126,68 @@ public class PasswordChangeService {
                        last_failed_at = NULL,
                        locked_until = NULL
                  WHERE user_id = :userId
-                """).param("passwordHash", passwordEncoder.encode(newPassword))
-                .param("now", now).param("userId", userId).update();
-        jdbcClient.sql("""
+                """)
+                .param("passwordHash", passwordEncoder.encode(newPassword))
+                .param("now", now)
+                .param("userId", userId)
+                .update();
+        jdbcClient
+                .sql(
+                        """
                 UPDATE recovery_codes SET revoked_at = :now
                  WHERE user_id = :userId AND revoked_at IS NULL
-                """).param("now", now).param("userId", userId).update();
-        jdbcClient.sql("""
+                """)
+                .param("now", now)
+                .param("userId", userId)
+                .update();
+        jdbcClient
+                .sql(
+                        """
                 UPDATE recovery_sessions SET consumed_at = :now
                  WHERE user_id = :userId AND consumed_at IS NULL
-                """).param("now", now).param("userId", userId).update();
+                """)
+                .param("now", now)
+                .param("userId", userId)
+                .update();
         if ("PASSWORD_CHANGE_REQUIRED".equals(credential.state())) {
             serviceAccess.advanceStateVersion(userId, now);
         }
-        jdbcClient.sql("""
+        jdbcClient
+                .sql(
+                        """
                 UPDATE admin_recovery_credentials SET revoked_at = :now
                  WHERE target_user_id = :userId AND revoked_at IS NULL
-                """).param("now", now).param("userId", userId).update();
-        jdbcClient.sql("""
+                """)
+                .param("now", now)
+                .param("userId", userId)
+                .update();
+        jdbcClient
+                .sql(
+                        """
                 UPDATE user_sessions
                    SET status = 'REVOKED', revoked_at = :now, revoke_reason = 'PASSWORD_CHANGED'
                  WHERE user_id = :userId AND status = 'ACTIVE'
-                """).param("now", now).param("userId", userId).update();
+                """)
+                .param("now", now)
+                .param("userId", userId)
+                .update();
         backChannelLogout.enqueueForUser(userId, "PASSWORD_CHANGED", now);
-        jdbcClient.sql("DELETE FROM oauth2_authorization WHERE principal_name = :principalName")
-                .param("principalName", userId.toString()).update();
-        jdbcClient.sql("""
+        jdbcClient
+                .sql("DELETE FROM oauth2_authorization WHERE principal_name = :principalName")
+                .param("principalName", userId.toString())
+                .update();
+        jdbcClient
+                .sql(
+                        """
                 INSERT INTO security_events
                     (id, occurred_at, user_id, event_type, severity, request_id, details_json)
                 VALUES (:id, :now, :userId, 'PASSWORD_CHANGED', 'INFO', :requestId, '{}'::jsonb)
-                """).param("id", uuidGenerator.generate()).param("now", now)
-                .param("userId", userId).param("requestId", uuidGenerator.generate()).update();
+                """)
+                .param("id", uuidGenerator.generate())
+                .param("now", now)
+                .param("userId", userId)
+                .param("requestId", uuidGenerator.generate())
+                .update();
     }
 
     private OffsetDateTime now() {
@@ -152,6 +198,5 @@ public class PasswordChangeService {
             String username,
             String passwordHash,
             String state,
-            OffsetDateTime temporaryExpiresAt) {
-    }
+            OffsetDateTime temporaryExpiresAt) {}
 }

@@ -1,8 +1,7 @@
 package org.las.sso.client;
 
-import java.time.Clock;
-
 import jakarta.servlet.http.HttpServletRequest;
+import java.time.Clock;
 import org.springframework.security.oauth2.client.web.OAuth2AuthorizationRequestResolver;
 import org.springframework.security.oauth2.core.OAuth2AuthorizationException;
 import org.springframework.security.oauth2.core.OAuth2Error;
@@ -11,7 +10,8 @@ import org.springframework.security.oauth2.core.endpoint.OAuth2AuthorizationRequ
 /** Adds local-only transaction attributes to the standard PKCE resolver, never OP parameters. */
 final class LasSsoAuthorizationRequestResolver implements OAuth2AuthorizationRequestResolver {
 
-    static final String CREATED_ATTRIBUTE = LasSsoAuthorizationRequestResolver.class.getName() + ".created";
+    static final String CREATED_ATTRIBUTE =
+            LasSsoAuthorizationRequestResolver.class.getName() + ".created";
     private final OAuth2AuthorizationRequestResolver delegate;
     private final Clock clock;
 
@@ -30,16 +30,22 @@ final class LasSsoAuthorizationRequestResolver implements OAuth2AuthorizationReq
         return attach(request, delegate.resolve(request, registrationId));
     }
 
-    private OAuth2AuthorizationRequest attach(HttpServletRequest request, OAuth2AuthorizationRequest authorization) {
+    private OAuth2AuthorizationRequest attach(
+            HttpServletRequest request, OAuth2AuthorizationRequest authorization) {
         if (authorization == null) return null;
         try {
             String target = LasSsoReturnTo.parameter(request);
-            return OAuth2AuthorizationRequest.from(authorization).attributes(attributes -> {
-                attributes.put(CREATED_ATTRIBUTE, clock.instant());
-                if (target != null) attributes.put(LasSsoReturnTo.AUTH_ATTRIBUTE, target);
-            }).build();
+            return OAuth2AuthorizationRequest.from(authorization)
+                    .attributes(
+                            attributes -> {
+                                attributes.put(CREATED_ATTRIBUTE, clock.instant());
+                                if (target != null)
+                                    attributes.put(LasSsoReturnTo.AUTH_ATTRIBUTE, target);
+                            })
+                    .build();
         } catch (IllegalArgumentException exception) {
-            throw new OAuth2AuthorizationException(new OAuth2Error("invalid_request", "Invalid return target", null));
+            throw new OAuth2AuthorizationException(
+                    new OAuth2Error("invalid_request", "Invalid return target", null));
         }
     }
 }

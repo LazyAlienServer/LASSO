@@ -3,7 +3,6 @@ package org.las.sso.security;
 import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -42,10 +41,12 @@ public class PostgresTransientStateCleanup {
         if (batchSize <= 0 || batchSize > 10_000) {
             throw new IllegalArgumentException("Cleanup batch size must be between 1 and 10000");
         }
-        boolean lockAcquired = jdbcClient.sql("SELECT pg_try_advisory_xact_lock(:lockId)")
-                .param("lockId", ADVISORY_LOCK_ID)
-                .query(Boolean.class)
-                .single();
+        boolean lockAcquired =
+                jdbcClient
+                        .sql("SELECT pg_try_advisory_xact_lock(:lockId)")
+                        .param("lockId", ADVISORY_LOCK_ID)
+                        .query(Boolean.class)
+                        .single();
         if (!lockAcquired) {
             return 0;
         }
@@ -59,8 +60,10 @@ public class PostgresTransientStateCleanup {
                 + deleteExpired("oidc_password_challenges", "expires_at", now, batchSize);
     }
 
-    private int deleteExpired(String table, String expiryColumn, OffsetDateTime now, int batchSize) {
-        String sql = """
+    private int deleteExpired(
+            String table, String expiryColumn, OffsetDateTime now, int batchSize) {
+        String sql =
+                """
                 WITH expired AS (
                     SELECT ctid
                       FROM %s
@@ -71,10 +74,8 @@ public class PostgresTransientStateCleanup {
                 DELETE FROM %s target
                  USING expired
                  WHERE target.ctid = expired.ctid
-                """.formatted(table, expiryColumn, expiryColumn, table);
-        return jdbcClient.sql(sql)
-                .param("now", now)
-                .param("batchSize", batchSize)
-                .update();
+                """
+                        .formatted(table, expiryColumn, expiryColumn, table);
+        return jdbcClient.sql(sql).param("now", now).param("batchSize", batchSize).update();
     }
 }

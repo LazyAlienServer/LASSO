@@ -11,7 +11,6 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
-
 import org.junit.jupiter.api.Test;
 import org.las.sso.identity.LasUserPrincipal;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -34,43 +33,57 @@ class AuthorizationServerConfigurationClaimsTest {
 
     @Test
     void idTokenReceivesAuthenticationClaimsAndProfileOnlyWhenApproved() {
-        JwtClaimsSet withoutProfile = customize(
-                new OAuth2TokenType(OidcParameterNames.ID_TOKEN), Set.of("openid"));
-        JwtClaimsSet withProfile = customize(
-                new OAuth2TokenType(OidcParameterNames.ID_TOKEN), Set.of("openid", "profile"));
+        JwtClaimsSet withoutProfile =
+                customize(new OAuth2TokenType(OidcParameterNames.ID_TOKEN), Set.of("openid"));
+        JwtClaimsSet withProfile =
+                customize(
+                        new OAuth2TokenType(OidcParameterNames.ID_TOKEN),
+                        Set.of("openid", "profile"));
 
         assertThat((Object) withoutProfile.getClaim("acr")).isEqualTo("urn:las:loa:1");
         assertThat(withoutProfile.<List<String>>getClaim("amr")).containsExactly("pwd");
         assertThat(withoutProfile.getClaims()).doesNotContainKey("preferred_username");
-        assertThat((Object) withProfile.getClaim("preferred_username")).isEqualTo("CaseSensitiveUser");
+        assertThat((Object) withProfile.getClaim("preferred_username"))
+                .isEqualTo("CaseSensitiveUser");
     }
 
     private static JwtClaimsSet customize(OAuth2TokenType tokenType, Set<String> scopes) {
         var context = mock(JwtEncodingContext.class);
-        var claims = JwtClaimsSet.builder()
-                .issuedAt(Instant.parse("2026-08-20T00:00:00Z"))
-                .expiresAt(Instant.parse("2026-08-20T00:15:00Z"));
-        var principal = new LasUserPrincipal(
-                UUID.fromString("019c10a5-b800-7000-8000-000000000001"),
-                "CaseSensitiveUser", "{noop}irrelevant", true, List.of());
-        var authentication = UsernamePasswordAuthenticationToken.authenticated(
-                principal, null, List.of());
+        var claims =
+                JwtClaimsSet.builder()
+                        .issuedAt(Instant.parse("2026-08-20T00:00:00Z"))
+                        .expiresAt(Instant.parse("2026-08-20T00:15:00Z"));
+        var principal =
+                new LasUserPrincipal(
+                        UUID.fromString("019c10a5-b800-7000-8000-000000000001"),
+                        "CaseSensitiveUser",
+                        "{noop}irrelevant",
+                        true,
+                        List.of());
+        var authentication =
+                UsernamePasswordAuthenticationToken.authenticated(principal, null, List.of());
 
         when(context.getClaims()).thenReturn(claims);
         when(context.getTokenType()).thenReturn(tokenType);
         when(context.getAuthorizedScopes()).thenReturn(scopes);
         when(context.getPrincipal()).thenReturn(authentication);
-        when(context.getRegisteredClient()).thenReturn(RegisteredClient.withId("registered-id")
-                .clientId("test-client")
-                .authorizationGrantType(org.springframework.security.oauth2.core.AuthorizationGrantType.AUTHORIZATION_CODE)
-                .redirectUri("https://client.example/callback")
-                .scope("openid")
-                .build());
+        when(context.getRegisteredClient())
+                .thenReturn(
+                        RegisteredClient.withId("registered-id")
+                                .clientId("test-client")
+                                .authorizationGrantType(
+                                        org.springframework.security.oauth2.core
+                                                .AuthorizationGrantType.AUTHORIZATION_CODE)
+                                .redirectUri("https://client.example/callback")
+                                .scope("openid")
+                                .build());
 
         JdbcClient jdbcClient = mock(JdbcClient.class, RETURNS_DEEP_STUBS);
-        when(jdbcClient.sql(anyString()).param(anyString(), any())
-                .query(String.class).list()).thenReturn(List.of("urn:las:resource:test"));
-        new AuthorizationServerConfiguration().identityClaimsCustomizer(jdbcClient).customize(context);
+        when(jdbcClient.sql(anyString()).param(anyString(), any()).query(String.class).list())
+                .thenReturn(List.of("urn:las:resource:test"));
+        new AuthorizationServerConfiguration()
+                .identityClaimsCustomizer(jdbcClient)
+                .customize(context);
         return claims.build();
     }
 }

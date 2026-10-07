@@ -4,12 +4,10 @@ import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.UUID;
-
 import org.las.sso.access.ServiceAccessEligibilityService;
 import org.las.sso.account.PasswordPolicy;
 import org.las.sso.identity.UuidV7Generator;
 import org.las.sso.logout.BackChannelLogoutOutbox;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -37,8 +35,14 @@ public class AdminPasswordResetService {
             PasswordPolicy passwordPolicy,
             BackChannelLogoutOutbox backChannelLogout,
             ServiceAccessEligibilityService serviceAccess) {
-        this(jdbcClient, uuidGenerator, passwordEncoder, passwordPolicy,
-                backChannelLogout, serviceAccess, Clock.systemUTC());
+        this(
+                jdbcClient,
+                uuidGenerator,
+                passwordEncoder,
+                passwordPolicy,
+                backChannelLogout,
+                serviceAccess,
+                Clock.systemUTC());
     }
 
     AdminPasswordResetService(
@@ -77,7 +81,9 @@ public class AdminPasswordResetService {
         }
 
         OffsetDateTime now = now();
-        jdbcClient.sql("""
+        jdbcClient
+                .sql(
+                        """
                 UPDATE password_credentials
                    SET password_hash = :passwordHash,
                        state = 'ACTIVE',
@@ -88,8 +94,11 @@ public class AdminPasswordResetService {
                        last_failed_at = NULL,
                        locked_until = NULL
                  WHERE user_id = :userId
-                """).param("passwordHash", passwordEncoder.encode(newPassword))
-                .param("now", now).param("userId", administrator.userId()).update();
+                """)
+                .param("passwordHash", passwordEncoder.encode(newPassword))
+                .param("now", now)
+                .param("userId", administrator.userId())
+                .update();
         serviceAccess.advanceStateVersion(administrator.userId(), now);
         revokeSecurityState(administrator.userId(), now);
         UUID auditEventId = insertAudit(administrator.userId(), now);
@@ -101,22 +110,31 @@ public class AdminPasswordResetService {
     private LockedAdministrator loadAdministrator(boolean forUpdate) {
         if (forUpdate) {
             // Serialize with recovery before acquiring username/credential locks.
-            jdbcClient.sql("SELECT id FROM users WHERE is_sso_admin = true FOR UPDATE")
-                    .query(UUID.class).list();
+            jdbcClient
+                    .sql("SELECT id FROM users WHERE is_sso_admin = true FOR UPDATE")
+                    .query(UUID.class)
+                    .list();
         }
         String locking = forUpdate ? " FOR UPDATE OF un, pc" : "";
-        var administrators = jdbcClient.sql("""
+        var administrators =
+                jdbcClient
+                        .sql(
+                                """
                 SELECT u.id, u.account_status::text, un.username, pc.password_hash
                   FROM users u
                   JOIN usernames un ON un.user_id = u.id AND un.valid_to IS NULL
                   JOIN password_credentials pc ON pc.user_id = u.id
                  WHERE u.is_sso_admin = true
-                """ + locking).query((rs, rowNum) -> new LockedAdministrator(
-                        rs.getObject("id", UUID.class),
-                        rs.getString("username"),
-                        rs.getString("account_status"),
-                        rs.getString("password_hash")))
-                .list();
+                """
+                                        + locking)
+                        .query(
+                                (rs, rowNum) ->
+                                        new LockedAdministrator(
+                                                rs.getObject("id", UUID.class),
+                                                rs.getString("username"),
+                                                rs.getString("account_status"),
+                                                rs.getString("password_hash")))
+                        .list();
         if (administrators.isEmpty()) {
             throw new AdminPasswordResetException("ADMIN_NOT_FOUND");
         }
@@ -131,62 +149,98 @@ public class AdminPasswordResetService {
     }
 
     private void acquireLock() {
-        jdbcClient.sql("SELECT pg_advisory_xact_lock(:lockKey)")
+        jdbcClient
+                .sql("SELECT pg_advisory_xact_lock(:lockKey)")
                 .param("lockKey", ADVISORY_LOCK_KEY)
                 .query((rs, rowNum) -> 0)
                 .single();
     }
 
     private void revokeSecurityState(UUID userId, OffsetDateTime now) {
-        jdbcClient.sql("""
+        jdbcClient
+                .sql(
+                        """
                 UPDATE recovery_codes SET revoked_at = :now
                  WHERE user_id = :userId AND revoked_at IS NULL
-                """).param("now", now).param("userId", userId).update();
-        jdbcClient.sql("""
+                """)
+                .param("now", now)
+                .param("userId", userId)
+                .update();
+        jdbcClient
+                .sql(
+                        """
                 UPDATE recovery_sessions SET consumed_at = :now
                  WHERE user_id = :userId AND consumed_at IS NULL
-                """).param("now", now).param("userId", userId).update();
-        jdbcClient.sql("""
+                """)
+                .param("now", now)
+                .param("userId", userId)
+                .update();
+        jdbcClient
+                .sql(
+                        """
                 UPDATE admin_recovery_credentials SET revoked_at = :now
                  WHERE target_user_id = :userId AND revoked_at IS NULL
-                """).param("now", now).param("userId", userId).update();
-        jdbcClient.sql("""
+                """)
+                .param("now", now)
+                .param("userId", userId)
+                .update();
+        jdbcClient
+                .sql(
+                        """
                 UPDATE user_sessions
                    SET status = 'REVOKED', revoked_at = :now,
                        revoke_reason = 'ADMIN_PASSWORD_RESET'
                  WHERE user_id = :userId AND status = 'ACTIVE'
-                """).param("now", now).param("userId", userId).update();
+                """)
+                .param("now", now)
+                .param("userId", userId)
+                .update();
         backChannelLogout.enqueueForUser(userId, "ADMIN_PASSWORD_RESET", now);
-        jdbcClient.sql("DELETE FROM oauth2_authorization WHERE principal_name = :principalName")
-                .param("principalName", userId.toString()).update();
+        jdbcClient
+                .sql("DELETE FROM oauth2_authorization WHERE principal_name = :principalName")
+                .param("principalName", userId.toString())
+                .update();
     }
 
     private UUID insertAudit(UUID userId, OffsetDateTime now) {
         UUID auditEventId = uuidGenerator.generate();
-        jdbcClient.sql("""
+        jdbcClient
+                .sql(
+                        """
                 INSERT INTO admin_audit_events
                     (id, occurred_at, action, target_type, target_id, request_id, result, reason)
                 VALUES (:id, :now, 'ADMIN_PASSWORD_RESET_BY_MAINTENANCE',
                         'USER', :targetId, :requestId, 'SUCCESS',
                         'SERVER_MAINTENANCE_COMMAND')
-                """).param("id", auditEventId).param("now", now)
+                """)
+                .param("id", auditEventId)
+                .param("now", now)
                 .param("targetId", userId.toString())
-                .param("requestId", uuidGenerator.generate()).update();
+                .param("requestId", uuidGenerator.generate())
+                .update();
         return auditEventId;
     }
 
     private void insertSecurityEvent(UUID userId, OffsetDateTime now) {
-        jdbcClient.sql("""
+        jdbcClient
+                .sql(
+                        """
                 INSERT INTO security_events
                     (id, occurred_at, user_id, event_type, severity, request_id, details_json)
                 VALUES (:id, :now, :userId, 'ADMIN_PASSWORD_RESET_BY_MAINTENANCE',
                         'WARNING', :requestId, '{}'::jsonb)
-                """).param("id", uuidGenerator.generate()).param("now", now)
-                .param("userId", userId).param("requestId", uuidGenerator.generate()).update();
+                """)
+                .param("id", uuidGenerator.generate())
+                .param("now", now)
+                .param("userId", userId)
+                .param("requestId", uuidGenerator.generate())
+                .update();
     }
 
     private void insertGlobalLogout(UUID userId, OffsetDateTime now) {
-        jdbcClient.sql("""
+        jdbcClient
+                .sql(
+                        """
                 INSERT INTO outbox_events
                     (id, aggregate_type, aggregate_id, event_type, payload_json,
                      created_at, available_at)
@@ -194,21 +248,21 @@ public class AdminPasswordResetService {
                         jsonb_build_object('userId', :userId,
                                            'reason', 'ADMIN_PASSWORD_RESET'),
                         :now, :now)
-                """).param("id", uuidGenerator.generate())
-                .param("userId", userId.toString()).param("now", now).update();
+                """)
+                .param("id", uuidGenerator.generate())
+                .param("userId", userId.toString())
+                .param("now", now)
+                .update();
     }
 
     private OffsetDateTime now() {
         return OffsetDateTime.ofInstant(clock.instant(), ZoneOffset.UTC);
     }
 
-    public record Administrator(UUID userId, String username) {
-    }
+    public record Administrator(UUID userId, String username) {}
 
     private record LockedAdministrator(
-            UUID userId, String username, String accountStatus, String passwordHash) {
-    }
+            UUID userId, String username, String accountStatus, String passwordHash) {}
 
-    public record ResetResult(UUID userId, String username, UUID auditEventId) {
-    }
+    public record ResetResult(UUID userId, String username, UUID auditEventId) {}
 }

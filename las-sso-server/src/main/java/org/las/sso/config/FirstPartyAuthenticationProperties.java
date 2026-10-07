@@ -1,8 +1,7 @@
 package org.las.sso.config;
 
-import java.time.Duration;
-
 import jakarta.validation.constraints.Min;
+import java.time.Duration;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
 import org.springframework.validation.annotation.Validated;
@@ -16,11 +15,16 @@ public record FirstPartyAuthenticationProperties(
 
     public FirstPartyAuthenticationProperties {
         if (clientFailures < 1 || networkFailures < 1) {
-            throw new IllegalArgumentException("First-party authentication budgets must be positive");
+            throw new IllegalArgumentException(
+                    "First-party authentication budgets must be positive");
         }
-        if (window == null || window.isNegative() || window.isZero() || window.toSeconds() < 1
+        if (window == null
+                || window.isNegative()
+                || window.isZero()
+                || window.toSeconds() < 1
                 || window.getNano() != 0) {
-            throw new IllegalArgumentException("First-party authentication window must be whole positive seconds");
+            throw new IllegalArgumentException(
+                    "First-party authentication window must be whole positive seconds");
         }
     }
 }

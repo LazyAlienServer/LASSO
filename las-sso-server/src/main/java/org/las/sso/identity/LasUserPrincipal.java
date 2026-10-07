@@ -5,15 +5,13 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
-
 import org.springframework.security.core.AuthenticatedPrincipal;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
 public final class LasUserPrincipal implements UserDetails, AuthenticatedPrincipal {
 
-    @Serial
-    private static final long serialVersionUID = 1L;
+    @Serial private static final long serialVersionUID = 1L;
 
     private final UUID userId;
     private final String loginUsername;
@@ -84,8 +82,8 @@ public final class LasUserPrincipal implements UserDetails, AuthenticatedPrincip
     }
 
     /**
-     * Spring Security derives Authentication#getName() from this method for UserDetails.
-     * The mutable login username is deliberately exposed through loginUsername() instead.
+     * Spring Security derives Authentication#getName() from this method for UserDetails. The
+     * mutable login username is deliberately exposed through loginUsername() instead.
      */
     @Override
     public String getUsername() {

@@ -6,13 +6,13 @@ import org.junit.jupiter.api.Test;
 import org.las.sso.identity.LasUserPrincipal;
 import org.las.sso.oidc.OidcReauthenticationService;
 import org.las.sso.security.RecentAuthenticationService;
-import org.springframework.mock.web.MockHttpServletRequest;
-import org.springframework.mock.web.MockHttpSession;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.ApplicationContext;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.mock.web.MockHttpSession;
 import org.springframework.session.Session;
 import org.springframework.session.SessionRepository;
 import org.springframework.session.jdbc.JdbcIndexedSessionRepository;
@@ -26,22 +26,17 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @Testcontainers(disabledWithoutDocker = true)
 class JdbcSessionPersistenceTest {
 
-    @Container
-    @ServiceConnection
+    @Container @ServiceConnection
     static final PostgreSQLContainer<?> POSTGRES =
             new PostgreSQLContainer<>("postgres:18.4-alpine");
 
-    @Autowired
-    ApplicationContext applicationContext;
+    @Autowired ApplicationContext applicationContext;
 
-    @Autowired
-    SessionRepository<?> sessionRepository;
+    @Autowired SessionRepository<?> sessionRepository;
 
-    @Autowired
-    JdbcClient jdbcClient;
+    @Autowired JdbcClient jdbcClient;
 
-    @Autowired
-    OidcReauthenticationService challenges;
+    @Autowired OidcReauthenticationService challenges;
 
     @Test
     @SuppressWarnings({"rawtypes", "unchecked"})
@@ -54,10 +49,13 @@ class JdbcSessionPersistenceTest {
         session.setAttribute("restart-proof", "present");
         repository.save(session);
 
-        assertThat(jdbcClient.sql("SELECT COUNT(*) FROM spring_session WHERE session_id = :id")
-                .param("id", session.getId())
-                .query(Long.class)
-                .single()).isOne();
+        assertThat(
+                        jdbcClient
+                                .sql("SELECT COUNT(*) FROM spring_session WHERE session_id = :id")
+                                .param("id", session.getId())
+                                .query(Long.class)
+                                .single())
+                .isOne();
         assertThat((Session) repository.findById(session.getId()))
                 .isNotNull()
                 .extracting(stored -> stored.getAttribute("restart-proof"))
@@ -67,18 +65,27 @@ class JdbcSessionPersistenceTest {
     @Test
     @SuppressWarnings({"rawtypes", "unchecked"})
     void passwordChallengeSurvivesJdbcReloadAndOnlyOneCompetingCopyCanConsumeIt() throws Exception {
-        var principal = new LasUserPrincipal(java.util.UUID.randomUUID(), "ChallengeUser",
-                "irrelevant", true, java.util.List.of());
+        var principal =
+                new LasUserPrincipal(
+                        java.util.UUID.randomUUID(),
+                        "ChallengeUser",
+                        "irrelevant",
+                        true,
+                        java.util.List.of());
         var request = new MockHttpServletRequest();
         var browser = new MockHttpSession();
         request.setSession(browser);
         request.addParameter("state", "original-state");
         request.addParameter("nonce", "original-nonce");
         browser.setAttribute(UserSessionService.SID_SESSION_ATTRIBUTE, "stable-test-sid");
-        browser.setAttribute(RecentAuthenticationService.SESSION_ATTRIBUTE, java.time.Instant.now());
+        browser.setAttribute(
+                RecentAuthenticationService.SESSION_ATTRIBUTE, java.time.Instant.now());
         String id = challenges.begin(request, principal);
-        String pendingAttribute = java.util.Collections.list(browser.getAttributeNames()).stream()
-                .filter(name -> name.endsWith(".PENDING")).findFirst().orElseThrow();
+        String pendingAttribute =
+                java.util.Collections.list(browser.getAttributeNames()).stream()
+                        .filter(name -> name.endsWith(".PENDING"))
+                        .findFirst()
+                        .orElseThrow();
         SessionRepository repository = sessionRepository;
         Session stored = (Session) repository.createSession();
         stored.setAttribute("challenge", browser.getAttribute(pendingAttribute));
@@ -96,24 +103,32 @@ class JdbcSessionPersistenceTest {
         try (var executor = java.util.concurrent.Executors.newFixedThreadPool(2)) {
             var results = new java.util.ArrayList<java.util.concurrent.Future<Boolean>>();
             for (int attempt = 0; attempt < 2; attempt++) {
-                results.add(executor.submit(() -> {
-                    var copy = new MockHttpServletRequest();
-                    var session = new MockHttpSession();
-                    session.setAttribute(pendingAttribute, completed);
-                    session.setAttribute(UserSessionService.SID_SESSION_ATTRIBUTE, "stable-test-sid");
-                    session.setAttribute(RecentAuthenticationService.SESSION_ATTRIBUTE, java.time.Instant.now());
-                    copy.setSession(session);
-                    copy.addParameter("state", "original-state");
-                    copy.addParameter("nonce", "original-nonce");
-                    ready.countDown();
-                    start.await();
-                    return challenges.consumeCompletion(copy, principal);
-                }));
+                results.add(
+                        executor.submit(
+                                () -> {
+                                    var copy = new MockHttpServletRequest();
+                                    var session = new MockHttpSession();
+                                    session.setAttribute(pendingAttribute, completed);
+                                    session.setAttribute(
+                                            UserSessionService.SID_SESSION_ATTRIBUTE,
+                                            "stable-test-sid");
+                                    session.setAttribute(
+                                            RecentAuthenticationService.SESSION_ATTRIBUTE,
+                                            java.time.Instant.now());
+                                    copy.setSession(session);
+                                    copy.addParameter("state", "original-state");
+                                    copy.addParameter("nonce", "original-nonce");
+                                    ready.countDown();
+                                    start.await();
+                                    return challenges.consumeCompletion(copy, principal);
+                                }));
             }
             assertThat(ready.await(10, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
             start.countDown();
-            assertThat(results.get(0).get(10, java.util.concurrent.TimeUnit.SECONDS)
-                    ^ results.get(1).get(10, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+            assertThat(
+                            results.get(0).get(10, java.util.concurrent.TimeUnit.SECONDS)
+                                    ^ results.get(1).get(10, java.util.concurrent.TimeUnit.SECONDS))
+                    .isTrue();
         }
     }
 }

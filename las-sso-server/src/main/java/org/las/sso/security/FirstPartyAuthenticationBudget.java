@@ -5,7 +5,6 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
-
 import org.las.sso.config.FirstPartyAuthenticationProperties;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -14,7 +13,9 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/** Independent pre-hash failure/in-flight budget for internal Basic, not an all-query rate quota. */
+/**
+ * Independent pre-hash failure/in-flight budget for internal Basic, not an all-query rate quota.
+ */
 @Service
 public class FirstPartyAuthenticationBudget {
 
@@ -28,13 +29,20 @@ public class FirstPartyAuthenticationBudget {
     private final Clock clock;
 
     @Autowired
-    public FirstPartyAuthenticationBudget(JdbcClient jdbc, TransientSecurityKeyHasher hasher,
-            FirstPartyAuthenticationProperties properties, PlatformTransactionManager transactionManager) {
+    public FirstPartyAuthenticationBudget(
+            JdbcClient jdbc,
+            TransientSecurityKeyHasher hasher,
+            FirstPartyAuthenticationProperties properties,
+            PlatformTransactionManager transactionManager) {
         this(jdbc, hasher, properties, transactionManager, Clock.systemUTC());
     }
 
-    FirstPartyAuthenticationBudget(JdbcClient jdbc, TransientSecurityKeyHasher hasher,
-            FirstPartyAuthenticationProperties properties, PlatformTransactionManager transactionManager, Clock clock) {
+    FirstPartyAuthenticationBudget(
+            JdbcClient jdbc,
+            TransientSecurityKeyHasher hasher,
+            FirstPartyAuthenticationProperties properties,
+            PlatformTransactionManager transactionManager,
+            Clock clock) {
         this.jdbc = jdbc;
         this.hasher = hasher;
         this.properties = properties;
@@ -46,15 +54,22 @@ public class FirstPartyAuthenticationBudget {
     public Reservation reserve(String clientId, String networkKey) {
         Instant now = clock.instant();
         long seconds = properties.window().toSeconds();
-        Instant start = Instant.ofEpochSecond(Math.floorDiv(now.getEpochSecond(), seconds) * seconds);
+        Instant start =
+                Instant.ofEpochSecond(Math.floorDiv(now.getEpochSecond(), seconds) * seconds);
         OffsetDateTime windowStart = start.atOffset(ZoneOffset.UTC);
         OffsetDateTime resetsAt = start.plusSeconds(seconds).atOffset(ZoneOffset.UTC);
-        // All acquisition/refund paths take network before client. Hashing runs after commit, without row locks.
-        var buckets = List.of(bucket(NETWORK_SCOPE, networkKey, properties.networkFailures()),
-                bucket(CLIENT_SCOPE, clientId, properties.clientFailures()));
-        transactions.executeWithoutResult(status -> {
-            for (Bucket bucket : buckets) {
-                var admitted = jdbc.sql("""
+        // All acquisition/refund paths take network before client. Hashing runs after commit,
+        // without row locks.
+        var buckets =
+                List.of(
+                        bucket(NETWORK_SCOPE, networkKey, properties.networkFailures()),
+                        bucket(CLIENT_SCOPE, clientId, properties.clientFailures()));
+        transactions.executeWithoutResult(
+                status -> {
+                    for (Bucket bucket : buckets) {
+                        var admitted =
+                                jdbc.sql(
+                                                """
                         INSERT INTO rate_limit_buckets
                             (scope, key_hash, window_start, window_expires_at, attempt_count, updated_at)
                         VALUES (:scope, :key, :start, :expires, 1, :now)
@@ -63,46 +78,70 @@ public class FirstPartyAuthenticationBudget {
                                updated_at = EXCLUDED.updated_at
                          WHERE rate_limit_buckets.attempt_count < :limit
                         RETURNING attempt_count
-                        """).param("scope", bucket.scope()).param("key", bucket.key())
-                        .param("start", windowStart).param("expires", resetsAt)
-                        .param("now", now.atOffset(ZoneOffset.UTC)).param("limit", bucket.limit())
-                        .query(Integer.class).optional();
-                if (admitted.isEmpty()) throw new RateLimitExceededException(resetsAt);
-            }
-        });
+                        """)
+                                        .param("scope", bucket.scope())
+                                        .param("key", bucket.key())
+                                        .param("start", windowStart)
+                                        .param("expires", resetsAt)
+                                        .param("now", now.atOffset(ZoneOffset.UTC))
+                                        .param("limit", bucket.limit())
+                                        .query(Integer.class)
+                                        .optional();
+                        if (admitted.isEmpty()) throw new RateLimitExceededException(resetsAt);
+                    }
+                });
         return new Reservation(buckets, windowStart);
     }
 
-    /** Call only on authenticated success. Failure/crash reservations deliberately expire with their window. */
+    /**
+     * Call only on authenticated success. Failure/crash reservations deliberately expire with their
+     * window.
+     */
     public void release(Reservation reservation) {
         synchronized (reservation) {
             if (reservation.released) return;
-            transactions.executeWithoutResult(status -> {
-                for (Bucket bucket : reservation.buckets) {
-                    var count = jdbc.sql("""
+            transactions.executeWithoutResult(
+                    status -> {
+                        for (Bucket bucket : reservation.buckets) {
+                            var count =
+                                    jdbc.sql(
+                                                    """
                             SELECT attempt_count FROM rate_limit_buckets
                              WHERE scope = :scope AND key_hash = :key AND window_start = :start
                              FOR UPDATE
-                            """).param("scope", bucket.scope()).param("key", bucket.key())
-                            .param("start", reservation.windowStart).query(Integer.class).optional();
-                    if (count.isEmpty()) continue; // Expiry cleanup may already have removed the old window.
-                    if (count.get() == 1) {
-                        jdbc.sql("""
+                            """)
+                                            .param("scope", bucket.scope())
+                                            .param("key", bucket.key())
+                                            .param("start", reservation.windowStart)
+                                            .query(Integer.class)
+                                            .optional();
+                            if (count.isEmpty())
+                                continue; // Expiry cleanup may already have removed the old window.
+                            if (count.get() == 1) {
+                                jdbc.sql(
+                                                """
                                 DELETE FROM rate_limit_buckets
                                  WHERE scope = :scope AND key_hash = :key AND window_start = :start
-                                """).param("scope", bucket.scope()).param("key", bucket.key())
-                                .param("start", reservation.windowStart).update();
-                    } else {
-                        jdbc.sql("""
+                                """)
+                                        .param("scope", bucket.scope())
+                                        .param("key", bucket.key())
+                                        .param("start", reservation.windowStart)
+                                        .update();
+                            } else {
+                                jdbc.sql(
+                                                """
                                 UPDATE rate_limit_buckets
                                    SET attempt_count = attempt_count - 1, updated_at = :now
                                  WHERE scope = :scope AND key_hash = :key AND window_start = :start
-                                """).param("scope", bucket.scope()).param("key", bucket.key())
-                                .param("start", reservation.windowStart)
-                                .param("now", clock.instant().atOffset(ZoneOffset.UTC)).update();
-                    }
-                }
-            });
+                                """)
+                                        .param("scope", bucket.scope())
+                                        .param("key", bucket.key())
+                                        .param("start", reservation.windowStart)
+                                        .param("now", clock.instant().atOffset(ZoneOffset.UTC))
+                                        .update();
+                            }
+                        }
+                    });
             reservation.released = true;
         }
     }
@@ -111,7 +150,10 @@ public class FirstPartyAuthenticationBudget {
         return new Bucket(scope, hasher.hash("rate:" + scope, key), limit);
     }
 
-    /** Opaque request-local receipt: no credentials/raw address, not a durable lease or shared-store token. */
+    /**
+     * Opaque request-local receipt: no credentials/raw address, not a durable lease or shared-store
+     * token.
+     */
     public static final class Reservation {
         private final List<Bucket> buckets;
         private final OffsetDateTime windowStart;
@@ -123,5 +165,5 @@ public class FirstPartyAuthenticationBudget {
         }
     }
 
-    private record Bucket(String scope, byte[] key, int limit) { }
+    private record Bucket(String scope, byte[] key, int limit) {}
 }

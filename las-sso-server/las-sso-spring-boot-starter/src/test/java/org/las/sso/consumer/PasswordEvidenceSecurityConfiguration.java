@@ -15,20 +15,37 @@ import org.springframework.security.web.authentication.SimpleUrlAuthenticationSu
 public class PasswordEvidenceSecurityConfiguration {
 
     @Bean
-    SecurityFilterChain passwordEvidenceChain(HttpSecurity http, LasSsoSecurityConfigurer las) throws Exception {
-        http.authorizeHttpRequests(authorize -> authorize.requestMatchers("/api/auth/login", "/error", "/internal/oidc/backchannel-logout").permitAll()
-                .anyRequest().authenticated());
-        var redirect = new LasSsoReturnToSuccessHandler(new SimpleUrlAuthenticationSuccessHandler("/app-success"));
-        las.configure(http, (request, response, authentication) -> {
-            var user = (OidcUser) ((OAuth2AuthenticationToken) authentication).getPrincipal();
-            Object time = user.getIdToken().getClaims().get("auth_time");
-            if (time != null) response.setHeader("X-Fixture-Auth-Time", time.toString());
-            response.setHeader("X-Consumer-Success", "checked");
-            redirect.onAuthenticationSuccess(request, response, authentication);
-        }, builder -> builder.additionalParameters(parameters -> {
-            parameters.put("prompt", "login");
-            parameters.put("max_age", "0");
-        }));
+    SecurityFilterChain passwordEvidenceChain(HttpSecurity http, LasSsoSecurityConfigurer las)
+            throws Exception {
+        http.authorizeHttpRequests(
+                authorize ->
+                        authorize
+                                .requestMatchers(
+                                        "/api/auth/login",
+                                        "/error",
+                                        "/internal/oidc/backchannel-logout")
+                                .permitAll()
+                                .anyRequest()
+                                .authenticated());
+        var redirect =
+                new LasSsoReturnToSuccessHandler(
+                        new SimpleUrlAuthenticationSuccessHandler("/app-success"));
+        las.configure(
+                http,
+                (request, response, authentication) -> {
+                    var user =
+                            (OidcUser) ((OAuth2AuthenticationToken) authentication).getPrincipal();
+                    Object time = user.getIdToken().getClaims().get("auth_time");
+                    if (time != null) response.setHeader("X-Fixture-Auth-Time", time.toString());
+                    response.setHeader("X-Consumer-Success", "checked");
+                    redirect.onAuthenticationSuccess(request, response, authentication);
+                },
+                builder ->
+                        builder.additionalParameters(
+                                parameters -> {
+                                    parameters.put("prompt", "login");
+                                    parameters.put("max_age", "0");
+                                }));
         return http.build();
     }
 }

@@ -10,5 +10,4 @@ import org.springframework.scheduling.annotation.EnableScheduling;
         name = "las.sso.scheduling.enabled",
         havingValue = "true",
         matchIfMissing = true)
-public class SchedulingConfiguration {
-}
+public class SchedulingConfiguration {}

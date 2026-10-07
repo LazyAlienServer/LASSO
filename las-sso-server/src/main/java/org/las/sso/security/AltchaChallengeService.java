@@ -6,7 +6,6 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Map;
 import java.util.UUID;
-
 import org.altcha.altcha.v2.Altcha;
 import org.las.sso.config.TransientSecurityProperties;
 import org.las.sso.identity.UuidV7Generator;
@@ -35,8 +34,13 @@ public class AltchaChallengeService {
             TransientSecurityKeyHasher keyHasher,
             UuidV7Generator uuidGenerator,
             TransientSecurityProperties properties) {
-        this(challengeStore, rateLimiter, keyHasher, uuidGenerator,
-                properties.captchaHmacSecret(), Clock.systemUTC());
+        this(
+                challengeStore,
+                rateLimiter,
+                keyHasher,
+                uuidGenerator,
+                properties.captchaHmacSecret(),
+                Clock.systemUTC());
     }
 
     AltchaChallengeService(
@@ -64,14 +68,16 @@ public class AltchaChallengeService {
         UUID challengeId = uuidGenerator.generate();
         OffsetDateTime now = OffsetDateTime.ofInstant(clock.instant(), ZoneOffset.UTC);
         OffsetDateTime expiresAt = now.plus(CHALLENGE_LIFETIME);
-        var options = new Altcha.CreateChallengeOptions()
-                .algorithm(ALGORITHM)
-                .cost(COST)
-                .hmacSignatureSecret(hmacSecret)
-                .expiresInSeconds(CHALLENGE_LIFETIME.toSeconds())
-                .data(Map.of(
-                        "challengeId", challengeId.toString(),
-                        "purpose", purpose.externalName()));
+        var options =
+                new Altcha.CreateChallengeOptions()
+                        .algorithm(ALGORITHM)
+                        .cost(COST)
+                        .hmacSignatureSecret(hmacSecret)
+                        .expiresInSeconds(CHALLENGE_LIFETIME.toSeconds())
+                        .data(
+                                Map.of(
+                                        "challengeId", challengeId.toString(),
+                                        "purpose", purpose.externalName()));
         Altcha.Challenge challenge;
         try {
             challenge = Altcha.createChallenge(options);
@@ -85,14 +91,15 @@ public class AltchaChallengeService {
                 keyHasher.hash("captcha-ip", networkKey),
                 now,
                 expiresAt);
-        return new IssuedChallenge(challengeId, challenge.parameters(), challenge.signature(), expiresAt);
+        return new IssuedChallenge(
+                challengeId, challenge.parameters(), challenge.signature(), expiresAt);
     }
 
     public void verifyAndConsume(
             UUID challengeId, Purpose purpose, String payload, String networkKey) {
         try {
-            Altcha.VerifySolutionResult result = Altcha.verifySolution(
-                    payload, hmacSecret, Altcha.kdf(ALGORITHM));
+            Altcha.VerifySolutionResult result =
+                    Altcha.verifySolution(payload, hmacSecret, Altcha.kdf(ALGORITHM));
             if (!result.verified()) {
                 throw new CaptchaInvalidException();
             }
@@ -102,8 +109,7 @@ public class AltchaChallengeService {
                     || !purpose.externalName().equals(data.get("purpose"))) {
                 throw new CaptchaInvalidException();
             }
-            byte[] digest = keyHasher.hash(
-                    "captcha-signature", parsed.challenge().signature());
+            byte[] digest = keyHasher.hash("captcha-signature", parsed.challenge().signature());
             OffsetDateTime now = OffsetDateTime.ofInstant(clock.instant(), ZoneOffset.UTC);
             if (!challengeStore.consume(
                     challengeId,
@@ -124,7 +130,8 @@ public class AltchaChallengeService {
         try {
             Altcha.Payload parsed = Altcha.parsePayload(payload);
             Object challengeId = parsed.challenge().parameters().data().get("challengeId");
-            verifyAndConsume(UUID.fromString(String.valueOf(challengeId)), purpose, payload, networkKey);
+            verifyAndConsume(
+                    UUID.fromString(String.valueOf(challengeId)), purpose, payload, networkKey);
         } catch (CaptchaInvalidException exception) {
             throw exception;
         } catch (Exception exception) {
@@ -158,6 +165,5 @@ public class AltchaChallengeService {
             UUID challengeId,
             Altcha.ChallengeParameters parameters,
             String signature,
-            OffsetDateTime expiresAt) {
-    }
+            OffsetDateTime expiresAt) {}
 }

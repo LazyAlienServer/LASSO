@@ -1,8 +1,7 @@
 package org.las.sso.security;
 
-import java.net.URI;
-
 import jakarta.servlet.http.HttpServletRequest;
+import java.net.URI;
 import org.las.sso.config.LasSsoProperties;
 import org.springframework.stereotype.Component;
 

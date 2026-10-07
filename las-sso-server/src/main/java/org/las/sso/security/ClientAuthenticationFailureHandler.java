@@ -1,16 +1,15 @@
 package org.las.sso.security;
 
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Base64;
-
-import jakarta.servlet.ServletException;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.core.AuthenticationException;
@@ -21,18 +20,19 @@ import org.springframework.stereotype.Component;
 @Component
 public final class ClientAuthenticationFailureHandler implements AuthenticationFailureHandler {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(ClientAuthenticationFailureHandler.class);
+    private static final Logger LOGGER =
+            LoggerFactory.getLogger(ClientAuthenticationFailureHandler.class);
     private static final Duration WINDOW = Duration.ofMinutes(15);
     private static final int CLIENT_LIMIT = 10;
     private static final int IP_LIMIT = 20;
 
     private final PostgresRateLimiter rateLimiter;
     private final ClientNetworkKey clientNetworkKey;
-    private final AuthenticationFailureHandler delegate = new OAuth2ErrorAuthenticationFailureHandler();
+    private final AuthenticationFailureHandler delegate =
+            new OAuth2ErrorAuthenticationFailureHandler();
 
     public ClientAuthenticationFailureHandler(
-            PostgresRateLimiter rateLimiter,
-            ClientNetworkKey clientNetworkKey) {
+            PostgresRateLimiter rateLimiter, ClientNetworkKey clientNetworkKey) {
         this.rateLimiter = rateLimiter;
         this.clientNetworkKey = clientNetworkKey;
     }
@@ -41,37 +41,43 @@ public final class ClientAuthenticationFailureHandler implements AuthenticationF
     public void onAuthenticationFailure(
             HttpServletRequest request,
             HttpServletResponse response,
-            AuthenticationException exception) throws IOException, ServletException {
+            AuthenticationException exception)
+            throws IOException, ServletException {
         if (exception instanceof ClientAuthenticationRateLimitException rateLimited) {
             writeRateLimited(response, rateLimited.resetsAt());
             return;
         }
         String clientId = clientId(request);
-        var clientDecision = rateLimiter.consume(
-                "CLIENT_SECRET_FAILURE_CLIENT", clientId, CLIENT_LIMIT, WINDOW);
-        var ipDecision = rateLimiter.consume(
-                "CLIENT_SECRET_FAILURE_IP",
-                clientNetworkKey.fromRemoteAddress(request.getRemoteAddr()),
-                IP_LIMIT,
-                WINDOW);
+        var clientDecision =
+                rateLimiter.consume("CLIENT_SECRET_FAILURE_CLIENT", clientId, CLIENT_LIMIT, WINDOW);
+        var ipDecision =
+                rateLimiter.consume(
+                        "CLIENT_SECRET_FAILURE_IP",
+                        clientNetworkKey.fromRemoteAddress(request.getRemoteAddr()),
+                        IP_LIMIT,
+                        WINDOW);
         if (!clientDecision.allowed() || !ipDecision.allowed()) {
-            OffsetDateTime resetsAt = clientDecision.resetsAt().isAfter(ipDecision.resetsAt())
-                    ? clientDecision.resetsAt()
-                    : ipDecision.resetsAt();
+            OffsetDateTime resetsAt =
+                    clientDecision.resetsAt().isAfter(ipDecision.resetsAt())
+                            ? clientDecision.resetsAt()
+                            : ipDecision.resetsAt();
             writeRateLimited(response, resetsAt);
             LOGGER.warn(
                     "Client authentication failure threshold exceeded: clientId={}, clientFailures={}, ipFailures={}",
-                    clientId, clientDecision.count(), ipDecision.count());
+                    clientId,
+                    clientDecision.count(),
+                    ipDecision.count());
             return;
         }
         delegate.onAuthenticationFailure(request, response, exception);
     }
 
-    private static void writeRateLimited(
-            HttpServletResponse response,
-            OffsetDateTime resetsAt) throws IOException {
-        long retryAfter = Math.max(1, Duration.between(
-                OffsetDateTime.now(ZoneOffset.UTC), resetsAt).toSeconds());
+    private static void writeRateLimited(HttpServletResponse response, OffsetDateTime resetsAt)
+            throws IOException {
+        long retryAfter =
+                Math.max(
+                        1,
+                        Duration.between(OffsetDateTime.now(ZoneOffset.UTC), resetsAt).toSeconds());
         response.setStatus(429);
         response.setHeader("Retry-After", Long.toString(retryAfter));
         response.setContentType("application/json;charset=UTF-8");
@@ -82,13 +88,15 @@ public final class ClientAuthenticationFailureHandler implements AuthenticationF
         String authorization = request.getHeader("Authorization");
         if (authorization != null && authorization.regionMatches(true, 0, "Basic ", 0, 6)) {
             try {
-                String decoded = new String(
-                        Base64.getDecoder().decode(authorization.substring(6).strip()),
-                        StandardCharsets.UTF_8);
+                String decoded =
+                        new String(
+                                Base64.getDecoder().decode(authorization.substring(6).strip()),
+                                StandardCharsets.UTF_8);
                 int separator = decoded.indexOf(':');
                 if (separator > 0) {
-                    return normalizeClientId(URLDecoder.decode(
-                            decoded.substring(0, separator), StandardCharsets.UTF_8));
+                    return normalizeClientId(
+                            URLDecoder.decode(
+                                    decoded.substring(0, separator), StandardCharsets.UTF_8));
                 }
             } catch (IllegalArgumentException ignored) {
                 // Malformed credentials share the unknown-client bucket and the IP bucket.

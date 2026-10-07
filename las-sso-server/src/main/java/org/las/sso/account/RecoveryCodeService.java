@@ -5,10 +5,8 @@ import java.security.GeneralSecurityException;
 import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.List;
-
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
-
 import org.las.sso.config.RecoveryProperties;
 import org.springframework.stereotype.Service;
 

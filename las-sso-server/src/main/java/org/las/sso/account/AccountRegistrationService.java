@@ -6,9 +6,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 import java.util.regex.Pattern;
-
 import org.las.sso.identity.UuidV7Generator;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -35,7 +33,13 @@ public class AccountRegistrationService {
             PasswordEncoder passwordEncoder,
             PasswordPolicy passwordPolicy,
             RecoveryCodeService recoveryCodes) {
-        this(jdbcClient, uuidGenerator, passwordEncoder, passwordPolicy, recoveryCodes, Clock.systemUTC());
+        this(
+                jdbcClient,
+                uuidGenerator,
+                passwordEncoder,
+                passwordPolicy,
+                recoveryCodes,
+                Clock.systemUTC());
     }
 
     AccountRegistrationService(
@@ -62,28 +66,51 @@ public class AccountRegistrationService {
         OffsetDateTime now = OffsetDateTime.ofInstant(clock.instant(), ZoneOffset.UTC);
         List<RecoveryCodeService.RecoveryCode> batch = recoveryCodes.generateBatch();
         try {
-            jdbcClient.sql("""
+            jdbcClient
+                    .sql(
+                            """
                     INSERT INTO users (id, display_name, account_status, created_at, updated_at)
                     VALUES (:id, :displayName, 'ACTIVE', :now, :now)
-                    """).param("id", userId).param("displayName", displayName).param("now", now).update();
-            jdbcClient.sql("""
+                    """)
+                    .param("id", userId)
+                    .param("displayName", displayName)
+                    .param("now", now)
+                    .update();
+            jdbcClient
+                    .sql(
+                            """
                     INSERT INTO usernames (id, user_id, username, valid_from, changed_by_user_id, change_reason)
                     VALUES (:id, :userId, :username, :now, :userId, 'REGISTER')
-                    """).param("id", uuidGenerator.generate()).param("userId", userId)
-                    .param("username", username).param("now", now).update();
-            jdbcClient.sql("""
+                    """)
+                    .param("id", uuidGenerator.generate())
+                    .param("userId", userId)
+                    .param("username", username)
+                    .param("now", now)
+                    .update();
+            jdbcClient
+                    .sql(
+                            """
                     INSERT INTO password_credentials
                         (user_id, password_hash, state, credentials_version, password_changed_at)
                     VALUES (:userId, :passwordHash, 'ACTIVE', 1, :now)
-                    """).param("userId", userId).param("passwordHash", passwordEncoder.encode(password))
-                    .param("now", now).update();
+                    """)
+                    .param("userId", userId)
+                    .param("passwordHash", passwordEncoder.encode(password))
+                    .param("now", now)
+                    .update();
             for (RecoveryCodeService.RecoveryCode code : batch) {
-                jdbcClient.sql("""
+                jdbcClient
+                        .sql(
+                                """
                         INSERT INTO recovery_codes
                             (id, user_id, code_hash, generation, created_at)
                         VALUES (:id, :userId, :codeHash, 1, :now)
-                        """).param("id", uuidGenerator.generate()).param("userId", userId)
-                        .param("codeHash", code.digest()).param("now", now).update();
+                        """)
+                        .param("id", uuidGenerator.generate())
+                        .param("userId", userId)
+                        .param("codeHash", code.digest())
+                        .param("now", now)
+                        .update();
             }
         } catch (DataIntegrityViolationException exception) {
             throw new UsernameUnavailableException();
@@ -99,17 +126,15 @@ public class AccountRegistrationService {
         if (username == null || !USERNAME.matcher(username).matches()) {
             throw new IllegalArgumentException("USERNAME_INVALID");
         }
-        if (displayName == null || displayName.isBlank()
+        if (displayName == null
+                || displayName.isBlank()
                 || displayName.codePointCount(0, displayName.length()) > 64) {
             throw new IllegalArgumentException("DISPLAY_NAME_INVALID");
         }
     }
 
     public record RegistrationResult(
-            UUID userId,
-            String username,
-            String displayName,
-            List<String> recoveryCodes) {
+            UUID userId, String username, String displayName, List<String> recoveryCodes) {
         public RegistrationResult {
             recoveryCodes = List.copyOf(recoveryCodes);
         }

@@ -1,7 +1,6 @@
 package org.las.sso.reference.revocation;
 
 import javax.sql.DataSource;
-
 import org.flywaydb.core.Flyway;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -19,14 +18,21 @@ import org.springframework.security.oauth2.client.registration.ClientRegistratio
 class DurableRevocationConfiguration {
     @Bean(name = "referenceRevocationDataSource")
     DataSource dataSource(RevocationProperties properties) {
-        return new DriverManagerDataSource(properties.jdbcUrl(), properties.username(), properties.password());
+        return new DriverManagerDataSource(
+                properties.jdbcUrl(), properties.username(), properties.password());
     }
 
     @Bean
-    JdbcRevocationStore referenceRevocationStore(@Qualifier("referenceRevocationDataSource") DataSource dataSource) {
-        Flyway.configure().dataSource(dataSource).defaultSchema("reference_revocation")
-                .locations("classpath:revocation-db").load().migrate();
-        return new JdbcRevocationStore(JdbcClient.create(dataSource), new DataSourceTransactionManager(dataSource));
+    JdbcRevocationStore referenceRevocationStore(
+            @Qualifier("referenceRevocationDataSource") DataSource dataSource) {
+        Flyway.configure()
+                .dataSource(dataSource)
+                .defaultSchema("reference_revocation")
+                .locations("classpath:revocation-db")
+                .load()
+                .migrate();
+        return new JdbcRevocationStore(
+                JdbcClient.create(dataSource), new DataSourceTransactionManager(dataSource));
     }
 
     @Bean
@@ -35,14 +41,19 @@ class DurableRevocationConfiguration {
     }
 
     @Bean
-    JdbcRevocationQueue referenceRevocationQueue(JdbcRevocationStore store, RevocationTokenCipher cipher,
+    JdbcRevocationQueue referenceRevocationQueue(
+            JdbcRevocationStore store,
+            RevocationTokenCipher cipher,
             RevocationProperties properties) {
         return new JdbcRevocationQueue(store, cipher, properties.allowLoopbackHttp());
     }
 
     @Bean
-    RevocationWorker referenceRevocationWorker(JdbcRevocationStore store, RevocationTokenCipher cipher,
-            ClientRegistrationRepository registrations, RevocationProperties properties) {
+    RevocationWorker referenceRevocationWorker(
+            JdbcRevocationStore store,
+            RevocationTokenCipher cipher,
+            ClientRegistrationRepository registrations,
+            RevocationProperties properties) {
         return new RevocationWorker(store, cipher, registrations, properties.allowLoopbackHttp());
     }
 }

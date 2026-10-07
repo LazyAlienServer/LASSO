@@ -7,13 +7,12 @@ import org.springframework.security.oauth2.client.registration.ClientRegistratio
 public interface LasSsoRevocationTaskSink {
 
     /**
-     * Accepts the token snapshot only after local authorization removal and
-     * session invalidation. A normal return means the adapter accepted the work,
-     * not that the OP has revoked it. Durable adapters must commit acceptance
-     * before returning; a submission failure must be reported as an exception.
-     * The starter ends local login even when submission fails and records only
-     * a non-secret failure category. The default queue remains process-local;
-     * it does not supply a durability guarantee or schema for consumers.
+     * Accepts the token snapshot only after local authorization removal and session invalidation. A
+     * normal return means the adapter accepted the work, not that the OP has revoked it. Durable
+     * adapters must commit acceptance before returning; a submission failure must be reported as an
+     * exception. The starter ends local login even when submission fails and records only a
+     * non-secret failure category. The default queue remains process-local; it does not supply a
+     * durability guarantee or schema for consumers.
      */
     void submit(ClientRegistration registration, String token, String tokenTypeHint);
 }

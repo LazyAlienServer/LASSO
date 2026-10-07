@@ -8,7 +8,6 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-
 import org.las.sso.security.AltchaChallengeService;
 import org.las.sso.security.PostgresRateLimiter;
 import org.las.sso.security.RateLimitExceededException;
@@ -48,23 +47,39 @@ public class RegistrationApplicationService {
             UUID challengeId,
             String captchaPayload,
             String networkKey) {
-        byte[] requestHash = keyHasher.hash(
-                "registration-request",
-                username + "\u0000" + displayName + "\u0000" + password + "\u0000"
-                        + challengeId + "\u0000" + captchaPayload);
-        long lockId = ByteBuffer.wrap(
-                keyHasher.hash("registration-idempotency", idempotencyKey.toString()))
-                .getLong();
-        jdbcClient.sql("SELECT true FROM pg_advisory_xact_lock(:lockId)")
+        byte[] requestHash =
+                keyHasher.hash(
+                        "registration-request",
+                        username
+                                + "\u0000"
+                                + displayName
+                                + "\u0000"
+                                + password
+                                + "\u0000"
+                                + challengeId
+                                + "\u0000"
+                                + captchaPayload);
+        long lockId =
+                ByteBuffer.wrap(
+                                keyHasher.hash(
+                                        "registration-idempotency", idempotencyKey.toString()))
+                        .getLong();
+        jdbcClient
+                .sql("SELECT true FROM pg_advisory_xact_lock(:lockId)")
                 .param("lockId", lockId)
                 .query(Boolean.class)
                 .single();
 
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
-        jdbcClient.sql("""
+        jdbcClient
+                .sql(
+                        """
                 DELETE FROM registration_idempotency
                  WHERE idempotency_key = :key AND expires_at <= :now
-                """).param("key", idempotencyKey).param("now", now).update();
+                """)
+                .param("key", idempotencyKey)
+                .param("now", now)
+                .update();
         Optional<StoredRegistration> existing = findExisting(idempotencyKey);
         if (existing.isPresent()) {
             StoredRegistration stored = existing.orElseThrow();
@@ -82,15 +97,25 @@ public class RegistrationApplicationService {
                 challengeId, AltchaChallengeService.Purpose.REGISTER, captchaPayload, networkKey);
         AccountRegistrationService.RegistrationResult result =
                 accounts.register(username, displayName, password);
-        jdbcClient.sql("""
+        jdbcClient
+                .sql(
+                        """
                 INSERT INTO registration_idempotency
                     (idempotency_key, request_hash, user_id, created_at, expires_at)
                 VALUES (:key, :requestHash, :userId, :now, :expiresAt)
-                """).param("key", idempotencyKey).param("requestHash", requestHash)
-                .param("userId", result.userId()).param("now", now)
-                .param("expiresAt", now.plusHours(24)).update();
+                """)
+                .param("key", idempotencyKey)
+                .param("requestHash", requestHash)
+                .param("userId", result.userId())
+                .param("now", now)
+                .param("expiresAt", now.plusHours(24))
+                .update();
         return new RegistrationOutcome(
-                result.userId(), result.username(), result.displayName(), result.recoveryCodes(), false);
+                result.userId(),
+                result.username(),
+                result.displayName(),
+                result.recoveryCodes(),
+                false);
     }
 
     private void enforceLimit(String scope, String key, int limit, Duration window) {
@@ -101,22 +126,28 @@ public class RegistrationApplicationService {
     }
 
     private Optional<StoredRegistration> findExisting(UUID idempotencyKey) {
-        return jdbcClient.sql("""
+        return jdbcClient
+                .sql(
+                        """
                 SELECT r.request_hash, u.id, n.username, u.display_name
                   FROM registration_idempotency r
                   JOIN users u ON u.id = r.user_id
                   JOIN usernames n ON n.user_id = u.id AND n.valid_to IS NULL
                  WHERE r.idempotency_key = :key
-                """).param("key", idempotencyKey).query((rs, rowNum) -> new StoredRegistration(
-                        rs.getBytes("request_hash"),
-                        rs.getObject("id", UUID.class),
-                        rs.getString("username"),
-                        rs.getString("display_name"))).optional();
+                """)
+                .param("key", idempotencyKey)
+                .query(
+                        (rs, rowNum) ->
+                                new StoredRegistration(
+                                        rs.getBytes("request_hash"),
+                                        rs.getObject("id", UUID.class),
+                                        rs.getString("username"),
+                                        rs.getString("display_name")))
+                .optional();
     }
 
     private record StoredRegistration(
-            byte[] requestHash, UUID userId, String username, String displayName) {
-    }
+            byte[] requestHash, UUID userId, String username, String displayName) {}
 
     public record RegistrationOutcome(
             UUID userId,

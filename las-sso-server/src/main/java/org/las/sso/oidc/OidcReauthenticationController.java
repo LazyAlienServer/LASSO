@@ -22,8 +22,10 @@ public final class OidcReauthenticationController {
     private final PasswordReauthenticationLimiter limiter;
     private final SameOriginVerifier sameOriginVerifier;
 
-    public OidcReauthenticationController(OidcReauthenticationService challenges,
-            RecentAuthenticationService recentAuthentication, PasswordReauthenticationLimiter limiter,
+    public OidcReauthenticationController(
+            OidcReauthenticationService challenges,
+            RecentAuthenticationService recentAuthentication,
+            PasswordReauthenticationLimiter limiter,
             SameOriginVerifier sameOriginVerifier) {
         this.challenges = challenges;
         this.recentAuthentication = recentAuthentication;
@@ -32,8 +34,12 @@ public final class OidcReauthenticationController {
     }
 
     @GetMapping("/oauth2/reauthenticate")
-    String form(Authentication authentication, @RequestParam String challenge,
-            HttpServletRequest request, HttpServletResponse response, Model model) {
+    String form(
+            Authentication authentication,
+            @RequestParam String challenge,
+            HttpServletRequest request,
+            HttpServletResponse response,
+            Model model) {
         LasUserPrincipal principal = principal(authentication);
         challenges.requireChallenge(request, principal, challenge);
         response.setHeader("Cache-Control", "no-store");
@@ -43,8 +49,13 @@ public final class OidcReauthenticationController {
     }
 
     @PostMapping("/oauth2/reauthenticate")
-    String verify(Authentication authentication, @RequestParam String challenge, @RequestParam String password,
-            HttpServletRequest request, HttpServletResponse response, Model model) {
+    String verify(
+            Authentication authentication,
+            @RequestParam String challenge,
+            @RequestParam String password,
+            HttpServletRequest request,
+            HttpServletResponse response,
+            Model model) {
         sameOriginVerifier.verify(request);
         LasUserPrincipal principal = principal(authentication);
         challenges.requireChallenge(request, principal, challenge);
@@ -65,7 +76,8 @@ public final class OidcReauthenticationController {
     }
 
     private static LasUserPrincipal principal(Authentication authentication) {
-        if (authentication == null || !(authentication.getPrincipal() instanceof LasUserPrincipal principal)
+        if (authentication == null
+                || !(authentication.getPrincipal() instanceof LasUserPrincipal principal)
                 || principal.passwordChangeRequired()) {
             throw new RecentAuthenticationException("PASSWORD_CHANGE_REQUIRED");
         }

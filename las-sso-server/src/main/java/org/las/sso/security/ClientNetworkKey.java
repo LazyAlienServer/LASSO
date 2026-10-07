@@ -3,7 +3,6 @@ package org.las.sso.security;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.HexFormat;
-
 import org.springframework.stereotype.Component;
 
 @Component

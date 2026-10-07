@@ -1,11 +1,11 @@
 package org.las.sso.api;
 
+import jakarta.servlet.http.HttpServletRequest;
 import org.las.sso.account.AccountManagementQueryService;
 import org.las.sso.account.DeletionRequestService;
 import org.las.sso.account.RecoveryCodeRotationService;
 import org.las.sso.identity.LasUserPrincipal;
 import org.las.sso.session.UserSessionService;
-import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -71,15 +71,13 @@ public class UiPageController {
         populateAccountModel(model, principal);
         model.addAttribute("profile", accountManagement.profile(principal.userId()));
         model.addAttribute("recoveryStatus", recoveryCodes.status(principal.userId()));
-        model.addAttribute("activeSessionCount", userSessions.sessions(principal.userId(), request).size());
+        model.addAttribute(
+                "activeSessionCount", userSessions.sessions(principal.userId(), request).size());
         return "account";
     }
 
     @GetMapping("/account/sessions")
-    String accountSessions(
-            Authentication authentication,
-            HttpServletRequest request,
-            Model model) {
+    String accountSessions(Authentication authentication, HttpServletRequest request, Model model) {
         LasUserPrincipal principal = requireReadyPrincipal(authentication);
         populateAccountModel(model, principal);
         model.addAttribute("sessions", userSessions.sessions(principal.userId(), request));
@@ -129,9 +127,7 @@ public class UiPageController {
     }
 
     private static void populateSecurityModel(
-            Model model,
-            LasUserPrincipal principal,
-            boolean requiredChange) {
+            Model model, LasUserPrincipal principal, boolean requiredChange) {
         model.addAttribute("username", principal.loginUsername());
         model.addAttribute("requiredChange", requiredChange);
     }
@@ -139,8 +135,10 @@ public class UiPageController {
     private static void populateAccountModel(Model model, LasUserPrincipal principal) {
         model.addAttribute("username", principal.loginUsername());
         model.addAttribute("userId", principal.userId());
-        model.addAttribute("administrator", principal.getAuthorities().stream()
-                .anyMatch(authority -> "ROLE_SSO_ADMIN".equals(authority.getAuthority())));
+        model.addAttribute(
+                "administrator",
+                principal.getAuthorities().stream()
+                        .anyMatch(authority -> "ROLE_SSO_ADMIN".equals(authority.getAuthority())));
     }
 
     private static LasUserPrincipal requireReadyPrincipal(Authentication authentication) {

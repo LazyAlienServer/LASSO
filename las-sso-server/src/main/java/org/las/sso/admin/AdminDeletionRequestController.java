@@ -1,14 +1,12 @@
 package org.las.sso.admin;
 
-import java.time.OffsetDateTime;
-import java.util.UUID;
-
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
-
+import java.time.OffsetDateTime;
+import java.util.UUID;
 import org.las.sso.api.RequestIdFilter;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
@@ -29,8 +27,7 @@ public class AdminDeletionRequestController {
     private final AdminOperationGuard adminGuard;
 
     public AdminDeletionRequestController(
-            AdminDeletionRequestService deletions,
-            AdminOperationGuard adminGuard) {
+            AdminDeletionRequestService deletions, AdminOperationGuard adminGuard) {
         this.deletions = deletions;
         this.adminGuard = adminGuard;
     }
@@ -40,7 +37,8 @@ public class AdminDeletionRequestController {
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String cursor,
             @RequestParam(defaultValue = "50") int limit) {
-        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noStore())
                 .body(deletions.list(status, cursor, limit));
     }
 
@@ -51,8 +49,14 @@ public class AdminDeletionRequestController {
             @Valid @RequestBody HoldRequest body,
             HttpServletRequest request) {
         AdminOperationGuard.Context context = adminGuard.authorizeWrite(authentication, request);
-        deletions.hold(context.principal().userId(), context.sid(), requestId,
-                body.reason(), body.publicSummary(), body.holdUntil(), requestId(request));
+        deletions.hold(
+                context.principal().userId(),
+                context.sid(),
+                requestId,
+                body.reason(),
+                body.publicSummary(),
+                body.holdUntil(),
+                requestId(request));
         return ResponseEntity.noContent().build();
     }
 
@@ -63,8 +67,12 @@ public class AdminDeletionRequestController {
             @Valid @RequestBody ReleaseRequest body,
             HttpServletRequest request) {
         AdminOperationGuard.Context context = adminGuard.authorizeWrite(authentication, request);
-        deletions.release(context.principal().userId(), context.sid(), requestId,
-                body.reason(), requestId(request));
+        deletions.release(
+                context.principal().userId(),
+                context.sid(),
+                requestId,
+                body.reason(),
+                requestId(request));
         return ResponseEntity.noContent().build();
     }
 
@@ -77,10 +85,7 @@ public class AdminDeletionRequestController {
     public record HoldRequest(
             @NotBlank @Size(max = 500) String reason,
             @NotBlank @Size(max = 500) String publicSummary,
-            @NotNull OffsetDateTime holdUntil) {
-    }
+            @NotNull OffsetDateTime holdUntil) {}
 
-    public record ReleaseRequest(
-            @NotBlank @Size(max = 500) String reason) {
-    }
+    public record ReleaseRequest(@NotBlank @Size(max = 500) String reason) {}
 }

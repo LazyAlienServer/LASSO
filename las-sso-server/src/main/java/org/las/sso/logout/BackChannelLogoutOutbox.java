@@ -2,7 +2,6 @@ package org.las.sso.logout;
 
 import java.time.OffsetDateTime;
 import java.util.UUID;
-
 import org.las.sso.identity.UuidV7Generator;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
@@ -19,7 +18,10 @@ public class BackChannelLogoutOutbox {
     }
 
     public int enqueueForUser(UUID userId, String reason, OffsetDateTime now) {
-        return enqueue(jdbcClient.sql("""
+        return enqueue(
+                jdbcClient
+                        .sql(
+                                """
                 SELECT DISTINCT rc.client_id, uri.uri, security.sid
                   FROM oauth2_authorization a
                   JOIN oauth2_registered_client rc
@@ -29,16 +31,25 @@ public class BackChannelLogoutOutbox {
                   LEFT JOIN oauth2_authorization_security security
                     ON security.authorization_id = a.id
                  WHERE a.principal_name = :principalName
-                """).param("principalName", userId.toString())
-                .query((rs, rowNum) -> new Delivery(
-                        rs.getString("client_id"),
-                        rs.getString("uri"),
-                        rs.getString("sid")))
-                .list(), userId, reason, now);
+                """)
+                        .param("principalName", userId.toString())
+                        .query(
+                                (rs, rowNum) ->
+                                        new Delivery(
+                                                rs.getString("client_id"),
+                                                rs.getString("uri"),
+                                                rs.getString("sid")))
+                        .list(),
+                userId,
+                reason,
+                now);
     }
 
     public int enqueueForSession(UUID userId, String sid, String reason, OffsetDateTime now) {
-        return enqueue(jdbcClient.sql("""
+        return enqueue(
+                jdbcClient
+                        .sql(
+                                """
                 SELECT DISTINCT rc.client_id, uri.uri, security.sid
                   FROM oauth2_authorization a
                   JOIN oauth2_authorization_security security
@@ -48,17 +59,27 @@ public class BackChannelLogoutOutbox {
                   JOIN registered_client_backchannel_logout_uris uri
                     ON uri.registered_client_id = rc.id
                  WHERE a.principal_name = :principalName AND security.sid = :sid
-                """).param("principalName", userId.toString()).param("sid", sid)
-                .query((rs, rowNum) -> new Delivery(
-                        rs.getString("client_id"),
-                        rs.getString("uri"),
-                        rs.getString("sid")))
-                .list(), userId, reason, now);
+                """)
+                        .param("principalName", userId.toString())
+                        .param("sid", sid)
+                        .query(
+                                (rs, rowNum) ->
+                                        new Delivery(
+                                                rs.getString("client_id"),
+                                                rs.getString("uri"),
+                                                rs.getString("sid")))
+                        .list(),
+                userId,
+                reason,
+                now);
     }
 
     public int enqueueForAuthorization(
             String authorizationId, UUID userId, String reason, OffsetDateTime now) {
-        return enqueue(jdbcClient.sql("""
+        return enqueue(
+                jdbcClient
+                        .sql(
+                                """
                 SELECT rc.client_id, uri.uri, security.sid
                   FROM oauth2_authorization a
                   JOIN oauth2_registered_client rc
@@ -70,18 +91,25 @@ public class BackChannelLogoutOutbox {
                  WHERE a.id = :authorizationId
                    AND a.principal_name = :principalName
                 """)
-                .param("authorizationId", authorizationId)
-                .param("principalName", userId.toString())
-                .query((rs, rowNum) -> new Delivery(
-                        rs.getString("client_id"),
-                        rs.getString("uri"),
-                        rs.getString("sid")))
-                .list(), userId, reason, now);
+                        .param("authorizationId", authorizationId)
+                        .param("principalName", userId.toString())
+                        .query(
+                                (rs, rowNum) ->
+                                        new Delivery(
+                                                rs.getString("client_id"),
+                                                rs.getString("uri"),
+                                                rs.getString("sid")))
+                        .list(),
+                userId,
+                reason,
+                now);
     }
 
-    public int enqueueForClient(
-            UUID userId, String clientId, String reason, OffsetDateTime now) {
-        return enqueue(jdbcClient.sql("""
+    public int enqueueForClient(UUID userId, String clientId, String reason, OffsetDateTime now) {
+        return enqueue(
+                jdbcClient
+                        .sql(
+                                """
                 SELECT DISTINCT rc.client_id, uri.uri, security.sid
                   FROM oauth2_authorization a
                   JOIN oauth2_registered_client rc
@@ -93,22 +121,26 @@ public class BackChannelLogoutOutbox {
                  WHERE a.principal_name = :principalName
                    AND rc.client_id = :clientId
                 """)
-                .param("principalName", userId.toString())
-                .param("clientId", clientId)
-                .query((rs, rowNum) -> new Delivery(
-                        rs.getString("client_id"),
-                        rs.getString("uri"),
-                        rs.getString("sid")))
-                .list(), userId, reason, now);
+                        .param("principalName", userId.toString())
+                        .param("clientId", clientId)
+                        .query(
+                                (rs, rowNum) ->
+                                        new Delivery(
+                                                rs.getString("client_id"),
+                                                rs.getString("uri"),
+                                                rs.getString("sid")))
+                        .list(),
+                userId,
+                reason,
+                now);
     }
 
     private int enqueue(
-            java.util.List<Delivery> deliveries,
-            UUID userId,
-            String reason,
-            OffsetDateTime now) {
+            java.util.List<Delivery> deliveries, UUID userId, String reason, OffsetDateTime now) {
         for (Delivery delivery : deliveries) {
-            jdbcClient.sql("""
+            jdbcClient
+                    .sql(
+                            """
                     INSERT INTO outbox_events
                         (id, aggregate_type, aggregate_id, event_type, payload_json,
                          created_at, available_at)
@@ -120,17 +152,18 @@ public class BackChannelLogoutOutbox {
                                 'sid', CAST(:sid AS text),
                                 'reason', :reason),
                             :now, :now)
-                    """).param("id", uuidGenerator.generate())
+                    """)
+                    .param("id", uuidGenerator.generate())
                     .param("userId", userId.toString())
                     .param("clientId", delivery.clientId())
                     .param("uri", delivery.uri())
                     .param("sid", delivery.sid())
                     .param("reason", reason)
-                    .param("now", now).update();
+                    .param("now", now)
+                    .update();
         }
         return deliveries.size();
     }
 
-    private record Delivery(String clientId, String uri, String sid) {
-    }
+    private record Delivery(String clientId, String uri, String sid) {}
 }
