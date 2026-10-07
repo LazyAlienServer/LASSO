@@ -155,7 +155,11 @@ def package(version, work):
         if path.is_file():
             target = stage / path.relative_to(templates)
             target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_text(path.read_text(encoding="utf-8").replace("{{VERSION}}", version), encoding="utf-8", newline="\n")
+            text = path.read_text(encoding="utf-8")
+            # Executable tools contain template-detection literals, not release substitutions.
+            if path.suffix != ".py":
+                text = text.replace("{{VERSION}}", version)
+            target.write_text(text, encoding="utf-8", newline="\n")
     shutil.copytree(SERVER / "deploy/monitoring", stage / "deploy/monitoring")
     shutil.copy2(SERVER / "deploy/nginx/las-forwarding.conf", stage / "deploy/nginx/las-forwarding.conf")
     for path in sorted((SERVER / "scripts").glob("*.ps1")):

@@ -86,7 +86,7 @@ def verify():
     for path in sorted(ROOT.rglob("*.md")):
         text = path.read_text(encoding="utf-8")
         if "{{VERSION}}" in text or sum(line.startswith("```") for line in text.splitlines()) % 2:
-            raise ValueError("Unexpanded template or Markdown fence")
+            raise ValueError(f"Unexpanded template or Markdown fence: {path.relative_to(ROOT)}")
         for target in re.findall(r"\[[^\]]*\]\(([^)]+)\)", text):
             parsed = urlsplit(target.strip("<>"))
             if parsed.scheme or parsed.netloc or not parsed.path:
