@@ -4,7 +4,7 @@
 
 ## 1. Prepare The Environment
 
-Use JDK21, PostgreSQL (18.4 was the acceptance baseline), a private app/DB network and a canonical HTTPS issuer. Supply an operator-owned domain, exact consumer callback/logout URLs, CA/renewal, firewall rules, storage/capacity and incident contacts. Use separate staging/production DBs and clients. This package does not provision them. Complete production startup validation/no-admin maintenance mode remains pending; keep ingress closed until manual checks and initialization succeed.
+Use JDK21, PostgreSQL (18.4 was the acceptance baseline), a private app/DB network and a canonical HTTPS issuer. Supply an operator-owned domain, exact consumer callback/logout URLs, CA/renewal, firewall rules, storage/capacity and incident contacts. Use separate staging/production DBs and clients. Production rejects example/HTTP/loopback issuers and requires the issuer path to match servlet context. A non-development process requires explicit `production`, never mixed with `local`/`test`. Without a usable administrator, Web startup fails; initialize through offline maintenance. Keep ingress closed until target checks succeed.
 
 Verify the package from its root with `python scripts/verify-package.py`. Read `provenance/release-manifest.json` and retain its trusted server hash. Install the entire immutable version directory at `/opt/las-sso/{{VERSION}}`, create an unprivileged `las-sso` user and a protected `/etc/las-sso/` configuration location. Do not let the runtime user rewrite release files.
 
@@ -27,6 +27,8 @@ Generate secrets through a trusted secret manager/CSPRNG; preserve exact values 
 
 ## 3. Initialize While Ingress Is Closed
 
+Production minimums: recovery/transient/CAPTCHA secrets each at least32 UTF-8 bytes; DB/key passwords at least12 bytes. All five must be distinct and not contain known local/test/change-me markers. Length alone does not prove entropy. Keep Flyway validation/clean protection and the sole embedded location enabled; a separate migration role may use the same JDBC URL. Web Cookie retains Path=/ with no Domain. `production` activates the required gates; it does not provision resources. Failed gates print category/property names only.
+
 Offline maintenance uses JDK21 plus the same DB/key/secrets and explicit external config. Stop web writers before initialization. In PowerShell from package root:
 
 ```powershell
@@ -37,7 +39,7 @@ $sha = $manifest.artifacts.server.sha256
 ./scripts/bootstrap-admin.ps1 -Username '<chosen-login-name>' -Profile production -JarPath $jar -ExpectedSha256 $sha
 ```
 
-Use `-UserId '<existing-UUID>'` instead of Username for an existing account. Real passwords are read by the Java console without echo, not parameters/env/history. Keep operator prompts and one-time recovery output private. Packaged bootstrap/reset defaults select `production`; JAR and expected hash are mandatory. `production` is a name you select, not a special provisioning profile. No `local`/`test` in live settings. Linux administrators can install PowerShell or invoke the same Java non-web maintenance command with explicit profile/config/JAR, retaining the hash and interactive-console checks; this does not require a source checkout.
+Use `-UserId '<existing-UUID>'` instead of Username for an existing account. Real passwords are read by the Java console without echo, not parameters/env/history. Keep operator prompts and one-time recovery output private. Packaged bootstrap/reset defaults select `production`; JAR and expected hash are mandatory. Production is required and activates startup checks, not resource provisioning. No `local`/`test` in live settings. Linux administrators can install PowerShell or invoke the same Java non-web maintenance command with explicit profile/config/JAR, disabling scheduling/session cleanup/monitoring and retaining hash/console checks; no source checkout is required.
 
 ## 4. Start And Configure The Proxy
 

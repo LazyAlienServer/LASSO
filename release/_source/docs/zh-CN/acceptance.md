@@ -14,7 +14,7 @@ provenance/verification-summary.json记录实际命令/工具版本/时间/报�
 
 | 范围 | 环境专项证据 |
 | --- | --- |
-| 输入/启动 | 已确认issuer/网络/客户端/负责人、独立秘密/持久key/无local默认；人工关入口至admin初始化，完整startup gate仍待做 |
+| 输入/启动 | 已确认issuer/网络/客户端/负责人、独立秘密/持久key/生产门禁/无local默认；非Web初始化admin，再关闭入口验目标环境 |
 | DB | 空库/代表性旧库升级V1–V15、备份恢复/checksum/权限；DB断连readiness200→503→200而liveness200 |
 | TLS/浏览器 | 实际CA/域名/代理头/禁止直连、Secure Cookie/CSRF/Origin、双站登录/consent/改名稳定UUID |
 | 生命周期/admin | 近期密码/admin门禁、冻结解冻/注销等待hold取消执行、人工恢复/交接，不绕last-admin |

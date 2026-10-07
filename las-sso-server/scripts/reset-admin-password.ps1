@@ -16,6 +16,8 @@ $arguments = @(
     '-jar', $jar,
     '--spring.main.web-application-type=none',
     "--spring.profiles.active=$Profile",
+    '--las.sso.scheduling.enabled=false',
+    '--spring.session.jdbc.cleanup-cron=-',
     '--las.sso.maintenance.command=admin-reset-password'
 )
 

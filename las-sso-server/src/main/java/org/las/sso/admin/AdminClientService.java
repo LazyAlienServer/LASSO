@@ -14,6 +14,7 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
 import org.las.sso.config.LasSsoProperties;
+import org.las.sso.config.ProductionUriPolicy;
 import org.las.sso.identity.UuidV7Generator;
 import org.las.sso.logout.BackChannelLogoutOutbox;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -717,6 +718,9 @@ public class AdminClientService {
             throw new AdminClientException("INVALID_REDIRECT_URI");
         }
         if ("https".equalsIgnoreCase(scheme)) {
+            if (!allowInsecureLoopback && !ProductionUriPolicy.isHttpsEndpoint(uri, true)) {
+                throw new AdminClientException("INVALID_REDIRECT_URI");
+            }
             return;
         }
         if (allowInsecureLoopback

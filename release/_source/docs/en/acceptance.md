@@ -14,7 +14,7 @@ Earlier acceptance remains historical: `.7` real TLS dual BFF/initial-hint logou
 
 | Area | Required environment-specific evidence |
 | --- | --- |
-| Inputs/startup | Approved issuer/network/clients/owners; independent secrets, persistent key, no local defaults; manually closed ingress until admin initialized; complete startup gate task remains pending |
+| Inputs/startup | Approved issuer/network/clients/owners; independent secrets/persistent key; production gates and no-local defaults; non-Web admin initialization, then target checks with closed ingress |
 | Database | Fresh + representative upgrade V1–V15, backup/restore/checksums/permissions; DB outage readiness200→503→200 with liveness200 |
 | TLS/browser | Actual CA/domain/proxy headers/direct-port denial, Secure Cookie/CSRF/Origin, two sites/login/consent/rename stable UUID |
 | Lifecycle/admin | Recent-password/admin guards, freeze/unfreeze/deletion wait/hold/cancel/execute, manual recovery and auditable handover without last-admin bypass |

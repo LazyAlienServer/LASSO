@@ -21,7 +21,7 @@ docker compose up -d
 
 SSO 在 `http://127.0.0.1:9000`；开发 PostgreSQL 在 `127.0.0.1:54329`。初始化管理员后可访问 `/login`、`/register`、`/account`、`/account/security`、`/account/sessions`、`/account/recovery-codes` 等页面。
 
-`local` profile 使用每次启动变化的临时签名 key，登记两个明确 local-only 的示例客户端。非 local/test 环境使用持久 PKCS#12 RSA key 和外部秘密配置，不能复制开发客户端或示例凭据。第一次初始化和生产开放的区别见[上线计划](../docs/zh-CN/implementation/production-launch-plan.md)。
+`local` profile 使用每次启动变化的临时签名 key，登记两个明确 local-only 的示例客户端。非 local/test 环境必须显式使用 `production`，持久 PKCS#12 RSA key 和外部秘密配置；不能复制开发客户端或示例凭据。生产 Web 启动还检查管理员、安全 epoch 和已有 ACTIVE 客户端；空库先用非 Web bootstrap。见[上线计划](../docs/zh-CN/implementation/production-launch-plan.md)及[启动门禁记录](../docs/implementation/production-startup-gates-2026-10-07.md)。
 
 ## 构建与测试
 

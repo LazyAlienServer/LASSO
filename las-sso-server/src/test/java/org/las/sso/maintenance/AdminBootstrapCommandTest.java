@@ -21,6 +21,27 @@ import org.springframework.mock.env.MockEnvironment;
 class AdminBootstrapCommandTest {
 
     @Test
+    void passwordArgumentIsRejectedBeforeObtainingTheConsole() {
+        var command =
+                new AdminBootstrapCommand(
+                        mock(AdminBootstrapService.class),
+                        new MockEnvironment()
+                                .withProperty("spring.main.web-application-type", "none"),
+                        () -> {
+                            throw new AssertionError("Console must not be queried");
+                        });
+        assertThatThrownBy(
+                        () ->
+                                command.run(
+                                        new DefaultApplicationArguments(
+                                                "--username=FixtureUser",
+                                                "--password=secret-canary")))
+                .isInstanceOf(AdminBootstrapException.class)
+                .extracting("code")
+                .isEqualTo("PASSWORD_OPTION_NOT_ALLOWED");
+    }
+
+    @Test
     void deletionRefusalExplainsOwnerCancellationPropagatesFailureAndWipesBothPasswordBuffers() {
         var service = mock(AdminBootstrapService.class);
         UUID userId = UUID.randomUUID();

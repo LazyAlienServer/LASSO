@@ -91,7 +91,7 @@ LAS_SSO_TRUSTED_PROXY_CIDRS
 
 ## 5. 启动门禁与健康检查
 
-从当前开发基线到目标生产的责任与执行顺序见[上线计划](../zh-CN/implementation/production-launch-plan.md)／[English](../implementation/production-launch-plan.md)。其中P02逐项核对本节规则与实际代码，P06–P10落实环境/Secret/DB/监控/灾备，P15–P19完成最终候选演练和生产开放；本手册写出的控制不能自动记为已实现。
+从当前开发基线到目标生产的责任与执行顺序见[上线计划](../zh-CN/implementation/production-launch-plan.md)／[English](../implementation/production-launch-plan.md)。P02 源码门禁见[实现记录](../implementation/production-startup-gates-2026-10-07.md)／[中文](../zh-CN/implementation/production-startup-gates-2026-10-07.md)；P06–P10 仍落实环境/Secret/DB/监控/灾备，P15–P19 完成最终候选演练和生产开放，源码门禁通过不代表目标环境验收已完成。
 
 ### 5.1 启动时必须失败关闭
 
@@ -107,7 +107,7 @@ LAS_SSO_TRUSTED_PROXY_CIDRS
 - 客户端存在生产通配 Redirect URI；
 - 关键 Secret 使用示例默认值或强度不足。
 
-首次部署尚无管理员时，应用可以启动为维护状态但不能开放注册/OIDC 登录；管理员 bootstrap 完成并重启/重新检查后才 Ready。
+当前实现中，无管理员时生产 Web 进程直接启动失败；应以 `WebApplicationType.NONE` 执行 bootstrap 创建管理员后再启动 Web。管理员处于未过期的首次改密状态时允许启动，已有请求过滤器限制普通操作直至改密。维护命令关闭 scheduling/session cleanup/monitoring，并保留隐藏交互密码输入。
 
 ### 5.2 健康端点
 
@@ -119,7 +119,7 @@ LAS_SSO_TRUSTED_PROXY_CIDRS
 ```
 
 - Liveness 只判断进程是否卡死，不因 PostgreSQL 短故障无限重启。
-- 预期启动门禁涵盖数据库、签名 key/schema和关键配置；当前readiness运行期实际为`readinessState,db`。2026-10-06旧配置DBdown仍200已修，.5实际200→503→200/liveness始终200，[English记录](capacity-readiness-2026-10-06.md)／[中文](../zh-CN/operations/capacity-readiness-2026-10-06.md)。这不表示上节所有生产config/admin/schema/key验证器已实现，启动失败校验与运行期health分别核。
+- 启动门禁涵盖配置、持久 RSA、Flyway、安全 epoch、管理员与已有 ACTIVE 客户端；运行期 readiness 仍为 `readinessState,db`。`.5` 实测 `200→503→200`、liveness始终200见[记录](capacity-readiness-2026-10-06.md)／[中文](../zh-CN/operations/capacity-readiness-2026-10-06.md)。启动校验与运行期health分别核验；正式域名、TLS、可信代理、Secret保管等目标环境要求仍需验收。
 - 健康详情只对本机/监控网络开放，公网只返回粗粒度状态。
 
 ## 6. 首次上线

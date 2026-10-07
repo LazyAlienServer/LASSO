@@ -9,7 +9,7 @@ Templates reference external environment variables and contain no live passwords
 | `reference-bff/bff.properties.example` | HTTPS BFF identity/Cookie/refresh settings; actual client must be registered separately |
 | `reference-bff/durable-revocation.properties.example` | Optional reference-only independent DB/AES queue, not SSO schema |
 
-`production` is an operator-selected profile name, not a shipped provisioning system. Avoid local/test profiles. Base server port9000/management9091 are examples; bindings must match proxy/firewall. Files are `.example` inputs, not ready-to-run secrets or a mechanism automatically selected by the app.
+`production` is required by non-development startup gates; it is not a provisioning system. Avoid local/test profile mixing. Base server port9000/management9091 are examples; bindings must match proxy/firewall. Files are `.example` inputs, not ready-to-run secrets or a mechanism automatically selected by the app.
 
 Linux startup passes `--spring.config.additional-location=file:/etc/las-sso/server.properties`; protected environment supplies variables. PowerShell maintenance uses `SPRING_CONFIG_ADDITIONAL_LOCATION` and explicit profile/JAR/hash. See [中文部署](../docs/zh-CN/deployment.md) / [English deployment](../docs/en/deployment.md).
 

@@ -15,7 +15,7 @@ Engineering changes since historical `.20261006.7`: committed source history, pi
 ## Known Limitations
 
 - Development delivery, no production deployment/approval, remote CI result, hosted signature or target-hardware sizing supplied by this package.
-- Required settings/key loading/Flyway/DB readiness exist; complete production issuer/default-secret/client/admin maintenance startup validation remains a launch task. Initial ingress must remain closed under operator control.
+- Production gates validate profile/HTTPS issuer/context, key/secrets/Cookie/Flyway/health and security epoch/admin/ACTIVE clients; an empty administrator DB requires non-Web bootstrap before Web startup. Actual target TLS/proxy/secret custody/deployment acceptance remain launch work; keep initial ingress closed.
 - Default Starter Token/session/index/replay/sid markers and revocation work are process-local or HttpSession. Restart ends business login; persistent accepted revocation tasks require a consumer adapter or explicit reference profile.
 - Reference durable queue cannot close the pre-submit crash gap. It has no automatic dead-task replay, receipt retention cleanup or multi-key rotation; drain/retain keys under controlled operations.
 - ID-hint history grows with live authorizations; cascade follows authorization removal. Lost pre-upgrade hints are not reconstructed; pepper rotation can invalidate historical lookup.

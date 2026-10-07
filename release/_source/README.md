@@ -18,7 +18,7 @@ From this directory, before installation:
 python scripts/verify-package.py
 ```
 
-Install and supply external settings using the deployment handbook. Never start production using a local/test profile or the packaged templates without required external values. The app does not implement every production startup gate; keep ingress closed until deployment checks and administrator/client initialization are complete.
+Install and supply external settings using the deployment handbook. Production requires an explicit `production` profile and rejects unsafe startup settings; do not mix `local`/`test` or use templates without actual external values. Initialize the administrator through non-Web maintenance before Web startup; keep ingress closed until target TLS/network/client and acceptance checks are complete.
 
 Programs: `application/las-sso-server-{{VERSION}}.jar`; SDK file Maven repository under `sdk/maven/`; runnable sample under `examples/reference-bff/`. Maintenance uses explicit JAR paths and hashes. The `source/` ZIP is the exact committed source snapshot, not a dependency of the operations manuals.
 

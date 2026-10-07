@@ -40,6 +40,9 @@ public final class AdminBootstrapCommand implements ApplicationRunner {
     @Override
     public void run(ApplicationArguments arguments) {
         requireNonWebMode();
+        if (arguments.containsOption("password")) {
+            throw new AdminBootstrapException("PASSWORD_OPTION_NOT_ALLOWED");
+        }
         String username = singleOption(arguments, "username");
         String userId = singleOption(arguments, "user-id");
         if ((username == null) == (userId == null)) {

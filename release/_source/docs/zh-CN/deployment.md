@@ -4,7 +4,7 @@
 
 ## 1. 准备环境
 
-使用 JDK21、PostgreSQL（验收基线为18.4）、私有应用/数据库网络与唯一 HTTPS Issuer。由运维确定正式域名、消费方精确回调/退出 URI、CA/续期、防火墙、存储/容量和故障联系人；预发布与生产使用独立数据库和客户端。包不自动创建这些资源。完整生产启动校验/无管理员维护模式仍待实现，因此人工检查和初始化成功前必须关闭入口。
+使用 JDK21、PostgreSQL（验收基线为18.4）、私有应用/数据库网络与唯一 HTTPS Issuer。由运维确定正式域名、消费方精确回调/退出 URI、CA/续期、防火墙、存储/容量和故障联系人；预发布与生产使用独立数据库和客户端。生产门禁拒绝 example/HTTP/loopback Issuer，并要求 Issuer 路径等于 servlet context。非开发进程必须显式启用 `production`，不能与 `local`/`test` 混用。无可用管理员时 Web 启动失败，应先用离线维护初始化；目标检查成功前关闭入口。
 
 在包根运行 `python scripts/verify-package.py`，读取 `provenance/release-manifest.json` 并保存可信的服务端摘要。将整个不可变版本目录安装至 `/opt/las-sso/{{VERSION}}`，创建低权限 `las-sso` 用户和受保护的 `/etc/las-sso/` 配置目录。运行用户不应能重写发行文件。
 
@@ -27,6 +27,8 @@
 
 ## 3. 入口关闭时初始化
 
+生产最低要求：恢复/transient/CAPTCHA 秘密各至少32个 UTF-8字节，DB/key密码至少12字节；五者相互独立，不含已知local/test/change-me标记。长度不证明熵，应分别随机生成。保留Flyway校验/禁止clean/唯一内嵌迁移位置，独立迁移角色可用相同JDBC目标。Web Cookie为Path=/、无Domain。`production`启用门禁，不自动供应资源；失败仅输出类别/属性名。
+
 离线维护使用 JDK21、同一数据库/密钥/秘密及明确外部配置。初始化前停止 Web 写入者。在包根 PowerShell 执行：
 
 ```powershell
@@ -37,7 +39,7 @@ $sha = $manifest.artifacts.server.sha256
 ./scripts/bootstrap-admin.ps1 -Username '<chosen-login-name>' -Profile production -JarPath $jar -ExpectedSha256 $sha
 ```
 
-现有账号改用 `-UserId '<existing-UUID>'`，不同时传 Username。真实密码由 Java console 隐藏读取，不能作为参数/环境/历史记录保存；交互与一次性恢复输出应私密保管。包内 bootstrap/reset 默认 `production`，JAR 与预期摘要必填。`production` 是运维选用的名字，不是自动配置生产环境的特殊 profile。正式环境不启用 `local`/`test`。Linux 可安装 PowerShell，或用同样的 Java non-web 维护命令显式传 profile/config/JAR，并保留摘要及交互控制台检查，无须源码目录。
+现有账号改用 `-UserId '<existing-UUID>'`，不同时传 Username。真实密码由 Java console 隐藏读取，不作为参数/环境/历史记录；交互与一次性恢复输出私密保管。包内 bootstrap/reset 默认 `production`，JAR/预期摘要必填。production为必需profile并启用启动校验，不自动供应生产资源；不混用local/test。Linux可安装PowerShell或直接运行相同Java non-web命令，显式profile/config/JAR，关闭scheduling/session cleanup/monitoring，并保留摘要/交互检查，无须源码。
 
 ## 4. 启动与代理
 
