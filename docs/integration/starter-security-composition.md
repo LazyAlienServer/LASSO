@@ -8,6 +8,8 @@
 
 Optional reference-BFF [durable revocation profile](reference-durable-revocation.md) replaces only the existing work sink with encrypted PostgreSQL committed acceptance/restart recovery. It does not move Token/Session/index/replay into a shared store or close the local-logout→submit crash gap. Default starter behavior and public API remain unchanged; see [ADR-0009](../adr/0009-reference-bff-durable-token-revocation.md).
 
+P03 adds request-scoped `LasSsoRevocationSubmission` outcomes and changes invalid/unadvertised default-sink input from a silent return to rejection. ReferenceV2 provides operator recovery/retention/drain-first key rotation; [current guide](reference-durable-revocation.md) defines compensation and compatibility limits.
+
 Defining a `SecurityFilterChain` makes the starter's default chain back off. Inject `LasSsoSecurityConfigurer` and call `configure(http, applicationSuccessHandler)` once on the chain that handles LAS OAuth2 endpoints, the local session and logout. It installs the same protocol/lifecycle wiring used by the default chain. Application routing and business authorization remain application-owned.
 
 ```java

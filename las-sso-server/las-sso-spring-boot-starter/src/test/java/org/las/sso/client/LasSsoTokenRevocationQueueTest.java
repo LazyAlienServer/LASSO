@@ -1,6 +1,7 @@
 package org.las.sso.client;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.sun.net.httpserver.HttpServer;
 import java.net.InetSocketAddress;
@@ -31,6 +32,40 @@ import org.springframework.security.oauth2.core.AuthorizationGrantType;
 @Timeout(15)
 @ExtendWith(OutputCaptureExtension.class)
 class LasSsoTokenRevocationQueueTest {
+
+    @Test
+    void invalidOrUnadvertisedSubmissionCannotPretendToBeAccepted() {
+        try (var timer = new ControlledScheduler();
+                var queue = new LasSsoTokenRevocationQueue(timer)) {
+            var registration = registration("https://issuer.example/revoke");
+            var missing =
+                    ClientRegistration.withClientRegistration(registration)
+                            .providerConfigurationMetadata(Map.of())
+                            .build();
+            assertThatThrownBy(() -> queue.submit(missing, "token-canary", "refresh_token"))
+                    .hasMessage("Revocation endpoint unavailable");
+            assertThatThrownBy(() -> queue.submit(registration, "", "refresh_token"))
+                    .hasMessage("Invalid revocation submission");
+            assertThatThrownBy(() -> queue.submit(registration, "token-canary", "unknown"))
+                    .hasMessage("Invalid revocation submission");
+            assertThatThrownBy(() -> queue.submit(registration, "a".repeat(16385), "refresh_token"))
+                    .hasMessage("Invalid revocation submission");
+            assertThat(timer.tasks).isEmpty();
+            for (String uri :
+                    List.of(
+                            "http://untrusted.example/revoke",
+                            "https://issuer.example/revoke?token=fixture",
+                            "https://user@issuer.example/revoke",
+                            "https://issuer.example/revoke#fragment")) {
+                assertThatThrownBy(
+                                () ->
+                                        queue.submit(
+                                                registration(uri), "token-canary", "refresh_token"))
+                        .hasMessage("Revocation endpoint or confidential client invalid");
+            }
+            assertThat(timer.tasks).isEmpty();
+        }
+    }
 
     @Test
     void redirectIsRetriedAgainstTheOriginalEndpointInsteadOfAcceptedOrFollowed() throws Exception {

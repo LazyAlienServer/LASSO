@@ -1,0 +1,23 @@
+# P03 Revocation Recovery Implementation
+
+[中文](../zh-CN/implementation/revocation-recovery-2026-10-07.md) · [ADR-0013](../adr/0013-reference-revocation-operator-recovery.md) · [Operator/integration guide](../integration/reference-durable-revocation.md)
+
+## Scope And Results
+
+P03 implements reference-queue operator replay, bounded completed-receipt retention and drained-key rotation. Starter adds request-scoped submission outcomes and rejects invalid/unadvertised default queue submissions. Local logout still precedes submission; an accepted task is not an OP success receipt. No consumer schema or complete cross-storage atomic logout is implemented. Consumer compensating intent/adoption remains P11; no claim that pre-submit crash is closed.
+
+Reference V2 adds replay_count, active-key HMAC possession registry and operator audit. Short DB advisory locks serialize key/mutation boundaries, timeout5s/transaction15s, no HTTP under lock. Dead replay compares task/generation and authenticates payload, new campaign0..8 attempts, same-transaction audit. Purge only completed rows older configured1–365days (default30), batch1–1000(default100) hourly; pending/dead/leases untouched. Rotate requires every incomplete task drained, new material and never-reused ID, exact old proof and audit; old runtime producers/claimers cannot silently use retired key. Pre-V2 binaries must be stopped before upgrading/rotating.
+
+V2 also guards inserted task key IDs at the PostgreSQL boundary under the rotation lock, rejecting a legacy old-key insert after rotation. First registry initialization authenticates every outstanding encrypted task, not only one sample. All legacy processes must still stop: the trigger does not retrofit key-proof or claim verification into old workers.
+
+Offline reference maintenance uses exact reference JAR/hash, real console confirmation, operator/reason and explicit target/key. It launches a small non-Web context with no OIDC registration/discovery or scheduler, and refuses key/password command-line input. Host/DB access controls authenticate operators; actor labels are not identity proof. No browser/admin HTTP replay endpoint.
+
+## Verification
+
+Focused JDK21/Docker reference and Starter tests passed with actualPostgreSQL18.4/HTTP/AES-GCM. New cases cover V1→V2 preservation/delivery; restart/new store state; replay generation/concurrency/readable payload; audit failure rollback for replay/purge/rotation; pending/dead/lease drain; rotation vs submission race; wrong/same-ID/reused-key material; old-process exclusion; completed retention boundaries; no-console/cancelled/worker-active command refusal; no-OIDC offline wiring; local-session-ended failure outcome and default sink refusal. Fixture SQL accelerates lease/dead/retention dates; it does not simulate every live crash instruction.
+
+Strict full JDK21/Gradle/Docker run passed **562 server +196 Starter +50 reference =808 tests**, zero failures/errors/skips. The first complete run was correctly rejected for309 skipped DB tests after Docker stopped; Docker Desktop was restarted and all tasks rerun, not a skip waiver. Actual reference SNAPSHOT bootJAR/PowerShell/Windows PTY/disposable PostgreSQL18.4 verified no-console refusal, embedded V1–V2, cancelled purge with no mutation, confirmed purge/audit, drained rotation, old-key process refusal and new-key restart. No SSO process or OIDC Discovery was needed; fixture DB/secret files cleaned.
+
+Actual process replay: a package-local fixture compiled against the built reference JAR's classes/libraries seeded an AES-GCM dead task and exited; the real reference bootJAR/PowerShell/PTY command replayed it; a fresh worker JVM delivered once to a loopback RFC7009 receiver, confirmed replay generation1/attempt1 and erased ciphertext. This is a real process boundary with a loopback receiver, not OP/browser adoption. Initial candidate scan reported the previously reviewed P02 dummy key-path false positive. Renaming that nonfunctional fixture path and scanning a fresh514-file candidate produced Gitleaks8.30.1 zero findings. Five PowerShell scripts parsed; repository492 text candidates/1169 local links and original package integrity passed. No current dependency/SAST/production-image scan claim is made.
+
+Historical `.4` Edge/OP restarted-task results remain earlier evidence, not new browser acceptance. TargetTLS/capacity/pooled DB/key custody/off-host backup/on-call/business adoption and SSO outbox operator recovery remain separate. No new dependency or SSO migration; reference V2 is not SSO V16. Existing release bytes remain immutable; new packaging needs a new version.

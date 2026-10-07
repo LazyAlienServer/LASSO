@@ -2,6 +2,7 @@ package org.las.sso.client;
 
 import java.io.IOException;
 import java.net.HttpURLConnection;
+import java.net.URI;
 import java.time.Duration;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -51,19 +52,38 @@ public final class LasSsoTokenRevocationQueue implements AutoCloseable, LasSsoRe
 
     @Override
     public void submit(ClientRegistration registration, String token, String tokenTypeHint) {
-        if (token == null || token.isBlank()) {
-            return;
-        }
+        if (registration == null
+                || token == null
+                || token.isBlank()
+                || token.length() > 16384
+                || !("refresh_token".equals(tokenTypeHint) || "access_token".equals(tokenTypeHint)))
+            throw new IllegalArgumentException("Invalid revocation submission");
         Object endpoint =
                 registration
                         .getProviderDetails()
                         .getConfigurationMetadata()
                         .get("revocation_endpoint");
         if (!(endpoint instanceof String uri) || uri.isBlank()) {
-            LOGGER.warn(
-                    "OIDC provider did not advertise a revocation endpoint: registrationId={}",
-                    registration.getRegistrationId());
-            return;
+            throw new IllegalStateException("Revocation endpoint unavailable");
+        }
+        try {
+            URI parsed = URI.create(uri);
+            boolean loopback =
+                    "127.0.0.1".equals(parsed.getHost()) || "[::1]".equals(parsed.getHost());
+            if (parsed.getHost() == null
+                    || parsed.getUserInfo() != null
+                    || parsed.getQuery() != null
+                    || parsed.getFragment() != null
+                    || !("https".equals(parsed.getScheme())
+                            || "http".equals(parsed.getScheme()) && loopback)
+                    || registration.getClientSecret() == null
+                    || registration.getClientSecret().isBlank()
+                    || !org.springframework.security.oauth2.core.ClientAuthenticationMethod
+                            .CLIENT_SECRET_BASIC
+                            .equals(registration.getClientAuthenticationMethod()))
+                throw new IllegalArgumentException();
+        } catch (IllegalArgumentException exception) {
+            throw new IllegalStateException("Revocation endpoint or confidential client invalid");
         }
         executor.execute(() -> deliver(new Request(registration, uri, token, tokenTypeHint, 0)));
     }

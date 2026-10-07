@@ -7,7 +7,7 @@ Templates reference external environment variables and contain no live passwords
 | `server/server.properties.example` | Main SSO process: DB, canonical issuer, persistent PKCS12 key and peppers |
 | `server/monitoring.properties.example` | Optional `monitoring` profile: separate private listener and independent bcrypt collector hash |
 | `reference-bff/bff.properties.example` | HTTPS BFF identity/Cookie/refresh settings; actual client must be registered separately |
-| `reference-bff/durable-revocation.properties.example` | Optional reference-only independent DB/AES queue, not SSO schema |
+| `reference-bff/durable-revocation.properties.example` | Optional reference-only independent DB/AES queue, not SSO schema; supply `reference.revocation.next-key-base64` only through protected config during offline key rotation |
 
 `production` is required by non-development startup gates; it is not a provisioning system. Avoid local/test profile mixing. Base server port9000/management9091 are examples; bindings must match proxy/firewall. Files are `.example` inputs, not ready-to-run secrets or a mechanism automatically selected by the app.
 

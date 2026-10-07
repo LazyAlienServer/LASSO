@@ -203,7 +203,7 @@ class ProductionConfigurationGateTest {
         env.setActiveProfiles("production");
         return env.withProperty("las.sso.issuer", "https://auth.las.internal")
                 .withProperty("las.sso.signing-key.key-id", "sso-prod-1")
-                .withProperty("las.sso.signing-key.path", "protected-key.p12")
+                .withProperty("las.sso.signing-key.path", "fixture-store.bin")
                 .withProperty("las.sso.signing-key.alias", "signing")
                 .withProperty("las.sso.signing-key.password", SECRET + "-key")
                 .withProperty("las.sso.recovery.pepper", SECRET + "-recovery")

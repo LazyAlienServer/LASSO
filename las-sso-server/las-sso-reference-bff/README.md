@@ -27,6 +27,8 @@
 
 `https` 和持久队列的秘密设置放外部受限文件，不作为命令行参数或提交到 Git。示例队列只保证已提交任务重启恢复，默认会话、索引、重放缓存和刷新合并仍是单 JVM；业务重启后重新登录。
 
+参考V2支持精确task/generation离线死信恢复、完成回执默认30天/小时有界清理，以及排空后的active-key登记/轮换。`../scripts/reference-revocation-maintenance.ps1` 必须指定参考BFF JAR/hash、旧key ID、操作者/原因并真实console确认；独立维护上下文不依赖SSO Discovery。详细步骤与pre-submit补偿见[操作指南](../../docs/integration/reference-durable-revocation.md)。
+
 ## 验证与边界
 
 ```powershell

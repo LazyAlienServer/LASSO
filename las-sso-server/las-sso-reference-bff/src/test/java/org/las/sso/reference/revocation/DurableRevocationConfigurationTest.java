@@ -9,6 +9,7 @@ import org.las.sso.client.LasSsoClientAutoConfiguration;
 import org.las.sso.client.LasSsoRevocationTaskSink;
 import org.las.sso.client.LasSsoTokenRevocationQueue;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
+import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -90,6 +91,33 @@ class DurableRevocationConfigurationTest {
                                         JdbcRevocationIntegrationTest.registration(
                                                 "https://issuer.example/revoke",
                                                 "fixture-only-secret")));
+    }
+
+    @Test
+    void offlineConfigurationNeedsNoOidcRegistrationAndStartsNoWorkerOrScheduling() {
+        new ApplicationContextRunner()
+                .withPropertyValues(
+                        "spring.profiles.active=durable-revocation,revocation-maintenance",
+                        "spring.main.web-application-type=none",
+                        "reference.revocation.worker-enabled=false",
+                        "reference.revocation.jdbc-url=" + POSTGRES.getJdbcUrl(),
+                        "reference.revocation.username=" + POSTGRES.getUsername(),
+                        "reference.revocation.password=" + POSTGRES.getPassword(),
+                        "reference.revocation.key-id=fixture",
+                        "reference.revocation.key-base64="
+                                + Base64.getEncoder().encodeToString(new byte[32]))
+                .withUserConfiguration(RevocationMaintenance.OfflineConfiguration.class)
+                .run(
+                        context -> {
+                            assertThat(context)
+                                    .hasNotFailed()
+                                    .hasSingleBean(JdbcRevocationStore.class);
+                            assertThat(context)
+                                    .doesNotHaveBean(ClientRegistrationRepository.class)
+                                    .doesNotHaveBean(RevocationWorker.class)
+                                    .doesNotHaveBean(RevocationRetentionJob.class)
+                                    .doesNotHaveBean(RevocationSchedulingConfiguration.class);
+                        });
     }
 
     @Configuration(proxyBeanMethods = false)

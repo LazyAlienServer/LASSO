@@ -166,9 +166,10 @@ def package(version, work):
         text = path.read_text(encoding="utf-8")
         text = text.replace("[string]$Profile = 'local'", "[string]$Profile = 'production'")
         text = text.replace("[string]$JarPath = (Join-Path $PSScriptRoot '..\\build\\libs\\las-sso-server-0.1.0-SNAPSHOT.jar')", "[string]$JarPath")
-        if path.name != "maintenance-artifact.ps1":
+        if path.name not in {"maintenance-artifact.ps1", "reference-revocation-maintenance.ps1"}:
             text = text.replace("[ValidateNotNullOrEmpty()]\n    [string]$JarPath", "[Parameter(Mandatory = $true)]\n    [ValidateNotNullOrEmpty()]\n    [string]$JarPath") if "[Parameter(Mandatory = $true)]\n    [ValidateNotNullOrEmpty()]\n    [string]$JarPath" not in text else text
-            text = text.replace("[ValidatePattern('^[0-9a-fA-F]{64}$')]", "[Parameter(Mandatory = $true)]\n    [ValidatePattern('^[0-9a-fA-F]{64}$')]")
+            if "[Parameter(Mandatory = $true)]\n    [ValidatePattern('^[0-9a-fA-F]{64}$')]" not in text:
+                text = text.replace("[ValidatePattern('^[0-9a-fA-F]{64}$')]", "[Parameter(Mandatory = $true)]\n    [ValidatePattern('^[0-9a-fA-F]{64}$')]")
         (stage / "scripts" / path.name).write_text(text, encoding="utf-8", newline="\n")
     coordinates = stage / f"sdk/maven/org/las/las-sso-spring-boot-starter/{version}"
     coordinates.parent.mkdir(parents=True, exist_ok=True)

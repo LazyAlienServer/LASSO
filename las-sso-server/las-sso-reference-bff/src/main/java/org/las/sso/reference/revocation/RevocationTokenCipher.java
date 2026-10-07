@@ -8,6 +8,7 @@ import java.security.SecureRandom;
 import java.util.Arrays;
 import java.util.Base64;
 import javax.crypto.Cipher;
+import javax.crypto.Mac;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 
@@ -17,6 +18,8 @@ final class RevocationTokenCipher {
     private final SecureRandom random = new SecureRandom();
 
     RevocationTokenCipher(String keyId, String base64Key) {
+        if (keyId == null || !keyId.matches("[A-Za-z0-9._-]{1,64}"))
+            throw new IllegalArgumentException("Invalid revocation key identifier");
         byte[] bytes;
         try {
             bytes = Base64.getDecoder().decode(base64Key);
@@ -30,6 +33,35 @@ final class RevocationTokenCipher {
             this.key = new SecretKeySpec(bytes, "AES");
         } finally {
             Arrays.fill(bytes, (byte) 0);
+        }
+    }
+
+    String keyId() {
+        return keyId;
+    }
+
+    byte[] verifier() {
+        byte[] encoded = key.getEncoded();
+        try {
+            Mac mac = Mac.getInstance("HmacSHA256");
+            mac.init(new SecretKeySpec(encoded, "HmacSHA256"));
+            return mac.doFinal(
+                    ("reference-revocation-key-registry-v1:" + keyId)
+                            .getBytes(StandardCharsets.UTF_8));
+        } catch (GeneralSecurityException exception) {
+            throw new IllegalStateException("Revocation key verification unavailable");
+        } finally {
+            Arrays.fill(encoded, (byte) 0);
+        }
+    }
+
+    boolean sameMaterial(RevocationTokenCipher other) {
+        byte[] current = key.getEncoded(), next = other.key.getEncoded();
+        try {
+            return java.security.MessageDigest.isEqual(current, next);
+        } finally {
+            Arrays.fill(current, (byte) 0);
+            Arrays.fill(next, (byte) 0);
         }
     }
 

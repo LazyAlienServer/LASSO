@@ -229,7 +229,7 @@ ADR-0007（用户2026-10-05确认）资格query的stateEpoch复用新的security
 
 ## 9. 监控与告警
 
-参考BFF可选持久撤销profile的queueDB/key是消费端独立资源，不属于SSO身份schema。监控pendingoldest/leasedexpired/dead/categoricalerrors，成功清Tokencipher，dead保encrypted材料须运维显式恢复，无自动replay/cleanup/multikeyrotation。先排空旧key任务再更换，DBkey分离备份；未验灾备continuity/presubmitcrash不称保证。契约见[English](../integration/reference-durable-revocation.md)／[中文](../zh-CN/integration/reference-durable-revocation.md)。
+参考BFF queueDB/key独立于SSO schema。V2支持精确dead task/generation离线恢复、完成回执默认30天有界清理、active-key排空轮换。pending/leased/dead不自动删除；不能恢复未提交Token，消费方仍需补偿。监控积压/死信/keyregistry/审计，先停止全部producer/worker再操作；DB/key分离备份，灾备连续性另验。指南见[English](../integration/reference-durable-revocation.md)／[中文](../zh-CN/integration/reference-durable-revocation.md)。
 
 ### 9.1 指标
 

@@ -8,6 +8,8 @@
 
 可选参考[持久撤销profile](reference-durable-revocation.md)仅替原sink、加密PG提交/restart恢复，不持久TokenSessionindexreplay或关闭local退出→submitcrash。默认Starter/publicAPI不变，见[ADR-0009](../adr/0009-reference-bff-durable-token-revocation.md)。
 
+P03增加request级LasSsoRevocationSubmission结果，默认sink无效/未advertise输入由静默返回改拒绝。参考V2有恢复/保留/排空key轮换；[当前指南](reference-durable-revocation.md)说明补偿/兼容边界。
+
 应用定义 `SecurityFilterChain` 后 starter 默认链会退让。注入 `LasSsoSecurityConfigurer`，在负责 LAS OAuth2 端点、本地会话和退出的链上调用一次 `configure(http, applicationSuccessHandler)`，安装与默认链相同的协议/生命周期组件；应用路由和业务授权仍由应用决定。
 
 ```java

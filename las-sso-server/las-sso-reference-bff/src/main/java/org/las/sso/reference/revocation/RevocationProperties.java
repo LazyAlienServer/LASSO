@@ -1,6 +1,8 @@
 package org.las.sso.reference.revocation;
 
+import java.time.Duration;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.bind.DefaultValue;
 
 /**
  * Explicit external settings for the reference-only profile; no development credentials/key
@@ -13,7 +15,9 @@ public record RevocationProperties(
         String password,
         String keyId,
         String keyBase64,
-        boolean allowLoopbackHttp) {
+        boolean allowLoopbackHttp,
+        @DefaultValue("P30D") Duration completedRetention,
+        @DefaultValue("100") int cleanupBatchSize) {
 
     public RevocationProperties {
         if (jdbcUrl == null
@@ -29,6 +33,13 @@ public record RevocationProperties(
             throw new IllegalArgumentException(
                     "Explicit PostgreSQL and revocation encryption settings are required");
         }
+        if (completedRetention == null
+                || completedRetention.compareTo(Duration.ofDays(1)) < 0
+                || completedRetention.compareTo(Duration.ofDays(365)) > 0
+                || completedRetention.getNano() != 0
+                || cleanupBatchSize < 1
+                || cleanupBatchSize > 1000)
+            throw new IllegalArgumentException("Revocation retention or batch size is invalid");
     }
 
     @Override

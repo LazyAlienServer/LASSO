@@ -20,6 +20,6 @@ python scripts/verify-package.py
 
 Install and supply external settings using the deployment handbook. Production requires an explicit `production` profile and rejects unsafe startup settings; do not mix `local`/`test` or use templates without actual external values. Initialize the administrator through non-Web maintenance before Web startup; keep ingress closed until target TLS/network/client and acceptance checks are complete.
 
-Programs: `application/las-sso-server-{{VERSION}}.jar`; SDK file Maven repository under `sdk/maven/`; runnable sample under `examples/reference-bff/`. Maintenance uses explicit JAR paths and hashes. The `source/` ZIP is the exact committed source snapshot, not a dependency of the operations manuals.
+Programs: `application/las-sso-server-{{VERSION}}.jar`; SDK file Maven repository under `sdk/maven/`; runnable sample under `examples/reference-bff/`. SSO maintenance scripts target the server JAR; `reference-revocation-maintenance.ps1` explicitly targets the BFF JAR. Both verify an exact path/hash. The `source/` ZIP is the exact committed source snapshot, not a dependency of the operations manuals.
 
 SHA-256 checks detect accidental content changes but are not release signatures or a substitute for trusted distribution. Source and package provenance belong to this version only; earlier browser/restore/alert acceptance is explicitly historical.

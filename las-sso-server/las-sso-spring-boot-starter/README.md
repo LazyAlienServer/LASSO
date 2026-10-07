@@ -37,6 +37,8 @@ Java 21 servlet BFF 接入库。消费者使用服务端 OAuth 授权客户端�
 
 公开 Session lifecycle listener 支持销毁和 Session-ID 换号；默认 session-absolute-lifetime 14天。单 JVM 标记和回执不提供跨重启/多实例保证。参考 BFF 的可选加密 PostgreSQL 队列只证明已提交任务重启恢复，不能补跨存储提交前崩溃窗口，详见[持久撤销](../../docs/zh-CN/integration/reference-durable-revocation.md)。
 
+退出请求可读取 `LasSsoRevocationSubmission.REQUEST_ATTRIBUTE` 的 ACCEPTED/FAILED/NO_TOKEN；只是submit结果，不是OP完成。默认queue对无效/缺端点的提交抛出安全类别异常。可靠消费方须记录pre-submit恢复意图/补偿并验证，不能只凭日志声称远程撤销成功。
+
 ## 构建与发布
 
 从 `las-sso-server/`：

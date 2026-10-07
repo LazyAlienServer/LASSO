@@ -1,5 +1,7 @@
 # 参考 BFF 持久加密 Token 撤销
 
+P03后续：[ADR-0013](0013-reference-revocation-operator-recovery.md)替代原无replay/cleanup/keyregistry边界；当前参考V2有精确代次offline恢复、仅完成保留、认证排空轮换。原文证据/计数保留历史范围。
+
 状态：2026-10-05用户明确选择参考BFF验证；已实现并经PostgreSQL/HTTP/真实SSO进程重启验收，消费生产Adapter仍独立。
 
 [English](../../adr/0009-reference-bff-durable-token-revocation.md)。

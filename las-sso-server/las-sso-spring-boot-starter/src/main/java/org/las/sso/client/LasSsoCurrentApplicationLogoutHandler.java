@@ -48,6 +48,8 @@ public final class LasSsoCurrentApplicationLogoutHandler implements LogoutHandle
             HttpServletRequest request,
             HttpServletResponse response,
             Authentication authentication) {
+        request.setAttribute(
+                LasSsoRevocationSubmission.REQUEST_ATTRIBUTE, LasSsoRevocationSubmission.NO_TOKEN);
         if (authentication == null) {
             return;
         }
@@ -57,6 +59,9 @@ public final class LasSsoCurrentApplicationLogoutHandler implements LogoutHandle
                     authorizedClients.loadAuthorizedClient(
                             properties.registrationId(), authentication, request);
         } catch (RuntimeException exception) {
+            request.setAttribute(
+                    LasSsoRevocationSubmission.REQUEST_ATTRIBUTE,
+                    LasSsoRevocationSubmission.FAILED);
             LOGGER.error(
                     "Unable to read local authorization for logout: failureType={}",
                     exception.getClass().getSimpleName());
@@ -87,18 +92,29 @@ public final class LasSsoCurrentApplicationLogoutHandler implements LogoutHandle
         }
         try {
             var registration = registrations.findByRegistrationId(properties.registrationId());
-            if (registration != null && authorizedClient.getRefreshToken() != null) {
+            if (registration == null)
+                throw new IllegalStateException("Revocation registration unavailable");
+            if (authorizedClient.getRefreshToken() != null) {
                 revocations.submit(
                         registration,
                         authorizedClient.getRefreshToken().getTokenValue(),
                         "refresh_token");
-            } else if (registration != null && authorizedClient.getAccessToken() != null) {
+                request.setAttribute(
+                        LasSsoRevocationSubmission.REQUEST_ATTRIBUTE,
+                        LasSsoRevocationSubmission.ACCEPTED);
+            } else if (authorizedClient.getAccessToken() != null) {
                 revocations.submit(
                         registration,
                         authorizedClient.getAccessToken().getTokenValue(),
                         "access_token");
+                request.setAttribute(
+                        LasSsoRevocationSubmission.REQUEST_ATTRIBUTE,
+                        LasSsoRevocationSubmission.ACCEPTED);
             }
         } catch (RuntimeException exception) {
+            request.setAttribute(
+                    LasSsoRevocationSubmission.REQUEST_ATTRIBUTE,
+                    LasSsoRevocationSubmission.FAILED);
             // A failed submission is not remote revocation success. Do not log secret-bearing
             // errors.
             LOGGER.error(

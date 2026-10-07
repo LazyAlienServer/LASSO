@@ -32,8 +32,21 @@ Reset 隐藏读取密码、针对当前管理员，并非任意用户重置 API�
 
 ## 参考持久撤销
 
-默认 BFF 重启丢失本地登录。可选 `durable-revocation` 使用独立数据库、32-byte base64 AES 密钥，key-id 符合 `[A-Za-z0-9._-]{1,64}`；schema/配置见[接入](external-integration.md)。队列与密钥分别保护备份。仅已提交任务重启恢复，提交前中断仍可能遗留远程授权。死信需调查后授权处理，无运维 HTTP 重放 API。pending 任务仍依赖当前 key 时不能直接替换；参考实现加载一个 key，不是多密钥环。它不持久化登录，也不等于完整多实例撤销。
+默认BFF重启丢登录。可选独立PostgreSQL参考V1–V2/AES32byte队列仅恢复已提交task，pre-submit仍需消费方intent/OP补偿。V2的reference-revocation-maintenance.ps1要求精确参考JAR/hash/currentkey/actor/reason/真实YES；replay精确deadtask/replay_count并核密文审计新8次campaign。完成回执默认30天/batch100每小时清，pending/dead/lease不删。换key拒未完成/same或复用ID/material，registry核key并阻旧进程；先停全部producer/worker及旧V1程序，维护小上下文无OIDC/Web/worker。新key以受控reference.revocation.next-key-base64供给非参数，commit后换active配置。DB/key独立备份，无持久登录/multikey/跨存储原子。
 
 ## 故障处置
+
+包根参考队列操作（SPRING_CONFIG_ADDITIONAL_LOCATION选独立参考queue配置，不能SSO配置）：
+
+```powershell
+$m = Get-Content -LiteralPath './provenance/release-manifest.json' -Raw | ConvertFrom-Json
+$j = Join-Path $PWD $m.artifacts.'reference-bff'.path
+$h = $m.artifacts.'reference-bff'.sha256
+./scripts/reference-revocation-maintenance.ps1 -Command replay -JarPath $j -ExpectedSha256 $h -ExpectedKeyId $CurrentKeyId -Actor $Operator -Reason 'receiver repaired' -TaskId $TaskId -ExpectedReplayCount $ReplayCount
+./scripts/reference-revocation-maintenance.ps1 -Command purge-completed -JarPath $j -ExpectedSha256 $h -ExpectedKeyId $CurrentKeyId -Actor $Operator -Reason 'completed receipt retention'
+./scripts/reference-revocation-maintenance.ps1 -Command rotate-key -JarPath $j -ExpectedSha256 $h -ExpectedKeyId $CurrentKeyId -Actor $Operator -Reason 'queue drained key rotation' -NextKeyId $NextKeyId
+```
+
+只选所需命令，换key需停producer/worker且未完成task为空。reference_revocation.tasks仅查task ID/key_id/replay_count/attempt_count/时间/类别，不查询ciphertext/Token。replay核预期代次/认证载荷/审计后才reset预算，worker仍核当前endpoint/client/issuer。未解决dead保留调查，必要时OP补偿，purge不解决dead。rotate时当前key保持，新材料仅外部临时供给，成功后装新active配置并去next输入。审计保留，定义权限保管/增长监控；旧V1程序绕过V2门禁，必须停。
 
 凭据/密钥泄露时按范围关闭入口，通过支持的管理操作撤销会话/授权/客户端，在验证过的连续性方案下替换秘密，保留脱敏审计。签名密钥泄露/恢复协调全部消费方和旧 kid 缓存屏障。DB down 时 readiness503、liveness200，应恢复连接而非形成重启风暴。疑似攻击查看固定低基数指标和风险/审计结果，不通过关闭 CSRF/限流消除症状。人工恢复联系现有 QQ 群；仅确定联系渠道不代表已核实申请人或完成整套人工恢复流程。

@@ -38,7 +38,7 @@ las.sso.client.session-absolute-lifetime=P14D
 
 自有 SecurityFilterChain 时 Starter 不覆盖它。一次调用 `LasSsoSecurityConfigurer.configure(http, existingSuccessHandler)` 接入 repository、PKCE、回调/登记/刷新/退出过滤器；路由/CSRF/权限仍由应用配置，之后不覆盖包装后的 success handler。[样例](../../examples/reference-bff/README.md)含默认与自有两种模式。默认授权客户端/刷新合并/session index/replay/revocation sink 为单 JVM，使用默认 HttpSession；重启丢业务登录，再顶层 SSO 重入。跨重启保登录/多实例需等效协调 Adapter。sid 标记至少保留本地 absolute lifetime（默认14天）。
 
-可选参考 `https,durable-revocation` 读取独立受保护配置，自动在专用 PostgreSQL `reference_revocation` schema 执行内嵌 `revocation-db/V1__revocation_tasks.sql`，配置见[模板](../../config/README.md)。仅已接受任务加密持久化，租约/最多8次尝试、完成擦除密文；提交前 crash、死信重放/保留/keyrotation、完整分布式业务会话仍待消费方处理。见[运维](operations.md)。
+可选参考https,durable-revocation在独立PostgreSQL/reference_revocation迁移内嵌参考V1–V2，见[模板](../../config/README.md)。已提交加密任务/lease/8次campaign恢复；V2加精确代次offline dead恢复、完成保留、认证排空换key。请求LasSsoRevocationSubmission.REQUEST_ATTRIBUTE提供submit结果，非OP回执；pre-submit补偿/分布式业务会话仍由消费方负责，见[运维](operations.md)。
 
 ## LAS 第一方资格与近期密码
 

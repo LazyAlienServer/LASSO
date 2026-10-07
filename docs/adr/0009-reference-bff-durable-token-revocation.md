@@ -20,6 +20,8 @@ Starter `LasSsoRevocationTaskSink` is a public work-submission boundary; the def
 
 ## Operational consequences
 
+P03 follow-up: [ADR-0013](0013-reference-revocation-operator-recovery.md) supersedes the original no-replay/no-cleanup/no-key-registry limitations below for current reference source. V2 supplies exact-generation offline replay, completed-only retention and authenticated drain-first key rotation; historical evidence/counts below remain their original scope.
+
 One explicit keyId/key is supported, not a multi-key rotation service. Keep it across BFF restarts and separately protect/backup it; changing it with pending/dead tasks causes sanitized PAYLOAD_UNAVAILABLE and eventual dead letter. Drain/recover tasks before changing key, or separately design authenticated re-encryption. Keep endpoint/client snapshots compatible; secret rotation alone is supported when current registration has the same identity/endpoint. Snapshot mismatch is CONFIGURATION_CHANGED, with no Token sent elsewhere.
 
 Reference classes are package-local under the sample application, not starter API. JDBC/Flyway/PostgreSQL are added only to the reference module; SSO V1–V14 and starter locks/API are unchanged. Completion/dead-letter retention/monitoring/manual recovery and database privileges/pool/sizing/TLS are operator-owned; automatic record cleanup or dead-letter replay is not provided. Concurrent claim tests prove PostgreSQL ownership, not full multi-instance BFF Session/refresh/index/replay support. Repeated delivery can occur after process pauses or network ambiguity; fencing only prevents stale database acknowledgements, not an already-started external request.

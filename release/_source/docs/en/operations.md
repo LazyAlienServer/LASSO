@@ -32,8 +32,21 @@ Monitor V15 hint/history growth and authorization deletion, audit/outbox/securit
 
 ## Reference Durable Revocation
 
-Default BFF process restart loses local login. Optional `durable-revocation` uses its own DB and a 32-byte base64 AES key with key-id matching `[A-Za-z0-9._-]{1,64}`; schema/config are described in [integration](external-integration.md). Protect queue and key backups independently. Only committed tasks recover after restart; an interruption before submit can still leave remote authorization active. Dead tasks require investigated, authorized handling; no operator HTTP replay API is provided. Do not rotate away the active queue key while pending tasks require it; the reference loads one key, not a multi-key ring. Do not claim it persists login or supports complete multi-instance revocation.
+Default BFF restart loses login. Optional durable queue has its own PostgreSQL V1–V2 and32-byte AES key. Only committed tasks recover; pre-submit gaps require consumer intent/OP compensation. V2 provides offline `reference-revocation-maintenance.ps1` with exact reference JAR/hash/current key ID/operator/reason/YES console. Replay requires dead task/current replay_count, validates encrypted payload and audits a new8-attempt campaign. Completed-only receipts expire after30days by default, batch100/hour; pending/dead/leases never purged. Rotation refuses all incomplete work and same/reused key IDs or material; key registry verifies configured material and fences retired-key processes. Stop all producers/workers including pre-V2 binaries before maintenance; no OIDC discovery/Web/worker runs in the small maintenance context. Use protected `reference.revocation.next-key-base64` for next material, never arguments; switch active configuration only after committed rotation. Queue/key backups remain separate, no persistent login/multi-key ring/cross-storage atomicity.
 
 ## Incidents
+
+Reference queue commands from package root (external reference queue config in `SPRING_CONFIG_ADDITIONAL_LOCATION`, not SSO config):
+
+```powershell
+$m = Get-Content -LiteralPath './provenance/release-manifest.json' -Raw | ConvertFrom-Json
+$j = Join-Path $PWD $m.artifacts.'reference-bff'.path
+$h = $m.artifacts.'reference-bff'.sha256
+./scripts/reference-revocation-maintenance.ps1 -Command replay -JarPath $j -ExpectedSha256 $h -ExpectedKeyId $CurrentKeyId -Actor $Operator -Reason 'receiver repaired' -TaskId $TaskId -ExpectedReplayCount $ReplayCount
+./scripts/reference-revocation-maintenance.ps1 -Command purge-completed -JarPath $j -ExpectedSha256 $h -ExpectedKeyId $CurrentKeyId -Actor $Operator -Reason 'completed receipt retention'
+./scripts/reference-revocation-maintenance.ps1 -Command rotate-key -JarPath $j -ExpectedSha256 $h -ExpectedKeyId $CurrentKeyId -Actor $Operator -Reason 'queue drained key rotation' -NextKeyId $NextKeyId
+```
+
+Select the action you need; rotation requires drained producers/workers and no incomplete task. Query only task ID/key_id/replay_count/attempt_count/timestamps/error code in `reference_revocation.tasks`, never ciphertext/Token. Replay resets a dead task's budget only after expected-generation comparison, authenticated payload and committed audit; worker still compares current endpoint/client/issuer. Keep unresolved dead tasks, diagnose and compensate at OP if necessary; purging does not resolve them. Prepare next material externally only for rotation, keep current key during the command, then install new active configuration after success and remove next-key input. Operator audit remains retained; define access/custody and monitor growth. V2 guards do not protect against a pre-V2 binary: keep all such processes stopped.
 
 For credential/key exposure, freeze ingress as appropriate, revoke affected sessions/authorizations/clients through supported administration, replace secrets under a validated continuity plan and retain sanitized audit evidence. For signing-key compromise or DB restoration, coordinate all consumers/old-kid cache barriers. For DB down, readiness should be503 while liveness remains200; restore connectivity without a crash-loop restart storm. For suspected abuse, inspect fixed low-cardinality metrics and risk/audit outcomes; do not disable CSRF/rate limits to clear symptoms. Recovery contact is the existing QQ group; contact-channel agreement alone is not proof of claimant identity or a complete manual-recovery procedure.

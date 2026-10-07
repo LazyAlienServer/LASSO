@@ -133,5 +133,66 @@ class LasSsoCurrentApplicationLogoutHandlerTest {
         verify(authorizedClients)
                 .removeAuthorizedClient("las-sso", authentication, request, response);
         assertThat(order).containsExactly("local:removed", "remote:refresh-a");
+        assertThat(request.getAttribute(LasSsoRevocationSubmission.REQUEST_ATTRIBUTE))
+                .isEqualTo(LasSsoRevocationSubmission.ACCEPTED);
+    }
+
+    @Test
+    void acceptanceFailureIsVisibleAfterSessionInvalidationAndDoesNotExposeTokens() {
+        var registration =
+                ClientRegistration.withRegistrationId("las-sso")
+                        .clientId("client-a")
+                        .clientSecret("fixture-secret")
+                        .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
+                        .redirectUri("https://client.example/callback")
+                        .authorizationUri("https://issuer.example/authorize")
+                        .tokenUri("https://issuer.example/token")
+                        .build();
+        var repository = mock(OAuth2AuthorizedClientRepository.class);
+        var registrations = mock(ClientRegistrationRepository.class);
+        var request = new MockHttpServletRequest();
+        request.getSession();
+        var authentication =
+                UsernamePasswordAuthenticationToken.authenticated(
+                        "subject", null, java.util.List.of());
+        var access =
+                new OAuth2AccessToken(
+                        OAuth2AccessToken.TokenType.BEARER,
+                        "fixture-token",
+                        Instant.now(),
+                        Instant.now().plusSeconds(900));
+        when(repository.loadAuthorizedClient("las-sso", authentication, request))
+                .thenReturn(new OAuth2AuthorizedClient(registration, "subject", access));
+        when(registrations.findByRegistrationId("las-sso")).thenReturn(registration);
+        LasSsoRevocationTaskSink sink =
+                (client, token, hint) -> {
+                    assertThat(request.getSession(false)).isNull();
+                    throw new IllegalStateException("fixture secret-bearing error");
+                };
+        new LasSsoCurrentApplicationLogoutHandler(
+                        registrations,
+                        repository,
+                        new LasSsoClientProperties("las-sso", Duration.ofSeconds(60)),
+                        sink)
+                .logout(request, new MockHttpServletResponse(), authentication);
+        assertThat(request.getSession(false)).isNull();
+        assertThat(request.getAttribute(LasSsoRevocationSubmission.REQUEST_ATTRIBUTE))
+                .isEqualTo(LasSsoRevocationSubmission.FAILED);
+    }
+
+    @Test
+    void unauthenticatedLogoutRecordsNoTokenWithoutSubmittingWork() {
+        var request = new MockHttpServletRequest();
+        new LasSsoCurrentApplicationLogoutHandler(
+                        mock(ClientRegistrationRepository.class),
+                        mock(OAuth2AuthorizedClientRepository.class),
+                        new LasSsoClientProperties("las-sso", Duration.ofSeconds(60)),
+                        (LasSsoRevocationTaskSink)
+                                (client, token, hint) -> {
+                                    throw new AssertionError("Unexpected work");
+                                })
+                .logout(request, new MockHttpServletResponse(), null);
+        assertThat(request.getAttribute(LasSsoRevocationSubmission.REQUEST_ATTRIBUTE))
+                .isEqualTo(LasSsoRevocationSubmission.NO_TOKEN);
     }
 }

@@ -84,9 +84,11 @@ class JdbcRevocationIntegrationTest {
 
     @BeforeEach
     void reset() {
-        jdbc.sql("TRUNCATE reference_revocation.tasks").update();
-        store = newStore();
+        jdbc.sql(
+                        "TRUNCATE reference_revocation.tasks, reference_revocation.key_state, reference_revocation.operator_audit")
+                .update();
         cipher = new RevocationTokenCipher("test-key", KEY);
+        store = newStore();
     }
 
     @Test
@@ -467,7 +469,7 @@ class JdbcRevocationIntegrationTest {
                             new RevocationTokenCipher("different-key", KEY),
                             new InMemoryClientRegistrationRepository(registration),
                             true);
-            missingKey.poll();
+            missingKey.deliver(store.claim(RevocationWorker.LEASE).orElseThrow());
             assertThat(state(id())).containsEntry("error", "PAYLOAD_UNAVAILABLE");
             assertThat(endpoint.calls).hasValue(0);
         }
@@ -585,6 +587,11 @@ class JdbcRevocationIntegrationTest {
                 assertThat(request.getSession(false)).isNull();
                 assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
                 assertThat(count()).isZero();
+                assertThat(
+                                request.getAttribute(
+                                        org.las.sso.client.LasSsoRevocationSubmission
+                                                .REQUEST_ATTRIBUTE))
+                        .isEqualTo(org.las.sso.client.LasSsoRevocationSubmission.FAILED);
                 assertThat(output.getAll()).doesNotContain(TOKEN, SECRET, "sql-bind-secret-canary");
             } finally {
                 removeFault();
@@ -637,7 +644,7 @@ class JdbcRevocationIntegrationTest {
     }
 
     private JdbcRevocationStore newStore() {
-        return new JdbcRevocationStore(jdbc, new DataSourceTransactionManager(dataSource));
+        return new JdbcRevocationStore(jdbc, new DataSourceTransactionManager(dataSource), cipher);
     }
 
     private JdbcRevocationQueue queue() {

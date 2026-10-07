@@ -51,7 +51,7 @@ final class RevocationWorker {
             // Claim one immediately before HTTP, not a batch whose leases expire waiting in a
             // queue.
             for (int count = 0; count < 10 && !Thread.currentThread().isInterrupted(); count++) {
-                var claimed = store.claim(LEASE);
+                var claimed = store.claim(LEASE, cipher);
                 if (claimed.isEmpty()) break;
                 deliver(claimed.get());
             }
