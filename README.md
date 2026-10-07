@@ -55,6 +55,7 @@ SSO: `http://127.0.0.1:9000`. In a second terminal run `:las-sso-reference-bff:b
 - [Starter contract](las-sso-server/las-sso-spring-boot-starter/README.md)
 - [Reference BFF](las-sso-server/las-sso-reference-bff/README.md)
 - [Contribution and engineering rules](CONTRIBUTING.md)
+- [Engineering baseline](docs/implementation/engineering-baseline-2026-10-07.md) / [中文](docs/zh-CN/implementation/engineering-baseline-2026-10-07.md)
 - [Documentation index](docs/README.md)
 - [Current production launch plan](docs/zh-CN/implementation/production-launch-plan.md) / [English](docs/implementation/production-launch-plan.md)
 

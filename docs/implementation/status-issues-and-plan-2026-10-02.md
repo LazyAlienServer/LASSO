@@ -1,7 +1,7 @@
 # LAS SSO 已完成内容、问题清单与后续计划
 
 - 更新日期：2026-10-07（Asia/Shanghai）；保留 2026-10-02 文件名及原审查编号。
-- 基线：`codex/fix-sso-quality-review` 分支，HEAD `8cee3ed`，包含尚未提交的工作区实现；不能只用 HEAD 还原此次审查对象。
+- 历史审查/`.7`基线：`codex/fix-sso-quality-review`，`8cee3ed`加当时未提交实现；原manifest保原来源。功能/文档现已本地提交`1c287e9`/`f1f1093`，工程规则`09700e4`及机械格式`b21304d`，当前Git源码不再是原worktree快照。
 - 审查时间：2026-10-01 至 2026-10-02。
 - 当前结论：.20261006.7刷新后globalLogout oldIDhint400已修V15HMAChistory，735全量0skip；actualGrafanaViewerdesktopmobile及两chain5分钟mixed12,598operation/120refresh0reuse通过。productiononcall/transport/remainingprobe/小时級rampsoak/historysizing/scanDAST/actualconsumer与完整B1仍开。
 - 最新执行验证：2026-10-07 **00:07:51–00:12:17（Asia/Shanghai）0.1.0-dev.20261006.7**强制 **505server+193starter+37referenceBFF=735** 零失败错误跳过20tasks/actualPG/V15/bootJARmetadata；303source fingerprintee911dc4.../18artifact/3unchangedlocks/nativePOMcompile。finalGrafana/mixed00:36–00:48，301.154/302.178s五subject9Session/Viewer1440/390八panelcanvas/权限403；scan241lock157JAR0reportedvuln/Semgrep2331warning0error/Secrets三0match，详§3.27。
@@ -9,6 +9,7 @@
 - 本文是实现状态与执行计划，不替代架构、安全、API、OIDC 契约，也不把历史测试结果当成当前所有改动的验证结果。
 - 本次职责校准：仅管理 SSO 服务端、`las-sso-spring-boot-starter` 和 `las-sso-reference-bff`。其他业务项目由其他会话负责；本文只记录它们需要的 SSO 接口和交付输入，不安排业务方实现。SSO 专属架构见[架构与交付计划](../architecture/sso-architecture-and-roadmap.md)。
 - 当前执行入口：[正式生产上线计划](../zh-CN/implementation/production-launch-plan.md)／[English](production-launch-plan.md)。P01–P19按依赖列出模块、步骤、负责人类型、上线影响和验收证据；下方旧阶段保历史，不再作为当前任务排序。
+- 工程整理已完成本地源码追踪、固定格式/共享构建、仓库校验和CI定义，工程全量735零失败错误跳过；[English](engineering-baseline-2026-10-07.md)／[中文](../zh-CN/implementation/engineering-baseline-2026-10-07.md)。无推送或生产发行，CI定义未跑远端；P02等生产任务仍待推进。
 
 ## 1. 状态与边界
 

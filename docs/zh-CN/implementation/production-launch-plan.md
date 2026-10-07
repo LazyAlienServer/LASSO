@@ -6,10 +6,12 @@
 
 ## 1. 当前基线
 
+仓库后续状态：原已验功能/文档现已本地提交（`1c287e9`、`f1f1093`），再补工程规则（`09700e4`）和机械格式化（`b21304d`）；见[工程记录](engineering-baseline-2026-10-07.md)／[English](../../implementation/engineering-baseline-2026-10-07.md)。下表是历史`.7`交付来源，当前格式化源码不同fingerprint，未新生产发行；工程全量再次735通过/0skip。
+
 | 项目 | 已核验状态 |
 | --- | --- |
 | 最新开发组合 | `0.1.0-dev.20261006.7`；[交付](../integration/development-delivery-2026-10-06-7.md)／[manifest](../../integration/development-delivery-2026-10-06-7.json) |
-| 源码 | 分支`codex/fix-sso-quality-review`，基线`8cee3ed62fd7c53664e8026b99664c73fae5f19d`加未提交工作区；303文件 fingerprint `ee911dc45866501f70ce9773fdc19228bf1fafd55b37f3ef82a5117c300fe0d2` |
+| `.7`验收时源码 | 分支`codex/fix-sso-quality-review`，基线`8cee3ed62fd7c53664e8026b99664c73fae5f19d`加当时未提交工作区；303文件fingerprint `ee911dc45866501f70ce9773fdc19228bf1fafd55b37f3ef82a5117c300fe0d2`，后续本地提交见上 |
 | 全量测试 | 服务端505 + Starter193 + 参考BFF37 = **735**，失败/错误/跳过均0，实际PostgreSQL；只代表该组合，不代表未来修改 |
 | 运行基线 | Java21、Boot4.1.1、Framework7.0.9、Security/AS7.1.1、Tomcat11.0.26、PostgreSQL18测试环境、Flyway V1–V15；版本目录/锁为准 |
 | 扫描 | 三锁241/解包JAR157包记录，已记录DB下0报告漏洞；Semgrep233路径/1人工复核重定向误报/0错误；三路径秘密模式0匹配，覆盖和数据库新鲜度限制保留 |

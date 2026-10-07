@@ -68,6 +68,7 @@
 
 ## 实施、验证与审查记录
 
+- [工程规范基线](zh-CN/implementation/engineering-baseline-2026-10-07.md)（[English](implementation/engineering-baseline-2026-10-07.md)）：功能/文档本地提交、共享构建/格式化/CI/校验规则与735全量结果；历史制品保留，生产发行另验。
 - [项目状态与正式生产上线计划](zh-CN/implementation/production-launch-plan.md)（[English](implementation/production-launch-plan.md)）：P01–P19从当前基线到正式部署、有限开放和首轮生产运维；本地工作与运维/外部消费方任务分别注明责任。
 - [状态地图与问题计划（文件名保留2026-10-02）](implementation/status-issues-and-plan-2026-10-02.md)：最新.7服务端505/starter193/refBFF37共735零失败错误跳过，刷新退出缺陷已修、实际Grafana/十分钟混合通过；生产transport/oncall/剩余指标/小时级soak独立。
 - [刷新后退出hint连续性](zh-CN/implementation/refresh-logout-hint-history.md)（[English](implementation/refresh-logout-hint-history.md)）：真实400与PG回归redgreen、V15HMAC-only/CAScascade/显式idtokenlookup、preupgrade兼容及撤销拒绝边界。

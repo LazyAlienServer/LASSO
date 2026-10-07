@@ -6,10 +6,12 @@
 
 ## 1. Current Baseline
 
+Repository follow-up: the previously verified functionality and documents are now committed locally (`1c287e9`, `f1f1093`), with engineering conventions (`09700e4`) and mechanical formatting (`b21304d`). See [engineering record](engineering-baseline-2026-10-07.md) / [Chinese](../zh-CN/implementation/engineering-baseline-2026-10-07.md). Rows below identify the historical `.7` delivery; current formatted source is not the same fingerprint or a new production release. The complete engineering build again passed735tests with zero skips.
+
 | Item | Verified state |
 | --- | --- |
 | Latest development combination | `0.1.0-dev.20261006.7`; [delivery](../integration/development-delivery-2026-10-06-7.md), [manifest](../integration/development-delivery-2026-10-06-7.json) |
-| Source | Branch `codex/fix-sso-quality-review`, base `8cee3ed62fd7c53664e8026b99664c73fae5f19d` plus uncommitted worktree; 303-file fingerprint `ee911dc45866501f70ce9773fdc19228bf1fafd55b37f3ef82a5117c300fe0d2` |
+| Source at `.7` acceptance | Branch `codex/fix-sso-quality-review`, base `8cee3ed62fd7c53664e8026b99664c73fae5f19d` plus then-uncommitted worktree; 303-file fingerprint `ee911dc45866501f70ce9773fdc19228bf1fafd55b37f3ef82a5117c300fe0d2`; later local commits recorded above |
 | Full tests | 505 server + 193 starter + 37 reference BFF = **735**, zero failures/errors/skips, actual PostgreSQL; these are results for this combination, not future changes |
 | Runtime baseline | Java21, Boot4.1.1, Framework7.0.9, Security/AS7.1.1, Tomcat11.0.26, PostgreSQL18 fixtures, Flyway V1–V15; versions/locks remain authoritative |
 | Scans | 241 lock/157 extracted-JAR package records, zero reported vulnerabilities in recorded DB; Semgrep233 paths, one reviewed redirect false positive, zero errors; three secret-pattern scans zero matches. Coverage/DB freshness limits remain |
