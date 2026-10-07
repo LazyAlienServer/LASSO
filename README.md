@@ -11,6 +11,7 @@ LAS SSO manages identity, credentials, account lifecycle, SSO sessions and first
 | `las-sso-server/las-sso-reference-bff/` | Acceptance sample, not the LASLOG backend |
 | `docs/` | Contracts, ADRs, historical evidence and paired English/Chinese records |
 | `scripts/` | Portable repository/report verification tools |
+| `release/` | Versioned delivery templates, independent handbooks and ignored generated packages |
 | `design/`, `research/` | Reference assets and historical research |
 | `SAS-Test/` | Ignored historical protocol demo; not an active module |
 
@@ -54,6 +55,7 @@ SSO: `http://127.0.0.1:9000`. In a second terminal run `:las-sso-reference-bff:b
 - [Server operation and maintenance](las-sso-server/README.md)
 - [Starter contract](las-sso-server/las-sso-spring-boot-starter/README.md)
 - [Reference BFF](las-sso-server/las-sso-reference-bff/README.md)
+- [Versioned delivery packaging](release/README.md)
 - [Contribution and engineering rules](CONTRIBUTING.md)
 - [Engineering baseline](docs/implementation/engineering-baseline-2026-10-07.md) / [中文](docs/zh-CN/implementation/engineering-baseline-2026-10-07.md)
 - [Documentation index](docs/README.md)

@@ -32,3 +32,7 @@ logs/
 # Python verification tools.
 __pycache__/
 *.py[cod]
+
+# Generated versioned deliveries; keep their templates and packaging tools tracked.
+/release/0.*/
+/release/las-sso-*.zip

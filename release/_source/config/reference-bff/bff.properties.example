@@ -1,0 +1,13 @@
+# Use the packaged reference BFF with profile https; replace all identity/environment values externally.
+server.address=127.0.0.1
+server.port=8088
+server.forward-headers-strategy=framework
+LAS_SSO_ISSUER=${BFF_SSO_ISSUER}
+LAS_SSO_CLIENT_ID=${BFF_SSO_CLIENT_ID}
+LAS_SSO_CLIENT_SECRET=${BFF_SSO_CLIENT_SECRET}
+las.sso.client.registration-id=las-sso
+las.sso.client.refresh-before-expiry=PT60S
+las.sso.client.post-logout-redirect-uri={baseUrl}/logged-out
+las.sso.client.logout-success-uri=/
+las.sso.client.session-cookie-name=__Host-las_reference
+las.sso.client.session-absolute-lifetime=P14D

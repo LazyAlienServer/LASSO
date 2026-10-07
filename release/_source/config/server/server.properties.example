@@ -1,0 +1,19 @@
+# Mandatory external values. Bind the application only to the controlled proxy network.
+server.address=127.0.0.1
+server.port=9000
+server.forward-headers-strategy=framework
+server.servlet.session.cookie.name=__Host-las_sso
+server.servlet.session.cookie.secure=true
+server.servlet.session.cookie.http-only=true
+server.servlet.session.cookie.same-site=lax
+spring.datasource.url=${LAS_SSO_DB_URL}
+spring.datasource.username=${LAS_SSO_DB_USER}
+spring.datasource.password=${LAS_SSO_DB_PASSWORD}
+las.sso.issuer=${LAS_SSO_ISSUER}
+las.sso.signing-key.path=${LAS_SSO_SIGNING_KEY_PATH}
+las.sso.signing-key.password=${LAS_SSO_SIGNING_KEY_PASSWORD}
+las.sso.signing-key.alias=${LAS_SSO_SIGNING_KEY_ALIAS}
+las.sso.signing-key.key-id=${LAS_SSO_SIGNING_KEY_ID}
+las.sso.recovery.pepper=${LAS_SSO_RECOVERY_PEPPER}
+las.sso.transient-security.key-pepper=${LAS_SSO_TRANSIENT_SECURITY_PEPPER}
+las.sso.transient-security.captcha-hmac-secret=${LAS_SSO_CAPTCHA_HMAC_SECRET}

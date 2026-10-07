@@ -1,0 +1,5 @@
+# Add monitoring to the WEB process profile only; omit it for offline maintenance.
+management.server.address=127.0.0.1
+management.server.port=9091
+las.sso.monitoring.password-hash=${LAS_SSO_MONITORING_PASSWORD_HASH}
+las.sso.monitoring.snapshot-interval=PT15S

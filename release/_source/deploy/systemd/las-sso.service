@@ -1,0 +1,22 @@
+[Unit]
+Description=LAS SSO {{VERSION}}
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=las-sso
+Group=las-sso
+WorkingDirectory=/opt/las-sso/{{VERSION}}
+EnvironmentFile=/etc/las-sso/las-sso.env
+ExecStart=/usr/bin/java -jar /opt/las-sso/{{VERSION}}/application/las-sso-server-{{VERSION}}.jar --spring.profiles.active=production --spring.config.additional-location=file:/etc/las-sso/server.properties
+Restart=on-failure
+RestartSec=5s
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
