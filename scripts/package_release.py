@@ -162,6 +162,7 @@ def package(version, work):
             target.write_text(text, encoding="utf-8", newline="\n")
     shutil.copytree(SERVER / "deploy/monitoring", stage / "deploy/monitoring")
     shutil.copy2(SERVER / "deploy/nginx/las-forwarding.conf", stage / "deploy/nginx/las-forwarding.conf")
+    shutil.copy2(SERVER / "scripts/history-status.sql", stage / "scripts/history-status.sql")
     for path in sorted((SERVER / "scripts").glob("*.ps1")):
         text = path.read_text(encoding="utf-8")
         text = text.replace("[string]$Profile = 'local'", "[string]$Profile = 'production'")

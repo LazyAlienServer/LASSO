@@ -10,7 +10,7 @@
 
 ## 2. 数据库、秘密与签名密钥
 
-创建专用 PostgreSQL 数据库/账号，按 Flyway V1–V15 准备迁移权限。开放入口前完成数据库认证/网络限制和备份。JDBC 示例为 `jdbc:postgresql://db.internal:5432/las_sso`；跨主机使用验证过的 TLS。身份数据库不能与业务应用或参考撤销队列共用。
+创建专用PostgreSQL角色/Flyway V1–V16权限，V16普通索引DDL需代表数据演练/时间空间/排空。先认证网络备份，JDBC例jdbc:postgresql://db.internal:5432/las_sso、跨机验证TLS，身份不与业务/参考队列共库。
 
 将 `config/server/server.properties.example` 复制为 `/etc/las-sso/server.properties`，通过仅 root/服务可读的环境文件或秘密管理机制提供：
 
@@ -55,7 +55,7 @@ Linux 审查并安装 `deploy/systemd/las-sso.service`，调整 Java/安装/配�
 
 ## 5. 验证、登记客户端、开放
 
-检查私有 readiness200/UP、liveness200、Flyway V1–V15、唯一 Discovery/JWKS 无私钥以及真实 TLS 浏览器 Cookie。启用 `monitoring` 后健康端点迁至私有管理端口，否则在应用端口。执行：
+检查私有readiness200/UP、liveness200、Flyway V1–V16、唯一Discovery/公有JWKS/真TLS Cookie，monitoring迁health管理口，否则app口。执行：
 
 ```text
 python scripts/smoke.py --issuer https://auth.example.com --readiness-url http://127.0.0.1:9000/actuator/health/readiness

@@ -16,6 +16,8 @@
 
 ## 领域决策
 
+- [ADR-0015：运行历史保留](zh-CN/adr/0015-runtime-history-retention.md)（[English](adr/0015-runtime-history-retention.md)）：用户确认90/30天、有效hint保留、审计事实不删，有限batch/锁序/超时与V16。
+
 - [ADR-0014：人工恢复与一次性秘密界面](zh-CN/adr/0014-manual-recovery-verification-and-secret-ui.md)（[English](adr/0014-manual-recovery-verification-and-secret-ui.md)）：两项独立依据/最小工单，关闭及离页清理，管理员恢复路径保持。
 
 - [ADR-0011：刷新后退出hint关联](zh-CN/adr/0011-preserve-id-token-logout-hint-association.md)（[English](adr/0011-preserve-id-token-logout-hint-association.md)）：实际refresh后global400修复，V15HMAChistory/显式IDtokenlookup/cascade拒已撤销hint，原权限与ATRT边界保持。
@@ -61,6 +63,7 @@
 - [SSO 部署指南](operations/sso-deployment-guide.md)：当前仓库可执行的 JAR、PostgreSQL、反向代理部署步骤。
 - [部署与运维手册](operations/operations-runbook.md)：备份、恢复、轮换、监控和故障 Runbook。
 - [人工恢复、凭据保管与注销争议](zh-CN/operations/manual-recovery-and-lifecycle.md)（[English](operations/manual-recovery-and-lifecycle.md)）：用户确认的核验流程、无秘密工单模板、管理员离线保管和hold/release边界。
+- [历史保留与运维清理](zh-CN/operations/runtime-history-retention.md)（[English](operations/runtime-history-retention.md)）：逐表矩阵、history-status只读报告、清理吞吐/指标/忙及超大数据处理、vacuum与归档责任。
 - [维护制品选择](zh-CN/operations/maintenance-artifact-selection.md)（[English](operations/maintenance-artifact-selection.md)）：精确JarPath/可选ExpectedSha256、旧默认兼容、PowerShell与实际Java无console拒绝证据。
 - [管理员维护闭环验收](zh-CN/operations/administrator-maintenance-acceptance.md)（[English](operations/administrator-maintenance-acceptance.md)）：真实隐藏console/forcedchange/reset失败无变化及成功旧状态失效，OIDC续行修复/边界。
 - [恢复epoch操作屏障](zh-CN/operations/restore-epoch-barrier.md)（[English](operations/restore-epoch-barrier.md)）：恢复到隔离库、expected epoch命令、新key/consumerbarrier及重新开放步骤。
@@ -77,6 +80,7 @@
 - [生产配置与启动门禁实现](zh-CN/implementation/production-startup-gates-2026-10-07.md)（[English](implementation/production-startup-gates-2026-10-07.md)）：P02源码门禁、管理员/客户端/密钥/Secret/Flyway校验与聚焦验证；目标环境门禁仍需单独验收。
 - [可靠撤销与操作恢复](zh-CN/implementation/revocation-recovery-2026-10-07.md)（[English](implementation/revocation-recovery-2026-10-07.md)）：P03参考V2死信恢复/保留/key排空轮换，提交失败结果及消费补偿边界。
 - [核心 UI 与人工流程补验](zh-CN/implementation/ui-lifecycle-acceptance-2026-10-07.md)（[English](implementation/ui-lifecycle-acceptance-2026-10-07.md)）：P04复用历史证据，补当前HTTPS浏览器恢复/注销/一次性秘密/键盘移动端与晋升维护，人员/目标环境仍独立。
+- [P05增长与清理测量](zh-CN/implementation/history-growth-2026-10-08.md)（[English](implementation/history-growth-2026-10-08.md)）：10万session/outbox及20万RT/hint合成SQL、actualJava清理/锁回滚/协议连续性，目标容量/审计archive独立。
 - [状态地图与问题计划（文件名保留2026-10-02）](implementation/status-issues-and-plan-2026-10-02.md)：最新.7服务端505/starter193/refBFF37共735零失败错误跳过，刷新退出缺陷已修、实际Grafana/十分钟混合通过；生产transport/oncall/剩余指标/小时级soak独立。
 - [刷新后退出hint连续性](zh-CN/implementation/refresh-logout-hint-history.md)（[English](implementation/refresh-logout-hint-history.md)）：真实400与PG回归redgreen、V15HMAC-only/CAScascade/显式idtokenlookup、preupgrade兼容及撤销拒绝边界。
 - [活跃构建安全扫描与依赖修复](zh-CN/implementation/security-scan-2026-10-06.md)（[English](implementation/security-scan-2026-10-06.md)）：工具/DB/规则hash、17CVE与厂商级别差异、三锁/解包JAR真实覆盖、重定向误报及Secret零匹配限制。

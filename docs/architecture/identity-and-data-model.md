@@ -407,6 +407,8 @@ S3阶段24新DBrace及40相关/强制227server+176starter无失败跳过；只�
 
 ## 6. 保留与清理初始值
 
+2026-10-08 P05用户确认的当前规则见[ADR-0015](../adr/0015-runtime-history-retention.md)及[English逐表手册](../operations/runtime-history-retention.md)／[中文](../zh-CN/operations/runtime-history-retention.md)：运行历史90/30天且有安全条件、存活授权全部hint保护，审计/注销/身份事实本轮不自动删。下表保留原设计初始建议，管理员1年/安全180天等不是已启用自动删除；须可核验archive/另定策略。
+
 最终保留期上线前确认，第一版先采用：
 
 | 数据 | 初始保留 |

@@ -10,7 +10,7 @@ Verify the package from its root with `python scripts/verify-package.py`. Read `
 
 ## 2. Database, Secrets And Signing Key
 
-Create a dedicated PostgreSQL database/account with migration privileges appropriate to Flyway V1–V15. Configure PostgreSQL authentication/network access and backup before opening traffic. JDBC URL example: `jdbc:postgresql://db.internal:5432/las_sso`; use validated TLS for cross-host connections. Do not share the identity DB with a business application or the reference revocation queue.
+Create dedicated PostgreSQL roles with appropriate Flyway V1–V16 privileges. V16 ordinary index DDL needs populated rehearsals, time/disk and drained traffic. Configure DB authentication/network access/backup first; JDBC example `jdbc:postgresql://db.internal:5432/las_sso`, validated cross-host TLS. Identity DB is not a business or reference queue DB.
 
 Copy `config/server/server.properties.example` to `/etc/las-sso/server.properties`. In a root/service-readable protected environment file or secret mechanism, supply:
 
@@ -55,7 +55,7 @@ Review `deploy/nginx/sso-site.conf.example`; replace hostname/certificate paths 
 
 ## 5. Verify, Register Clients, Then Open
 
-Check private readiness200/UP and liveness200, Flyway schema history V1–V15, canonical discovery/JWKS without private material and real TLS browser cookies. With `monitoring`, health moves to the private management port; otherwise use the app port. Run:
+Check private readiness200/UP and liveness200, Flyway V1–V16, canonical discovery/public JWKS and real TLS Cookies. Monitoring moves health to management port; otherwise app port. Run:
 
 ```text
 python scripts/smoke.py --issuer https://auth.example.com --readiness-url http://127.0.0.1:9000/actuator/health/readiness

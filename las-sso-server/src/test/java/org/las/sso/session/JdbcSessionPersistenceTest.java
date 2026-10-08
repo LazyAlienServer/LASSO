@@ -64,6 +64,32 @@ class JdbcSessionPersistenceTest {
 
     @Test
     @SuppressWarnings({"rawtypes", "unchecked"})
+    void existingJdbcExpiryCleanupRemovesAttributesButRetainsLiveSession() {
+        SessionRepository repository = sessionRepository;
+        Session expired = (Session) repository.createSession();
+        expired.setAttribute("fixture", "expired");
+        repository.save(expired);
+        Session live = (Session) repository.createSession();
+        live.setAttribute("fixture", "live");
+        repository.save(live);
+        jdbcClient
+                .sql("UPDATE spring_session SET expiry_time=1 WHERE session_id=:id")
+                .param("id", expired.getId())
+                .update();
+        ((JdbcIndexedSessionRepository) sessionRepository).cleanUpExpiredSessions();
+        assertThat(repository.findById(expired.getId())).isNull();
+        assertThat(
+                        jdbcClient
+                                .sql(
+                                        "SELECT count(*) FROM spring_session_attributes WHERE session_primary_id NOT IN (SELECT primary_id FROM spring_session)")
+                                .query(Long.class)
+                                .single())
+                .isZero();
+        assertThat(repository.findById(live.getId())).isNotNull();
+    }
+
+    @Test
+    @SuppressWarnings({"rawtypes", "unchecked"})
     void passwordChallengeSurvivesJdbcReloadAndOnlyOneCompetingCopyCanConsumeIt() throws Exception {
         var principal =
                 new LasUserPrincipal(

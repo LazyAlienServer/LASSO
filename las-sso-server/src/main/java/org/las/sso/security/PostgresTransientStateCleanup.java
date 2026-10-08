@@ -31,16 +31,18 @@ public class PostgresTransientStateCleanup {
     @Scheduled(
             initialDelayString = "${las.sso.transient-security.cleanup-initial-delay:PT5M}",
             fixedDelayString = "${las.sso.transient-security.cleanup-interval:PT5M}")
-    @Transactional
+    @Transactional(timeout = 10)
     public void scheduledCleanup() {
         cleanupExpired(DEFAULT_BATCH_SIZE);
     }
 
-    @Transactional
+    @Transactional(timeout = 10)
     public int cleanupExpired(int batchSize) {
         if (batchSize <= 0 || batchSize > 10_000) {
             throw new IllegalArgumentException("Cleanup batch size must be between 1 and 10000");
         }
+        jdbcClient.sql("SET LOCAL lock_timeout = '500ms'").update();
+        jdbcClient.sql("SET LOCAL statement_timeout = '5s'").update();
         boolean lockAcquired =
                 jdbcClient
                         .sql("SELECT pg_try_advisory_xact_lock(:lockId)")
@@ -69,13 +71,14 @@ public class PostgresTransientStateCleanup {
                       FROM %s
                      WHERE %s < :now
                      ORDER BY %s
-                     LIMIT :batchSize
+                      LIMIT :batchSize
+                      FOR UPDATE SKIP LOCKED
                 )
                 DELETE FROM %s target
                  USING expired
-                 WHERE target.ctid = expired.ctid
+                  WHERE target.ctid = expired.ctid AND target.%s < :now
                 """
-                        .formatted(table, expiryColumn, expiryColumn, table);
+                        .formatted(table, expiryColumn, expiryColumn, table, expiryColumn);
         return jdbcClient.sql(sql).param("now", now).param("batchSize", batchSize).update();
     }
 }

@@ -30,7 +30,9 @@ Reset 隐藏读取密码、针对当前管理员，并非任意用户重置 API�
 2. 排空入口、停止写入者/worker，记录 epoch 和 Flyway，安装新不可变目录。外部配置独立版本管理且不暴露值。启动单个 SSO，验证迁移/readiness/TLS/浏览器/消费方刷新退出，再启消费方、逐步开放。
 3. 记录部署时间、摘要与验收。失败时继续关闭入口。旧二进制不能未经兼容性验证直接操作新 schema。恢复旧快照必须执行完整 epoch/新签名密钥/消费方屏障，单纯回退文件不够。
 
-关注 V15 hint/history 增长与 authorization 删除、audit/outbox/security 保留和数据库膨胀。没有交付独立 history TTL/压缩器或完整容量策略，不按猜测删除数据。并发/outbox 应受控处理，不能随意改 processed 标志。
+V16支持有限历史清理：5min各phase batch100，终态session/已用废普通人工摘要90天，全过期parent/family后30天，无parent REVOKED RT expiry/revoke后30天，支持成功outbox30天。live hint/RT、pending/leased/dead/未知event、audit/身份/注销事实保留，不宣称全存储有界/archive。全局scheduling=false关闭维护任务，各phase10秒事务/5秒statement/500ms锁，busy跳、失败rollback；auth>10000 RT报告跳，parentbatch不是child/WAL上限，默认28800 parent/天需测disposal>eligiblearrival，目标另验。
+
+只读 `psql --dbname=<protected-connection-service> -v ON_ERROR_STOP=1 -f scripts/history-status.sql` 报count/fanout/size无Token/user值，自定义期限传实际day变量。监控las_sso_history_cleanup_* rows/completed_runs/skipped_runs/failures/duration/oversized_authorizations/busy_authorizations，rows commit后，skip非success。不massdelete未知/大family/live hint/dead。普通VACUUM (ANALYZE)空间复用，DELETE不缩文件；archive/保留/bloat/backup/pepper失效/目标准入吞吐仍运维审查。
 
 ## 参考持久撤销
 

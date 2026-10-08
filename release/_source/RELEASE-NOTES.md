@@ -6,6 +6,8 @@ New development packaging of the current committed Java21 engineering baseline. 
 
 Runtime functionality includes password identity/account lifecycle, JDBC sessions, OIDC Code+PKCE/UserInfo/RT rotation and reuse detection, browser-bound password reauthentication, global and Back-channel logout, first-party eligibility, private metrics and optional reference durable revocation. Flyway V1–V15 includes the HMAC-only ID Token logout-hint association fixing refreshed global logout. Versions/locks and actual nested-library inventory are retained under provenance; do not infer exact versions from generic documentation labels.
 
+Current schema adds V16 runtime-history indexes and bounded90/30-day cleanup, busy-row/timeout protection, fixed cleanup metrics and a read-only status report. Every live hint/RT and audit/deletion fact stays protected; whole-storage capacity/audit archival remains target work. Reference queue V1–V2 is independent.
+
 Engineering changes since historical `.20261006.7`: committed source history, pinned Java formatting/shared build conventions, explicit database-test skip rejection, portable repository checks, pinned CI definitions and concise module guides. The packaging version differs because source/build inputs changed.
 
 ## Verification

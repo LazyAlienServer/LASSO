@@ -79,8 +79,7 @@ public final class MonitoringSnapshot {
                     jdbc.queryForObject(
                             """
                     SELECT (SELECT count(*) FROM user_sessions
-                             WHERE status = 'ACTIVE' AND idle_expires_at > CURRENT_TIMESTAMP
-                               AND absolute_expires_at > CURRENT_TIMESTAMP) AS active_sessions,
+                              WHERE status = 'ACTIVE' AND LEAST(idle_expires_at, absolute_expires_at) > CURRENT_TIMESTAMP) AS active_sessions,
                            count(*) FILTER (WHERE processed_at IS NULL AND dead_lettered_at IS NULL) AS pending,
                            count(*) FILTER (WHERE dead_lettered_at IS NOT NULL) AS dead,
                            count(*) FILTER (WHERE processed_at IS NULL AND dead_lettered_at IS NULL
@@ -88,7 +87,7 @@ public final class MonitoringSnapshot {
                            COALESCE(EXTRACT(EPOCH FROM CURRENT_TIMESTAMP - min(created_at)
                              FILTER (WHERE processed_at IS NULL AND dead_lettered_at IS NULL)), 0) AS oldest_age
                       FROM outbox_events
-                     WHERE event_type IN ('BACKCHANNEL_LOGOUT_REQUESTED', 'GLOBAL_LOGOUT_REQUESTED')
+                     WHERE processed_at IS NULL AND event_type IN ('BACKCHANNEL_LOGOUT_REQUESTED', 'GLOBAL_LOGOUT_REQUESTED')
                     """,
                             (rs, row) ->
                                     new Snapshot(

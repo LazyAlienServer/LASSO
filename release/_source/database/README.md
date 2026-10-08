@@ -1,6 +1,6 @@
 # Database And Embedded Flyway
 
-The executable server contains the authoritative `BOOT-INF/classes/db/migration/V1...V15` SQL. Packaging extracts names/hashes into `migration-manifest.json`, not a second manually editable SQL deployment. Flyway validates/applies on startup against the externally selected PostgreSQL database. Prepare a migration account with necessary privileges and a reviewed runtime role; the package does not create production users or passwords.
+The executable server contains authoritative `BOOT-INF/classes/db/migration/V1...V16` SQL. Packaging extracts names/hashes into migration-manifest.json, not a manual SQL deployment. Flyway validates/applies against externally selected PostgreSQL; provision reviewed migration/runtime roles, not package passwords. V16 creates runtime-history indexes with ordinary Flyway DDL; rehearse populated upgrade time/disk and drain writers. Older P02 binaries reject a future schema, so do not assume file-only rollback.
 
 V13: service-access counters/timestamps. V14: atomic password-reauthentication challenge completion/consumption. V15: HMAC-only issued ID Token hint association, indexed authorization FK with deletion cascade. New hint history needs growth/authorization-cleanup/pepper-rotation planning; it is not an independent login/Bearer credential.
 

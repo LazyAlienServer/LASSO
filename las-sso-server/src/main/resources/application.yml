@@ -60,3 +60,12 @@ las:
       block-window: PT30M
       jitter-min: PT0.15S
       jitter-max: PT0.45S
+    history:
+      batch-size: 100
+      session-retention: P90D
+      credential-retention: P90D
+      authorization-retention: P30D
+      refresh-history-retention: P30D
+      outbox-retention: P30D
+      cleanup-initial-delay: PT5M
+      cleanup-interval: PT5M

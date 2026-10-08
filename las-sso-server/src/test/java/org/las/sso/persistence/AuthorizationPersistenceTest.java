@@ -131,6 +131,8 @@ class AuthorizationPersistenceTest {
 
     @Autowired PostgresTransientStateCleanup transientStateCleanup;
 
+    @Autowired org.las.sso.maintenance.RuntimeHistoryCleanup historyCleanup;
+
     @Autowired TransientSecurityKeyHasher transientKeyHasher;
 
     @Autowired AltchaChallengeService altchaChallengeService;
@@ -2714,6 +2716,10 @@ class AuthorizationPersistenceTest {
         assertThat(refreshHistoryCount(fixture.authorizationId(), "CURRENT")).isEqualTo(1);
         assertThat(refreshHistoryCount(fixture.authorizationId(), "ROTATED")).isEqualTo(1);
 
+        historyCleanup.cleanup();
+        assertThat(refreshHistoryCount(fixture.authorizationId(), "CURRENT")).isEqualTo(1);
+        assertThat(refreshHistoryCount(fixture.authorizationId(), "ROTATED")).isEqualTo(1);
+
         MvcResult reused = refresh(fixture, fixture.refreshToken());
 
         assertThat(reused.getResponse().getStatus()).isEqualTo(400);
@@ -2976,6 +2982,16 @@ class AuthorizationPersistenceTest {
                 .isNull();
         assertThat(authorizations.findByToken(hint.getTokenValue(), OAuth2TokenType.REFRESH_TOKEN))
                 .isNull();
+        jdbcClient
+                .sql(
+                        "UPDATE oauth2_id_token_hint_history SET created_at = CURRENT_TIMESTAMP - INTERVAL '60 days' WHERE authorization_id = :id")
+                .param("id", fixture.authorizationId())
+                .update();
+        historyCleanup.cleanup();
+        assertThat(
+                        authorizations.findByToken(
+                                hint.getTokenValue(), new OAuth2TokenType("id_token")))
+                .isNotNull();
         mockMvc.perform(
                         get("/connect/logout")
                                 .queryParam("id_token_hint", hint.getTokenValue())

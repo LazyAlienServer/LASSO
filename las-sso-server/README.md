@@ -5,7 +5,7 @@
 ## 工程基线
 
 - JDK 21、Gradle Wrapper 9.6.1、Spring Boot 4.1、Spring Security Authorization Server 7.1。
-- PostgreSQL、Flyway V1–V15、Spring Session JDBC；第一版不引入 Redis。
+- PostgreSQL、Flyway V1–V16、Spring Session JDBC；第一版不引入 Redis。
 - ALTCHA 本地工作量验证；密码默认 Argon2id，身份主体固定 UUID。
 - 精确依赖版本见 `gradle/libs.versions.toml` 和三个模块的 `gradle.lockfile`。
 - Java 编译/测试/格式化/可重复归档规则统一在根 `build.gradle.kts`，协作规则见[CONTRIBUTING](../CONTRIBUTING.md)。
@@ -74,6 +74,8 @@ python scripts/verify.py tests --require-no-skips
 监控为可选 `monitoring` profile：独立 loopback 管理端口 9091、专用外部 bcrypt 采集凭据、只允许无状态 GET Prometheus。启用后 health 也迁到管理端口；数据库参与 readiness，liveness 不依赖 DB。指标、Prometheus/Alertmanager/Grafana 输入及私有传输规则见[监控文档](../docs/zh-CN/operations/monitoring-and-alerting.md)，不要从公网代理管理口。
 
 ## 契约与当前状态
+
+P05默认每5分钟历史清理batch100，终态session/已用凭据90天、全Token及RT family过期授权/REVOKED RT摘要/成功outbox30天；有效hint/RT、pending/dead/审计事实保护。只读 `scripts/history-status.sql` 和配置/超时/吞吐/vacuum/pepper说明见[English](../docs/operations/runtime-history-retention.md)／[中文](../docs/zh-CN/operations/runtime-history-retention.md)。目标容量/审计归档另验，不能把本机样本当生产保证。
 
 - [OIDC 与 BFF](../docs/architecture/oidc-and-bff-contract.md)：Code/PKCE、刷新、重认证、退出；签名 `auth_time` 不因刷新推进。
 - [第一方接入](../docs/integration/first-party-system-sso-integration-guide.md)：服务访问资格与身份令牌区别，版本只在同 epoch 内比较。

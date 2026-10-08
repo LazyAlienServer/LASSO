@@ -66,7 +66,7 @@ P02源码已校验显式production/issuer/context/秘密/Cookie/Flyway/health及
 | P02 生产配置与启动门禁 | **源码已实现/目标环境待验** | S配置、安全链、健康；D启动输入；Q | P01范围；仍需目标值/拓扑 | 1. 对照手册核对Issuer、密钥、pepper、客户端、Cookie、profile和schema校验。<br>2. 按既有规则补失败关闭、无管理员时的维护初始化路径，规则空缺先记录决策。<br>3. 测合法/缺失/示例/无效配置、非Web维护及local/test兼容。 | `production-startup-gates-2026-10-07.md`；JDK21/Docker PostgreSQL/PKCS12/servlet聚焦证据。正式域名、Secret保管、目标代理/备份/消费方和上线证据仍必需 |
 | P03 可靠撤销与操作恢复契约 | **源码/参考工具已验；消费方/目标采用待验** | K sink/handler；R队列；O/X；S outbox另流程 | P01/P11目标采用 | 1. 核验已接受任务持久化、提交前失败/崩溃及本地/远程退出结果。<br>2. 定任务保留、死信查看和人工恢复、密钥排空轮换，补样例最小缺口。<br>3. 交付消费方适配要求，验重启、租约、数据库和端点故障。 | [P03记录](revocation-recovery-2026-10-07.md)：808严格测试、参考V2恢复/保留/key竞争和真实JAR/PowerShell维护；pre-submit补偿/真实消费Adapter仍P11，SSO outbox独立恢复 |
 | P04 核心UI与生命周期补验 | **当前源码/浏览器补验完成；目标人员/合作条件待验** | S templates/assets；Q browser；O核验/保管 | P01目标输入/P02 | 1. 复用已完UI/DB/admin证据，补恢复/旧码/注销/墓碑/晋升。<br>2. 验桌面手机键盘/秘密/错误并修实际缺陷。<br>3. 按用户确认两项独立依据/工单、凭据保管/争议手册执行。 | [P04记录](ui-lifecycle-acceptance-2026-10-07.md)/[人工流程](../operations/manual-recovery-and-lifecycle.md)：隔离production HTTPS/browser/维护、跟踪DOM回归；真人核验/保管培训/目标TLS/partner consent仍按范围验 |
-| P05 会话/历史表增长与清理 | 待推进/有界行为必需 | S授权、会话、短期状态清理及DB；R队列保留；Q | P01规模、P03保留 | 1. 测会话、授权、RT/hint历史、审计、退出任务增长和查询计划。<br>2. 定保留期限、清理负责人和上限，保留必要审计及有效授权的退出关联。<br>3. 测批次、到期、级联、回滚、竞争与采集成本，记录pepper/密钥轮换。 | 无失控增长，不误删有效授权/审计、不复活历史；新保留规则先ADR再实现 |
+| P05 会话/历史表增长与清理 | **源码/隔离验证完成；目标容量/审计归档待验** | S history/session/transient/监控+V16；R复用P03；Q | P01目标速率/硬件仍需 | 1. 测代表增长/queryplan。<br>2. 实现用户确认90/30天、有限batch/timeout，保live hint/RT及审计。<br>3. 验迁移/rollback/race/expiry/协议，交只读status/vacuum/pepper指南。 | [P05](history-growth-2026-10-08.md)/[ADR-0015](../adr/0015-runtime-history-retention.md)，合成SQL/actualservice；目标速率/真实payload/准入/archive仍P01/P08/P13 |
 
 ## 4. B阶段：目标预发布环境
 
@@ -74,7 +74,7 @@ P02源码已校验显式production/issuer/context/秘密/Cookie/Flyway/health及
 | --- | --- | --- | --- | --- | --- |
 | P06 主机网络、DNS与TLS | 待推进/必需，CDN/prefix条件必需 | D Nginx；S/R传输配置；O | P01 | 1. 建与目标相当的隔离预发布主机、网络和公共CA域名。<br>2. 配规范代理、未知Host拒绝、防火墙、私有管理口和证书续期。<br>3. 验回调/Cookie/来源伪头、后端/指标不可公开访问及证书续期。 | 实际域名/TLS/续期/信任边界通过，无浏览器证书例外或未定义多跳信任 |
 | P07 持久Secret与签名key保管 | 待推进/必需 | S密钥、pepper、监控；K/R客户端；D/O | P01/P02/P06 | 1. 私有注入独立持久key/kid、pepper、DB/客户端/采集/队列凭据。<br>2. 核权限、挂载、无开发默认值、重启稳定及错误密钥拒绝。<br>3. 演练轮换/恢复和负责人访问，证据不存秘密值。 | 持久密钥重启/新密钥恢复通过，无local profile或示例凭据，保管轮换可执行 |
-| P08 PostgreSQL V1–V15部署与回退 | 待推进/必需 | S迁移与持久化；D/O数据库；Q | P02/P05/P06/P07 | 1. 在空库和代表旧schema副本上部署最小权限账户与版本迁移。<br>2. 核V15索引/级联、连接池/超时/健康和后台任务。<br>3. 演练变更前备份和兼容回退，不假定旧JAR兼容新schema或恢复无需安全重置。 | 迁移、权限、健康及安全回退证据，不在生产试写 |
+| P08 PostgreSQL V1–V16部署与回退 | 待推进/必需 | S迁移/persistence；D/O DB；Q | P02/P05/P06/P07 | 1. 空库/代表旧schema最小权限迁移。<br>2. 验V15cascade/V16建索引停机、pool/timeout/health/jobs。<br>3. backup/schema兼容回退，旧P02 binary拒future，恢复需安全屏障。 | 目标迁移/权限/索引耗时/健康/回退，非production试写 |
 | P09 生产监控与真实通知 | 待推进/核心覆盖必需 | S观测；D Prometheus/Alertmanager/Grafana；O | P06/P07/P08，复用.6/.7 | 1. 配私有采集传输、凭据轮换、Grafana认证/Viewer/保留备份。<br>2. 将就绪/快照/积压/复用及磁盘、备份、时钟、资源告警接实际负责人并配重试升级。<br>3. 注入故障/恢复验证通知和轮换，无秘密/高基数标签，按上线风险补指标。 | 实际通知人确认、故障恢复/轮换记录及私有访问；关键覆盖不可省 |
 | P10 备份灾备与维护保管 | 待推进/必需 | S维护、会话/epoch；D脚本；O/X | P07/P08/P09 | 1. 配加密定时/异地备份、密钥分离、保留期限与失败通知。<br>2. 将实际预发布备份恢复至隔离库，执行expected-epoch/新key屏障并验V15级联和永久事实。<br>3. 清消费方会话/cache/旧kid证据，最终候选验新登录、退出/注销后台任务、reset并测RPO/RTO。 | 实际备份可恢复、旧凭据拒绝、真实消费方屏障完成，操作员能执行隐藏输入维护 |
 
@@ -107,7 +107,7 @@ P05 + 目标环境 → P13；P06–P13 → P14
 P02–P14 → P15 → P16 → P17 → P18 → P19
 ```
 
-下次推荐 **P05增长清理**。P02/P03源码/参考和P04有界browser/UI验证完成，目标环境/操作人员/消费方仍待验，同步收P01。P06需目标环境，P11/P12需消费方证据，正式消费方不能略自己的任务；只对P01首发适用门禁，拓扑改变影响适用性不改历史。
+下次推荐 **P01目标输入和P06环境准备**，选择Docker才推进该路径。P02–P05源码/参考/隔离完成，目标容量/审计archive/人员/消费采用仍待；P06需环境，P11/P12需消费证据。只对声明首发门禁，拓扑改变适用性不改历史。
 
 ### 需要回传的输入
 
