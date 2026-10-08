@@ -18,6 +18,7 @@
   const passwordSummary = document.getElementById("password-change-summary");
   const passwordSummaryText = document.getElementById("password-change-summary-text");
   let recoveryCodes = [];
+  let unsavedCodes = false;
 
   async function request(url, options = {}) {
     const response = await fetch(url, {
@@ -154,6 +155,8 @@
 
   function renderRecoveryCodes(codes) {
     recoveryCodes = codes;
+    unsavedCodes = codes.length > 0;
+    document.getElementById("rotated-codes-saved").checked = false;
     document.getElementById("recovery-action").hidden = true;
     reauthenticationForm.hidden = true;
     recoveryResult.hidden = false;
@@ -207,6 +210,20 @@
     status.dataset.state = "success";
   });
 
+  document.getElementById("rotated-codes-saved").addEventListener("change", (event) => {
+    unsavedCodes = recoveryCodes.length > 0 && !event.currentTarget.checked;
+  });
+  window.addEventListener("beforeunload", (event) => {
+    if (unsavedCodes) { event.preventDefault(); event.returnValue = ""; }
+  });
+  window.addEventListener("pagehide", () => {
+    recoveryCodes = [];
+    unsavedCodes = false;
+    document.getElementById("rotated-recovery-code-list").replaceChildren();
+    passwordForm.reset();
+    reauthenticationForm.reset();
+  });
+
   document.getElementById("open-password-change").addEventListener("click", openPasswordDialog);
   document.getElementById("close-password-change").addEventListener("click", closePasswordDialog);
   document.getElementById("cancel-password-change").addEventListener("click", closePasswordDialog);
@@ -251,6 +268,7 @@
         method: "POST",
         body: JSON.stringify({ currentPassword: current.value, newPassword: next.value })
       });
+      passwordForm.reset();
       passwordForm.hidden = true;
       document.getElementById("close-password-change").hidden = true;
       const success = document.getElementById("password-change-success");

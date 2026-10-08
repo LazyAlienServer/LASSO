@@ -89,7 +89,7 @@
 
   function clearError() {
     errorBox.hidden = true;
-    credentialForm.querySelectorAll("[aria-invalid='true']").forEach((field) => {
+    document.querySelectorAll("[aria-invalid='true']").forEach((field) => {
       field.removeAttribute("aria-invalid");
     });
     document.querySelectorAll(".field-error").forEach((field) => {
@@ -236,6 +236,7 @@
         })
       });
       if (!response.ok) throw await readProblem(response);
+      credentialForm.reset();
       credentialForm.hidden = true;
       passwordForm.hidden = false;
       errorBox.hidden = true;
@@ -284,6 +285,7 @@
     } catch (problem) {
       showError(friendlyProblem(problem));
       if (problem.code === "SESSION_EXPIRED") {
+        passwordForm.reset();
         passwordForm.hidden = true;
         credentialForm.reset();
         credentialForm.hidden = false;

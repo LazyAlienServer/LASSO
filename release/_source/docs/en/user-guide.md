@@ -22,6 +22,8 @@ Browser recent-password checks are15 minutes bound to the current SSO/browser Se
 
 ## Administrators
 
+Ordinary manual recovery requires at least two independent facts checked against existing trusted records; QQ group membership/public facts or a single screenshot/IP are insufficient. If unverifiable, no credential is issued. Operators never ask for passwords, recovery codes, Tokens or full Cookies. The private case record contains target UUID, evidence references/conclusions, operator/reason, issue request/audit reference/expiry and delivery/outcome; no plaintext. SSO administrators use their own offline codes or exact-JAR host maintenance, not ordinary-user manual credential issuance.
+
 SSO administrator controls identity service only, not business-site admin roles. Initial appointment/reset is offline host maintenance. Log in, complete required password change, and use recent password plus an auditable reason for guarded writes.
 
 - `/admin/users`: search by stable UUID/profile, inspect lifecycle/session/credential/deletion facts; freeze/unfreeze, session revoke, approved manual recovery and supported administrator handover. Verify the selected target before confirmation. Lifecycle restrictions affect all consumers; do not equate freeze with Minecraft-only bans. Last-admin/transition guards must not be bypassed with SQL.
@@ -30,3 +32,5 @@ SSO administrator controls identity service only, not business-site admin roles.
 - `/admin/audit`: filter audit/security records by time/action/target and retain minimum sanitized incident evidence. Public support must not receive raw audit exports containing personal data.
 
 One-time outputs are not recoverable by simply reopening a page. If an operation fails, retain requestId/time/category and consult [troubleshooting](troubleshooting.md); do not repeatedly issue sensitive operations without checking their committed state.
+
+One-time dialogs erase plaintext on close/save/Escape/pagehide; code panels clear on navigation and warn until save acknowledgement. Downloads/clipboard/history on the user's device remain their custody responsibility. Reissue invalidates previous unused manual credentials. A held deletion can be cancelled by the owner with password; release preserves the original schedule and an already-due request may execute immediately on the next job cycle. Deleted identities are not resurrected by an operator.

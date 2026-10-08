@@ -35,6 +35,7 @@
   document.querySelectorAll(".admin-action").forEach((button) => {
     button.addEventListener("click", () => {
       pending = { action: button.dataset.action, requestId: button.dataset.requestId };
+      document.getElementById("admin-dialog-target").textContent = `${button.dataset.username} · ${button.dataset.userId} · ${pending.requestId}`;
       document.getElementById("admin-dialog-title").textContent = titles[pending.action];
       document.getElementById("admin-dialog-description").textContent = descriptions[pending.action];
       document.getElementById("admin-dialog-error").textContent = "";

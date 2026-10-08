@@ -43,6 +43,8 @@ Repository checks validate source candidates, UTF-8/text/JSON, internal document
 
 ## Git And Delivery
 
+UI interaction fixes also run `npm ci` then `npm test` in `scripts/browser/` using installed Edge (or the documented Playwright channel). These source-DOM regressions are independent of Gradle and do not replace real JAR/PostgreSQL/HTTPS flow acceptance. No private browser traces or authentication captures are committed.
+
 Before committing inspect status, diff and recent commits. Stage explicit intended paths; never use a blanket commit of local settings, archives or build output. Preserve other contributors' work. Commit changes in coherent units using the repository's `feat:`, `fix:`, `docs:`, `build:` or `chore:` style; describe the behavior/checks rather than an invented release claim. Separate mechanical formatting from substantive fixes where practical.
 
 Do not rewrite historical delivery IDs/manifests to claim new source or bytes. Record the source revision, chosen server/starter versions, lockfiles, artifact hashes, test results and acceptance scope for a new identified delivery. A local commit is not a push, signed hosted release or production deployment.

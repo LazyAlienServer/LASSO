@@ -6,6 +6,7 @@
   <meta name="color-scheme" content="light">
   <title>客户端 · LazyAlienServer 通行证</title>
   <link rel="stylesheet" href="/assets/passport.css">
+  <script src="/assets/passport-ui.js" defer></script>
   <script src="/assets/admin-clients.js" defer></script>
 </head>
 <body class="passport-account-page admin-page">
@@ -45,7 +46,7 @@
         </form>
 
         <div class="admin-empty" th:if="${#lists.isEmpty(clients.items)}">没有符合条件的客户端</div>
-        <div class="audit-list" th:unless="${#lists.isEmpty(clients.items)}">
+        <div class="audit-list" role="region" tabindex="0" aria-label="客户端记录" th:unless="${#lists.isEmpty(clients.items)}">
           <article class="audit-item deletion-item" th:each="client : ${clients.items}">
             <div class="deletion-item-info">
               <div class="audit-item-head">
@@ -156,10 +157,11 @@
     </div>
   </dialog>
 
-  <dialog id="client-action-dialog" class="passport-dialog">
+  <dialog id="client-action-dialog" class="passport-dialog" aria-labelledby="client-dialog-title" aria-describedby="client-dialog-description client-dialog-target">
     <form id="client-action-form" class="passport-dialog-card" method="dialog">
       <div class="dialog-heading"><p>ADMIN CONFIRMATION</p><h2 id="client-dialog-title">确认管理操作</h2></div>
       <p id="client-dialog-description" class="admin-dialog-description"></p>
+      <p id="client-dialog-target" class="admin-dialog-target"></p>
       <input name="username" type="hidden" autocomplete="username" aria-hidden="true" tabindex="-1">
       <label class="field-group"><span>操作原因</span><textarea name="reason" maxlength="500" required></textarea></label>
       <label class="field-group"><span>当前管理员密码</span><input name="password" type="password" maxlength="512" autocomplete="current-password" required></label>

@@ -4,6 +4,8 @@
 
 ## Daily Checks
 
+Manual recovery: contact in existing QQ then verified private channel, confirm immutable UUID/current name and two independent existing-record bases, record conclusions/operator/reason/request-audit/expiry/outcome without plaintext. Insufficient evidence means no issuance. Never request password/code/Token/Cookie. Protect administrator codes independently of host/DB; record custody location/owner/generation only, remove old copies after rotation. For deletion disputes record requestID/reason, bounded hold expiry/public non-sensitive summary and review/release/owner cancellation result; release does not restart30-day wait. Real operator assignment/custody/training are deployment tasks, not proved by software download checks.
+
 Observe DB-aware readiness, private scrape/snapshot freshness, login/admin failures, refresh/reuse, logout backlog/age/dead tasks, DB pool/storage and certificate expiry. Inspect audit/security events via `/admin/audit`; use time/requestId/action to correlate without Token/Cookie/password data. Ownership of CA renewal, backup validity, actual notification receipt and escalation belongs to operations. See [monitoring](monitoring.md).
 
 Keep a release inventory: package version, verified SHA-256, source commit, deployed config revision without values, JDK/PostgreSQL/proxy versions and migration history. Do not regenerate secrets on restart. An SSO outage is not an account ban; consumers distinguish denial from temporary unavailable status.

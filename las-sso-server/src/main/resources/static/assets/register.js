@@ -176,6 +176,7 @@
 
   function renderSuccess(result) {
     recoveryCodes = result.recoveryCodes || [];
+    form.reset();
     form.hidden = true;
     summary.hidden = true;
     successPanel.hidden = false;
@@ -294,6 +295,7 @@
   });
 
   document.getElementById("copy-codes").addEventListener("click", async (event) => {
+    const button = event.currentTarget;
     const text = recoveryCodes.join("\n");
     recoveryActionStatus.textContent = "";
     recoveryActionStatus.removeAttribute("data-state");
@@ -302,11 +304,11 @@
         throw new Error("CLIPBOARD_UNAVAILABLE");
       }
       await navigator.clipboard.writeText(text);
-      event.currentTarget.textContent = "已复制";
+      button.textContent = "已复制";
       recoveryActionStatus.dataset.state = "success";
       recoveryActionStatus.textContent = "恢复码已复制到剪贴板。";
     } catch {
-      event.currentTarget.textContent = "复制全部";
+      button.textContent = "复制全部";
       recoveryActionStatus.dataset.state = "error";
       recoveryActionStatus.textContent = "无法自动复制，请使用“下载文本”或手动选择恢复码。";
     }
@@ -327,6 +329,12 @@
       event.preventDefault();
       event.returnValue = "";
     }
+  });
+  window.addEventListener("pagehide", () => {
+    recoveryCodes = [];
+    codeList.replaceChildren();
+    unsavedSecrets = false;
+    form.reset();
   });
 
   issueChallenge().catch((problem) => {

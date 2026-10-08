@@ -1,0 +1,11 @@
+{
+  "name": "las-sso-ui-regressions",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "test": "node ui-regressions.cjs"
+  },
+  "devDependencies": {
+    "playwright": "1.55.1"
+  }
+}

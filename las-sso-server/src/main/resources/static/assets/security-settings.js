@@ -80,6 +80,7 @@
         try { problem = await response.json(); } catch { /* status fallback */ }
         throw Object.assign(new Error(problem.detail), { code: problem.code });
       }
+      passwordForm.reset();
       passwordForm.hidden = true;
       document.querySelector(".security-footer-link").hidden = true;
       const success = document.getElementById("password-success");

@@ -1073,7 +1073,8 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 }
 .captcha-frame[aria-busy="true"]::before { content: "正在载入本地验证组件…"; color: var(--ink-soft); font-size: 13px; }
 .captcha-frame[aria-busy="true"] altcha-widget { display: none; }
-altcha-widget { width: 100%; --altcha-border-width: 0; --altcha-border-radius: 4px; --altcha-color-base: #6254d8; --altcha-color-text: #23123f; }
+altcha-widget { width: 100%; --altcha-border-width: 0; --altcha-border-radius: 4px; --altcha-color-base: #faf9ff; --altcha-color-text: #23123f; }
+.admin-dialog-target { padding: 10px; color: var(--ink); background: var(--surface-soft); border: 1px solid var(--line-soft); border-radius: 6px; font-size: 12px; overflow-wrap: anywhere; }
 .agreement { display: grid; grid-template-columns: 20px 1fr; gap: 12px; align-items: start; margin: 6px 0 24px; color: var(--ink-soft); font-size: 13px; line-height: 1.55; cursor: pointer; }
 .agreement input { width: 20px; height: 20px; margin: 1px 0 0; accent-color: var(--purple); }
 .process-list { list-style: none; margin: clamp(28px, 4vh, 44px) 0 24px; padding: 0; display: grid; gap: 0; }

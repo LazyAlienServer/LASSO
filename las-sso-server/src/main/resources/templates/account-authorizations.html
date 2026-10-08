@@ -44,9 +44,9 @@
     </section>
   </main>
 
-  <dialog id="authorization-revoke-dialog" class="passport-dialog">
+  <dialog id="authorization-revoke-dialog" class="passport-dialog" aria-labelledby="authorization-dialog-title">
     <form id="authorization-revoke-form" class="passport-dialog-card" method="dialog">
-      <div class="dialog-heading"><p>AUTHORIZATION CONTROL</p><h2>撤销应用授权</h2></div>
+      <div class="dialog-heading"><p>AUTHORIZATION CONTROL</p><h2 id="authorization-dialog-title">撤销应用授权</h2></div>
       <p class="admin-dialog-description">撤销 <strong id="authorization-client-name"></strong> 的授权后，该应用会立即收到退出通知；再次使用时需要重新授权。</p>
       <p id="authorization-dialog-error" class="field-error" aria-live="polite"></p>
       <div class="dialog-actions">

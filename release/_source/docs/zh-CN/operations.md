@@ -4,6 +4,8 @@
 
 ## 日常检查
 
+人工恢复：现有QQ联系后已核私密渠道，确认稳定UUID/当前名、两项独立既有记录，受限单记结论/操作者/原因/request-audit/到期/结果无明文，依据不足不签。不索密码/码/Token/Cookie。管理员码与host/DB独立保护，仅记保管位置/人/generation，换批清旧副本。争议记requestID/原因/有界hold/public非敏感摘要/复查release或本人cancel，release不重置30天。真实人/保管/培训归部署，不以download软件检查代验。
+
 观察含数据库的 readiness、私有采集/snapshot 新鲜度、登录/管理员失败、refresh/reuse、退出积压/年龄/死信、连接池/存储和证书有效期。通过 `/admin/audit` 检查审计/安全事件，按时间/requestId/action 关联，避免 Token/Cookie/密码数据。CA 续期、备份有效性、真实通知接收与升级响应由运维负责。见[监控](monitoring.md)。
 
 保留发行清单：版本、核验 SHA-256、源码 commit、不含值的配置修订、JDK/PostgreSQL/代理版本及迁移历史。重启不重新生成秘密。SSO 暂时不可用不是账号封禁，消费方应区分拒绝与临时故障。

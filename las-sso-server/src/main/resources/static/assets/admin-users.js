@@ -51,10 +51,12 @@
       pending = {
         action: button.dataset.action,
         userId: button.dataset.userId,
+        username: button.dataset.username,
         idempotencyKey: crypto.randomUUID()
       };
       document.getElementById("admin-dialog-title").textContent = titles[pending.action];
       document.getElementById("admin-dialog-description").textContent = descriptions[pending.action];
+      document.getElementById("admin-dialog-target").textContent = `${pending.username} · ${pending.userId}`;
       document.getElementById("admin-dialog-error").textContent = "";
       form.reset();
       dialog.showModal();
@@ -76,13 +78,14 @@
       await request("/api/v1/me/reauthentication", { password: form.elements.password.value });
       const result = await request(`/api/v1/admin/users/${encodeURIComponent(pending.userId)}/${pending.action}`,
         { reason: form.elements.reason.value.trim() }, pending.idempotencyKey);
-      dialog.close();
       if (pending.action === "recovery-credentials") {
         if (!result.secretsAvailable) {
           throw new Error("该操作已经完成，一次性凭据不能再次显示。若未保存，请重新签发。");
         }
+        dialog.close();
         showCredential(result.credential);
       } else {
+        dialog.close();
         window.location.reload();
       }
     } catch (failure) {
@@ -105,11 +108,22 @@
   }
 
   document.getElementById("admin-credential-saved").addEventListener("click", () => {
-    credentialOpen = false;
+    clearCredential();
     credentialDialog.close();
   });
-  credentialDialog.addEventListener("close", () => { credentialOpen = false; });
-  document.getElementById("admin-credential-close").addEventListener("click", () => credentialDialog.close());
+  function clearCredential() {
+    credentialOpen = false;
+    credentialValue.textContent = "";
+    credentialStatus.textContent = "";
+    credentialStatus.removeAttribute("data-state");
+  }
+  credentialDialog.addEventListener("close", clearCredential);
+  credentialDialog.addEventListener("cancel", clearCredential);
+  window.addEventListener("pagehide", clearCredential);
+  document.getElementById("admin-credential-close").addEventListener("click", () => {
+    clearCredential();
+    credentialDialog.close();
+  });
 
   credentialCopy.addEventListener("click", async () => {
     const text = credentialValue.textContent;

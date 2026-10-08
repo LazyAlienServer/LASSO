@@ -169,6 +169,7 @@
   function openActionDialog(action, title, description) {
     document.getElementById("client-dialog-title").textContent = title;
     document.getElementById("client-dialog-description").textContent = description;
+    document.getElementById("client-dialog-target").textContent = currentClientId;
     document.getElementById("client-dialog-error").textContent = "";
     actionForm.reset();
     actionForm.dataset.action = action;
@@ -194,13 +195,14 @@
         { reason: actionForm.elements.reason.value.trim() },
         actionForm.dataset.action === "secret-rotation"
           ? actionForm.dataset.idempotencyKey : null);
-      actionDialog.close();
       if (actionForm.dataset.action === "secret-rotation") {
         if (!result.secretsAvailable) {
           throw new Error("该轮换已经完成，一次性密钥不能再次显示。请再次轮换生成新密钥。");
         }
+        actionDialog.close();
         showSecret(result.clientSecret);
       } else {
+        actionDialog.close();
         detailDialog.close();
         window.location.reload();
       }
@@ -272,12 +274,12 @@
   }
 
   document.getElementById("client-secret-saved").addEventListener("click", () => {
-    secretOpen = false;
+    clearSecret();
     secretDialog.close();
     window.location.reload();
   });
   document.getElementById("client-secret-close").addEventListener("click", () => {
-    secretOpen = false;
+    clearSecret();
     secretDialog.close();
     window.location.reload();
   });
@@ -295,6 +297,16 @@
       secretStatus.textContent = "无法自动复制，请手动选择密钥文本。";
     }
   });
+
+  function clearSecret() {
+    secretOpen = false;
+    secretValue.textContent = "";
+    secretStatus.textContent = "";
+    secretStatus.removeAttribute("data-state");
+  }
+  secretDialog.addEventListener("close", clearSecret);
+  secretDialog.addEventListener("cancel", clearSecret);
+  window.addEventListener("pagehide", clearSecret);
 
   window.addEventListener("beforeunload", (event) => {
     if (secretOpen) {

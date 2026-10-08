@@ -1,10 +1,12 @@
 # LAS SSO 第一版 UI 流程规格
 
-- 状态：实施前低保真规格
+- 状态：已实现交互规格；P04当前浏览器补验见下文，目标人员/设备/合作方条件独立
 - 目的：冻结影响认证、安全和 API 的交互，不规定最终品牌视觉
 - 依赖：[API 契约](../architecture/api-contract.md)、[OIDC 与 BFF 契约](../architecture/oidc-and-bff-contract.md)、[实施就绪度](../implementation/implementation-readiness.md)
 
 ## 1. 设计原则
+
+P04当前证据：[English](../implementation/ui-lifecycle-acceptance-2026-10-07.md)／[中文](../zh-CN/implementation/ui-lifecycle-acceptance-2026-10-07.md)。已有页面和历史测试复用，补真实HTTPS恢复/注销/墓碑/晋升/一次性秘密及键盘移动状态；不以自动axe零报告代表整站WCAG认证。
 
 - 页面始终明确当前是在 LAS SSO 还是某个业务网站；有 OIDC 上下文时显示“正在登录到 {clientName}”。
 - 不在浏览器页面、URL、前端日志或存储中展示 Token、Authorization Code 或内部错误。

@@ -18,7 +18,7 @@ MODULES = {
 }
 TEXT_SUFFIXES = {
     ".java", ".kts", ".gradle", ".properties", ".toml", ".lockfile", ".md",
-    ".json", ".yml", ".yaml", ".sql", ".html", ".css", ".js", ".py", ".ps1",
+    ".json", ".yml", ".yaml", ".sql", ".html", ".css", ".js", ".cjs", ".py", ".ps1",
 }
 EXTERNAL_DOC_PREFIXES = ("LASLOG/docs/",)
 

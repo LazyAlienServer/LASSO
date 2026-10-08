@@ -6,6 +6,7 @@
   <meta name="color-scheme" content="light">
   <title>注销申请 · LazyAlienServer 通行证</title>
   <link rel="stylesheet" href="/assets/passport.css">
+  <script src="/assets/passport-ui.js" defer></script>
   <script src="/assets/admin-deletion-requests.js" defer></script>
 </head>
 <body class="passport-account-page admin-page">
@@ -45,7 +46,7 @@
         </form>
 
         <div class="admin-empty" th:if="${#lists.isEmpty(requests.items)}">没有符合条件的注销申请</div>
-        <div class="audit-list" th:unless="${#lists.isEmpty(requests.items)}">
+        <div class="audit-list" role="region" tabindex="0" aria-label="注销申请记录" th:unless="${#lists.isEmpty(requests.items)}">
           <article class="audit-item deletion-item" th:each="request : ${requests.items}">
             <div class="deletion-item-info">
               <div class="audit-item-head">
@@ -64,8 +65,8 @@
               <p class="audit-item-reason" th:if="${request.holdPublicSummary != null}" th:text="${'用户可见摘要：' + request.holdPublicSummary}">用户可见摘要</p>
             </div>
             <div class="audit-item-actions" th:if="${request.status == 'PENDING' or request.status == 'HELD'}">
-              <button th:if="${request.status == 'PENDING'}" class="admin-action secondary-button" type="button" data-action="hold" th:data-request-id="${request.id}" th:data-username="${request.username}">暂缓</button>
-              <button th:if="${request.status == 'HELD'}" class="admin-action secondary-button" type="button" data-action="release" th:data-request-id="${request.id}" th:data-username="${request.username}">释放</button>
+              <button th:if="${request.status == 'PENDING'}" class="admin-action secondary-button" type="button" data-action="hold" th:data-request-id="${request.id}" th:data-user-id="${request.userId}" th:data-username="${request.username}">暂缓</button>
+              <button th:if="${request.status == 'HELD'}" class="admin-action secondary-button" type="button" data-action="release" th:data-request-id="${request.id}" th:data-user-id="${request.userId}" th:data-username="${request.username}">释放</button>
             </div>
           </article>
         </div>
@@ -79,10 +80,11 @@
   </main>
 
   <input id="admin-csrf" type="hidden" th:value="${_csrf.token}" th:data-header="${_csrf.headerName}">
-  <dialog id="admin-action-dialog" class="passport-dialog">
+  <dialog id="admin-action-dialog" class="passport-dialog" aria-labelledby="admin-dialog-title" aria-describedby="admin-dialog-description admin-dialog-target">
     <form id="admin-action-form" class="passport-dialog-card" method="dialog">
       <div class="dialog-heading"><p>ADMIN CONFIRMATION</p><h2 id="admin-dialog-title">确认管理操作</h2></div>
       <p id="admin-dialog-description" class="admin-dialog-description"></p>
+      <p id="admin-dialog-target" class="admin-dialog-target"></p>
       <input name="username" type="hidden" autocomplete="username" aria-hidden="true" tabindex="-1">
       <label class="field-group"><span>操作原因</span><textarea name="reason" maxlength="500" required placeholder="填写仅管理员和审计可见的处理原因"></textarea></label>
       <label class="field-group" id="hold-public-summary-group"><span>用户可见摘要</span><textarea name="publicSummary" maxlength="500" placeholder="简要说明暂缓状态，不包含内部调查信息"></textarea></label>

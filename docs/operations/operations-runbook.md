@@ -91,6 +91,8 @@ LAS_SSO_TRUSTED_PROXY_CIDRS
 
 ## 5. 启动门禁与健康检查
 
+人工恢复、管理员恢复码离线保管和注销争议按[English流程](manual-recovery-and-lifecycle.md)／[中文](../zh-CN/operations/manual-recovery-and-lifecycle.md)执行。用户确认至少两项独立、能由既有可信记录核对的依据；群身份/公开资料不足，不收密码/恢复码/Token，无足够证据不签发。
+
 从当前开发基线到目标生产的责任与执行顺序见[上线计划](../zh-CN/implementation/production-launch-plan.md)／[English](../implementation/production-launch-plan.md)。P02 源码门禁见[实现记录](../implementation/production-startup-gates-2026-10-07.md)／[中文](../zh-CN/implementation/production-startup-gates-2026-10-07.md)；P06–P10 仍落实环境/Secret/DB/监控/灾备，P15–P19 完成最终候选演练和生产开放，源码门禁通过不代表目标环境验收已完成。
 
 ### 5.1 启动时必须失败关闭

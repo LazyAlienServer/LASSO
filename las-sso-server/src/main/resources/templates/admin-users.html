@@ -6,6 +6,7 @@
   <meta name="color-scheme" content="light">
   <title>用户管理 · LazyAlienServer 通行证</title>
   <link rel="stylesheet" href="/assets/passport.css">
+  <script src="/assets/passport-ui.js" defer></script>
   <script src="/assets/admin-users.js" defer></script>
 </head>
 <body class="passport-account-page admin-page">
@@ -88,10 +89,10 @@
 
           <div id="admin-message" class="status-message" role="status" tabindex="-1" hidden><strong></strong><span></span></div>
           <div class="admin-actions" th:if="${!selectedUser.administrator and selectedUser.userId != actorUserId and selectedUser.status != 'DELETED'}">
-            <button th:if="${selectedUser.status == 'ACTIVE'}" class="admin-action danger-button" type="button" data-action="freeze" th:data-user-id="${selectedUser.userId}">冻结账号</button>
-            <button th:if="${selectedUser.status == 'FROZEN'}" class="admin-action primary-button" type="button" data-action="unfreeze" th:data-user-id="${selectedUser.userId}">解除冻结</button>
-            <button class="admin-action secondary-button" type="button" data-action="revoke-sessions" th:data-user-id="${selectedUser.userId}">强制下线</button>
-            <button th:if="${selectedUser.status == 'ACTIVE'}" class="admin-action secondary-button" type="button" data-action="recovery-credentials" th:data-user-id="${selectedUser.userId}">签发恢复凭据</button>
+            <button th:if="${selectedUser.status == 'ACTIVE'}" class="admin-action danger-button" type="button" data-action="freeze" th:data-user-id="${selectedUser.userId}" th:data-username="${selectedUser.username}">冻结账号</button>
+            <button th:if="${selectedUser.status == 'FROZEN'}" class="admin-action primary-button" type="button" data-action="unfreeze" th:data-user-id="${selectedUser.userId}" th:data-username="${selectedUser.username}">解除冻结</button>
+            <button class="admin-action secondary-button" type="button" data-action="revoke-sessions" th:data-user-id="${selectedUser.userId}" th:data-username="${selectedUser.username}">强制下线</button>
+            <button th:if="${selectedUser.status == 'ACTIVE'}" class="admin-action secondary-button" type="button" data-action="recovery-credentials" th:data-user-id="${selectedUser.userId}" th:data-username="${selectedUser.username}">签发恢复凭据</button>
           </div>
           <p class="admin-protected-note" th:if="${selectedUser.administrator or selectedUser.userId == actorUserId}">为避免管理员锁死，当前账号必须通过离线维护流程处理。</p>
         </th:block>
@@ -100,10 +101,11 @@
   </main>
 
   <input id="admin-csrf" type="hidden" th:value="${_csrf.token}" th:data-header="${_csrf.headerName}">
-  <dialog id="admin-action-dialog" class="passport-dialog">
+  <dialog id="admin-action-dialog" class="passport-dialog" aria-labelledby="admin-dialog-title" aria-describedby="admin-dialog-description admin-dialog-target">
     <form id="admin-action-form" class="passport-dialog-card" method="dialog">
       <div class="dialog-heading"><p>ADMIN CONFIRMATION</p><h2 id="admin-dialog-title">确认管理操作</h2></div>
       <p id="admin-dialog-description" class="admin-dialog-description"></p>
+      <p id="admin-dialog-target" class="admin-dialog-target"></p>
       <input name="username" type="hidden" autocomplete="username" aria-hidden="true" tabindex="-1">
       <label class="field-group"><span>操作原因</span><textarea name="reason" maxlength="500" required placeholder="填写可审计的处理原因"></textarea></label>
       <label class="field-group"><span>当前管理员密码</span><input name="password" type="password" maxlength="512" autocomplete="current-password" required></label>
