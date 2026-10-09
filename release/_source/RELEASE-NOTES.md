@@ -12,6 +12,7 @@
 | Specialist tasks | Separate history-retention and reference-revocation maintenance pages |
 | File access | Clarified PostgreSQL/SSO shared readers for database secret files |
 | Packaging | Docker entry links resolve within the extracted package |
+| Test fixture | Future-nbf rejection uses a margin beyond timestamp rounding/JWKS latency; runtime validation unchanged |
 
 Authentication runtime, dependency locks and existing migrations are unchanged by this handbook revision.
 

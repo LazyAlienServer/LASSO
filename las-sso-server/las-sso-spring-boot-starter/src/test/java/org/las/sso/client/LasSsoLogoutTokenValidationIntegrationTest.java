@@ -298,7 +298,8 @@ class LasSsoLogoutTokenValidationIntegrationTest {
             if (invalid == InvalidClaim.JTI_NUMBER) claims.claim("jti", 123);
             if (invalid == InvalidClaim.HAS_NONCE) claims.claim("nonce", "secret-claim-canary");
             if (invalid == InvalidClaim.FUTURE_NBF)
-                claims.notBeforeTime(Date.from(now.plusSeconds(61)));
+                // JWT seconds precision and real JWKS latency must not consume a one-second margin.
+                claims.notBeforeTime(Date.from(now.plusSeconds(120)));
             Object event =
                     invalid == InvalidClaim.EVENT_STRING
                             ? "not-an-object"
