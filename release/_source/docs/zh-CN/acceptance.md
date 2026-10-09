@@ -10,6 +10,8 @@ provenance/verification-summary.json记录实际命令/工具版本/时间/报�
 
 历史验收：.7真实TLS双BFF/刷新后初始hint退出/Grafana Viewer桌面移动/两条5分钟混合运行，.6三类真实告警firing/resolved，.5管理员/恢复演练。45秒AT是fixture，一个RuntimeError采样gap未精确归因，短期内存不能排漏。不代表小时级/default-lifetime生产soak；未明确重跑不算新包真实进程验收。
 
+当前源码纳入P02–P06，日期验收记录在sourceZIP；源码/本地Compose fixture及其镜像扫描不等本版本最终部署镜像证据。范围/扫描限制见[发行说明](../../RELEASE-NOTES.zh-CN.md)。单机SSO账号站首发无需业务客户端提前完成；各消费方自身上线时适用TLS/OIDC/session/密码/资格门禁，SSO本身传输/保管/备份/监控/容量/安全/发行仍必需。
+
 ## 部署环境需执行
 
 | 范围 | 环境专项证据 |

@@ -10,6 +10,8 @@ Run `python scripts/verify-package.py` from extracted root. It validates exact f
 
 Earlier acceptance remains historical: `.7` real TLS dual BFF/initial-hint logout/Grafana Viewer desktop/mobile and two five-minute mixed runs, `.6` three actual alert firing/resolved notifications, `.5` administrator/restore rehearsals. Short45-second AT was a fixture; one sampled RuntimeError gap was not precisely attributed and short memory observations do not rule out leaks. None implies hours-scale/default-lifetime production soak or new-package real-process validation unless explicitly rerun.
 
+Current source includes P02–P06, with dated acceptance in the source ZIP. Source/local Compose fixtures and earlier image scans are not this version's final deployed-image evidence. Read [release notes](../../RELEASE-NOTES.md) for scope/scan limits. Single-host account-site-only first opening has no business-client prerequisite; consumer-specific TLS/OIDC/session/password/eligibility gates apply when each named consumer launches. SSO transport/custody/backup/monitoring/capacity/security/rollout gates still apply.
+
 ## Deployment Gates To Execute
 
 | Area | Required environment-specific evidence |

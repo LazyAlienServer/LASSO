@@ -23,6 +23,7 @@ def main():
     parser.add_argument("--gitleaks", type=Path, required=True, help="Installed Gitleaks8.30.1 executable")
     parser.add_argument("--rules", type=Path, help="Existing reviewed java/javascript/security-audit Semgrep rule directory")
     parser.add_argument("--cache", type=Path, help="Existing Trivy cache to seed; database is updated before scans")
+    parser.add_argument("--allow-cached-java-db", action="store_true", help="Explicitly retain a seeded Java package-mapping DB if its refresh fails; record that limitation")
     args = parser.parse_args()
     work = ROOT / ".build-release" / args.version
     evidence = load_evidence(args.version, work)
@@ -59,8 +60,19 @@ def main():
     db = docker("trivy-db", images["trivy"], ["--cache-dir", "/out/cache", "image", "--download-db-only", "--no-progress"])
     db_info = json.loads((scan / "cache/db/metadata.json").read_text(encoding="utf-8"))
     summary["trivyDatabase"] = {**db_info, "databaseSha256": sha(scan / "cache/db/trivy.db"), "download": db}
+    try:
+        java_download = docker("trivy-java-db", images["trivy"], ["--cache-dir", "/out/cache", "image", "--download-java-db-only", "--no-progress"])
+        java_status = "refreshed"
+    except (ValueError, subprocess.SubprocessError):
+        if not args.allow_cached_java_db or not (scan / "cache/java-db/trivy-java.db").is_file():
+            raise
+        java_download = {"status": "failed", "logSha256": sha(scan / "trivy-java-db.log")}
+        java_status = "explicit-seeded-cache-fallback; not fully refreshed final-release package mapping"
+        print("Java package-mapping download failed; explicitly seeded cache retained with dated limitation.")
+    java_info = json.loads((scan / "cache/java-db/metadata.json").read_text(encoding="utf-8"))
+    summary["trivyJavaDatabase"] = {**java_info, "databaseSha256": sha(scan / "cache/java-db/trivy-java.db"), "download": java_download, "status": java_status}
     for label, mode, target in (("locks", "fs", "source"), ("nested-jars", "rootfs", "extracted")):
-        command = ["--cache-dir", "/out/cache", mode, "--scanners", "vuln", "--list-all-pkgs", "--format", "json", "--output", f"/out/{label}.json", "--skip-db-update", "--no-progress", "--timeout", "10m", f"/out/{target}"]
+        command = ["--cache-dir", "/out/cache", mode, "--scanners", "vuln", "--list-all-pkgs", "--format", "json", "--output", f"/out/{label}.json", "--skip-db-update", "--skip-java-db-update", "--offline-scan", "--no-progress", "--timeout", "10m", f"/out/{target}"]
         result = docker(label, images["trivy"], command)
         report = scan / f"{label}.json"
         data = json.loads(report.read_text(encoding="utf-8"))

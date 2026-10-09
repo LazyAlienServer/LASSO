@@ -2,7 +2,7 @@
 
 ## Scope
 
-New development packaging of the current committed Java21 engineering baseline. Includes SSO server, servlet Starter, reference BFF, independent bilingual operations/integration/user handbooks, external configuration templates, proxy/service/monitoring inputs and maintenance/verification tools.
+New development packaging of the current committed Java21 baseline, including P02–P06 implementation. Includes SSO server, servlet Starter, reference BFF, independent bilingual operations/integration/user handbooks, external configuration templates, Docker/Nginx/systemd/monitoring inputs and maintenance/verification tools. [中文](RELEASE-NOTES.zh-CN.md).
 
 Runtime functionality includes password identity/account lifecycle, JDBC sessions, OIDC Code+PKCE/UserInfo/RT rotation and reuse detection, browser-bound password reauthentication, global and Back-channel logout, first-party eligibility, private metrics and optional reference durable revocation. Flyway V1–V15 includes the HMAC-only ID Token logout-hint association fixing refreshed global logout. Versions/locks and actual nested-library inventory are retained under provenance; do not infer exact versions from generic documentation labels.
 
@@ -10,9 +10,21 @@ Current schema adds V16 runtime-history indexes and bounded90/30-day cleanup, bu
 
 Engineering changes since historical `.20261006.7`: committed source history, pinned Java formatting/shared build conventions, explicit database-test skip rejection, portable repository checks, pinned CI definitions and concise module guides. The packaging version differs because source/build inputs changed.
 
+Changes since the standalone `0.1.0-dev.20261007.1` package:
+
+- P02 production startup gates and persistent-key/configuration validation; initialize the administrator before Web startup.
+- P03 explicit local revocation submission results and reference V2 dead-task recovery, bounded completion retention and drained-key rotation.
+- P04 account/recovery/lifecycle UI fixes, one-time-secret clearing and the user-approved two-independent-bases manual recovery runbook.
+- P05 V16 bounded runtime-history retention and read-only `scripts/history-status.sql`; live Token/hint/security/audit facts remain protected.
+- P06 single-host Compose, separate SSO/PostgreSQL/Nginx, file secrets, private app/DB/management networks, runtime/migration/backup roles and offline `database-migrate`. Independent image tools use exact JAR/hash/clean source or package provenance. Infrastructure security layers are built and scanned separately; container images are not embedded in this ZIP.
+
+Confirmed first opening is SSO account-site only, same-host Nginx, no initial CDN. Each business consumer is integrated and accepted when it launches; target domain/hardware/traffic/backup/RPO/RTO/notification values remain operator inputs.
+
 ## Verification
 
 `provenance/verification-summary.json` records this build's actual module counts, exit code, source revision and executed command. Database-required builds reject skips. Historical acceptance: earlier `.7` real TLS default/custom BFF, Grafana Viewer desktop/mobile and two five-minute mixed runs; `.6` three alert firing/resolved paths; `.5` administrator/restore drills. Those are not automatically new-version process acceptance.
+
+P02–P06 dated source/local acceptance records are in the source snapshot. The prior Compose fixture exercised hidden bootstrap/reset, forced first change, permissions, real fixture TLS/canonical headers, restart persistence and DB failure/recovery. Its images were explicit worktree fixtures, not this version's clean release images. Its SSO image reported Medium40/Low4, patched infrastructure runtime files zero, with old removed-gosu archive-layer findings retained and an older Java package-mapping cache limitation. Package dependency scans cover this version's identified JAR/locks; final deployment images/current OS/JDK require their own scans.
 
 ## Known Limitations
 
