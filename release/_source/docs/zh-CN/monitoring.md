@@ -1,31 +1,87 @@
-# 监控
+# 监控：安装、验证与告警处置
 
-[目录](README.md) · [English](../en/monitoring.md)
+[目录](README.md) · [English](../en/monitoring.md) · [排障](troubleshooting.md)
 
-## 私有监听与凭据
+## 1. 先区分部署地址
 
-仅 Web 进程启用 monitoring，配置 `config/server/monitoring.properties.example` 和独立 LAS_SSO_MONITORING_PASSWORD_HASH。接受 `{bcrypt}`、cost10–14，通过可信离线 bcrypt 工具生成。应用只收哈希、collector 从私有文件收原密码；固定用户名 las-sso-metrics。不复用人类/OIDC凭据，包不含采集哈希/原密码/webhook bearer。
+| 方式 | 管理监听 / 采集目标 |
+| --- | --- |
+| Docker Compose | 容器内9091；可信采集器加入私有monitoring网络后用 `sso:9091` |
+| 主机 JAR | 默认 `127.0.0.1:9091`，同机采集 |
+| 跨主机采集 | 明确私有网络及验证TLS/mTLS，不复制loopback示例 |
 
-默认127.0.0.1:9091独立暴露 health/prometheus，**health 离开应用9000**。公网代理不转发管理端口。仅管理口无状态 GET `/actuator/prometheus` 接受独立 Basic；浏览器 Cookie/client凭据/non-GET/app port 不等价。仅暴露端点但未启 monitoring 仍拒绝。跨主机 Basic/webhook 使用验证 TLS/mTLS 或受保护传输；127.0.0.1仅同机样例，容器 localhost 是容器自身网络。
+**启用monitoring后，health也从9000移到9091。** 公共Nginx不代理管理端口；容器内 `localhost` 是容器自身。
 
-## 安装配置
+Compose已启用 `production,monitoring`；主机方式需加独立 `config/server/monitoring.properties.example`。
 
-deploy/monitoring/prometheus.yml 引用 `/etc/prometheus/las-sso-alerts.yml`、同机9091、私有 password_file；明确调整 mounts/targets/topology。复制规则并执行 promtool check config、check rules、test rules las-sso-alerts.test.yml。Alertmanager 样例为同机9094受保护 webhook、bearer credentials_file/send_resolved；替换真实 routing/receiver认证/升级响应，执行 amtool check-config。配置不会自动启动容器或提供秘密/通知接收器。
+## 2. 准备独立采集凭据
 
-导入 grafana-dashboard.json，选择实际 Prometheus datasource，限制 dashboard/datasource 编辑。Viewer 不能 save/overwrite/改 datasource。八面板十查询需有真实数据，导入成功不够。历史桌面/移动 Viewer 检查不代替本环境权限/数据/宽度验证。
+| 使用者 | 收到什么 |
+| --- | --- |
+| SSO应用 | `{bcrypt}` 哈希，cost10–14 |
+| 采集器 | 原密码的受保护password_file |
+| 用户名 | 固定 `las-sso-metrics` |
 
-## 语义与处置
+1. 用可信离线bcrypt工具生成独立高熵密码及哈希。
+2. Docker将哈希写入 `secrets/monitoring-hash`；host用 `LAS_SSO_MONITORING_PASSWORD_HASH`。
+3. 原密码仅放采集器秘密文件，不用人类/OIDC客户端凭据。
 
-指标固定低基数，不以 user/client/Token/request/network ID 作标签。密码哈希 histogram 计真实计算；refresh reuse/队列等事务敏感事实 afterCommit 发布。Web-ready 独立15秒 sampler 计算缓存 DB session/queue gauges，scrape 不查 DB。snapshot_available=0或last_success过期意味着旧 gauge 无效；失败不推进 success 时间。interval允许1s–5m，但现有规则新鲜度60秒，维持15秒或同时调整规则。
+**预期：** 私有管理口GET Prometheus：无认证401，专用Basic认证200。Cookie、非GET、app9000不等价。
 
-| 告警 | 默认触发 | 首查 |
+## 3. 安装模板
+
+| 文件 | 要调整 / 核验 |
+| --- | --- |
+| `deploy/monitoring/prometheus.yml` | 实际targets、rules路径、password_file、挂载 |
+| `las-sso-alerts.yml` / `.test.yml` | 七条规则及测试样例 |
+| `alertmanager.yml` | 真实receiver、认证文件、routing、send_resolved、升级响应 |
+| `grafana-dashboard.json` | 真实datasource、八面板十查询、Viewer不可写 |
+
+这些配置不自动创建采集器、Grafana、通知接收器或秘密。
+
+工具可在采集器环境执行：
+
+```text
+promtool check config prometheus.yml
+promtool check rules las-sso-alerts.yml
+promtool test rules las-sso-alerts.test.yml
+amtool check-config alertmanager.yml
+```
+
+**预期：** 配置/规则校验exit0；真实启动后看数据，再触发和恢复告警。syntax-only检查不验证凭据文件或网络。
+
+## 4. 告警首查表
+
+| 告警 | 模板默认触发 | 首查 |
 | --- | --- | --- |
-| LasSsoScrapeUnavailable | up0持续2分钟 | 进程/监听/网络/采集密码/传输 |
-| LasSsoSnapshotUnavailable | 不可用或超过60秒，持续1分钟且scrape有效 | readiness/DB/pool，不用旧零值断言健康 |
-| LasSsoLogoutBacklog | fresh snapshot的最老pending>300秒持续1分钟 | worker/retry/receiver |
-| LasSsoLogoutDeadLetters | fresh snapshot死信>0持续1分钟 | 私有outbox元信息，修复接收者后批准重放 |
-| LasSsoRefreshReuse | 5分钟内已提交reuse增长 | 安全审计/并发刷新/泄露调查 |
-| LasSsoAdminLoginFailures | 5分钟至少5失败 | 审计/锁定/攻击 |
-| LasSsoPasswordHashSlow | Argon2 match p95>1秒持续5分钟 | 先查CPU/内存/工作量，再改密码参数 |
+| LasSsoScrapeUnavailable | up=0持续2分钟 | 进程/监听/网络/采集密码 |
+| LasSsoSnapshotUnavailable | 不可用或旧于60秒，持续1分钟 | readiness/DB/pool/sampler |
+| LasSsoLogoutBacklog | fresh snapshot最老pending>300秒，持续1分钟 | worker/retry/receiver |
+| LasSsoLogoutDeadLetters | fresh snapshot死信>0，持续1分钟 | 私有outbox元信息/接收者 |
+| LasSsoRefreshReuse | 5分钟内commit的reuse增长 | 安全审计/并发刷新/泄露 |
+| LasSsoAdminLoginFailures | 5分钟≥5失败 | 审计/锁定/攻击 |
+| LasSsoPasswordHashSlow | Argon2 match p95>1秒，持续5分钟 | CPU/内存/工作量 |
 
-系统/JVM/HTTP/pool指标补充监控，不能代替readiness、生产容量或未实现的细分业务dashboard。向真实值班人员交付 firing **与resolved** 通知并保留脱敏时间/类别。规则是样例，不是已批准 SLA。参考队列在独立 DB，不被暗中算入 SSO outbox 指标。
+默认规则是模板，不是已批准SLA。补主机磁盘、备份新鲜度/失败、时钟、证书及资源告警。
+
+## 5. 避免误读指标
+
+| 情况 | 正确理解 |
+| --- | --- |
+| scrape成功 | 不证明DB snapshot有效 |
+| snapshot_available=0或last_success旧 | 旧session/queue gauge不能表示当前健康 |
+| sampler失败 | 不推进last_success |
+| 默认snapshot15秒 | 模板规则允许新鲜度60秒；改interval须同步规则 |
+| counter重启归零 | 用rate/increase；不是持久业务账本 |
+| 参考撤销queue | 独立DB，不计入SSO outbox |
+
+标签固定低基数，不放user/client/Token/request/network ID；事务敏感事实commit后发布。
+
+## 6. 凭据轮换验收
+
+1. 私密准备新原密码/哈希。
+2. 更新app哈希和collector文件，协调重启。
+3. 确认新密码200、旧密码拒绝、scrape恢复。
+4. 真实值班人收到firing **和resolved**，保留脱敏时间/类别。
+
+Grafana导入成功不等数据/权限成功；Viewer不可save/overwrite/改datasource，目标桌面/手机需核阅读。

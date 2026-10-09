@@ -1,41 +1,59 @@
-# Release Notes — {{VERSION}}
+# Release notes — {{VERSION}}
 
-## Scope
+[中文](RELEASE-NOTES.zh-CN.md) · [Package entry](README.md)
 
-New development packaging of the current committed Java21 baseline, including P02–P06 implementation. Includes SSO server, servlet Starter, reference BFF, independent bilingual operations/integration/user handbooks, external configuration templates, Docker/Nginx/systemd/monitoring inputs and maintenance/verification tools. [中文](RELEASE-NOTES.zh-CN.md).
+## Changes since 0.1.0-dev.20261009.1
 
-Runtime functionality includes password identity/account lifecycle, JDBC sessions, OIDC Code+PKCE/UserInfo/RT rotation and reuse detection, browser-bound password reauthentication, global and Back-channel logout, first-party eligibility, private metrics and optional reference durable revocation. Flyway V1–V15 includes the HMAC-only ID Token logout-hint association fixing refreshed global logout. Versions/locks and actual nested-library inventory are retained under provenance; do not infer exact versions from generic documentation labels.
+| Area | Change |
+| --- | --- |
+| Entry | Task navigation; Docker installation and troubleshooting prominently linked |
+| Docker | Dedicated eight-step tutorial with commands, expected results and failure actions |
+| Handbook | Short sections, tables and separate host JAR instructions |
+| Specialist tasks | Separate history-retention and reference-revocation maintenance pages |
+| File access | Clarified PostgreSQL/SSO shared readers for database secret files |
+| Packaging | Docker entry links resolve within the extracted package |
 
-Current schema adds V16 runtime-history indexes and bounded90/30-day cleanup, busy-row/timeout protection, fixed cleanup metrics and a read-only status report. Every live hint/RT and audit/deletion fact stays protected; whole-storage capacity/audit archival remains target work. Reference queue V1–V2 is independent.
+Authentication runtime, dependency locks and existing migrations are unchanged by this handbook revision.
 
-Engineering changes since historical `.20261006.7`: committed source history, pinned Java formatting/shared build conventions, explicit database-test skip rejection, portable repository checks, pinned CI definitions and concise module guides. The packaging version differs because source/build inputs changed.
+## Included functionality
 
-Changes since the standalone `0.1.0-dev.20261007.1` package:
+| Phase | Included |
+| --- | --- |
+| P02 | Production profile/config/key/admin/client startup gates |
+| P03 | Revocation submission outcomes and reference V2 operator recovery/retention/key rotation |
+| P04 | Account/recovery/lifecycle UI fixes and one-time-secret clearing/manual recovery procedure |
+| P05 | V16 indexes, bounded90/30-day runtime cleanup and read-only history report |
+| P06 | Single-host Compose, private networks/file secrets, DB roles and offline database-migrate |
 
-- P02 production startup gates and persistent-key/configuration validation; initialize the administrator before Web startup.
-- P03 explicit local revocation submission results and reference V2 dead-task recovery, bounded completion retention and drained-key rotation.
-- P04 account/recovery/lifecycle UI fixes, one-time-secret clearing and the user-approved two-independent-bases manual recovery runbook.
-- P05 V16 bounded runtime-history retention and read-only `scripts/history-status.sql`; live Token/hint/security/audit facts remain protected.
-- P06 single-host Compose, separate SSO/PostgreSQL/Nginx, file secrets, private app/DB/management networks, runtime/migration/backup roles and offline `database-migrate`. Independent image tools use exact JAR/hash/clean source or package provenance. Infrastructure security layers are built and scanned separately; container images are not embedded in this ZIP.
+Server, Starter file Maven repository, reference BFF, source archive, bilingual handbooks, configuration and operator tools are included. Build/load container images separately.
 
-Confirmed first opening is SSO account-site only, same-host Nginx, no initial CDN. Each business consumer is integrated and accepted when it launches; target domain/hardware/traffic/backup/RPO/RTO/notification values remain operator inputs.
+## Selected first launch
 
-## Verification
+- Account site only; one SSO, separate PostgreSQL, same-host Nginx, no initial CDN.
+- Each consumer completes its own integration before opening.
+- Official domain, hardware/traffic, custody, backup/RPO/RTO and notification values remain operator inputs.
 
-`provenance/verification-summary.json` records this build's actual module counts, exit code, source revision and executed command. Database-required builds reject skips. Historical acceptance: earlier `.7` real TLS default/custom BFF, Grafana Viewer desktop/mobile and two five-minute mixed runs; `.6` three alert firing/resolved paths; `.5` administrator/restore drills. Those are not automatically new-version process acceptance.
+## Evidence locations
 
-P02–P06 dated source/local acceptance records are in the source snapshot. The prior Compose fixture exercised hidden bootstrap/reset, forced first change, permissions, real fixture TLS/canonical headers, restart persistence and DB failure/recovery. Its images were explicit worktree fixtures, not this version's clean release images. Its SSO image reported Medium40/Low4, patched infrastructure runtime files zero, with old removed-gosu archive-layer findings retained and an older Java package-mapping cache limitation. Package dependency scans cover this version's identified JAR/locks; final deployment images/current OS/JDK require their own scans.
+| Question | Read |
+| --- | --- |
+| What exact bytes/source? | provenance/release-manifest.json and SHA256SUMS |
+| Which tests/scans ran? | provenance/verification-summary.json |
+| Which dependencies/migrations? | provenance/dependencies and database/migration-manifest.json |
+| What must target operators verify? | [Acceptance](docs/en/acceptance.md) |
 
-## Known Limitations
+Earlier `.20261009.1` exact-package Compose smoke and P02–P06 records remain historical unless rerun for this version. Previous SSO OS Medium/Low findings, removed-gosu archive metadata and older Java-mapping limitations remain documented in those records.
 
-- Development delivery, no production deployment/approval, remote CI result, hosted signature or target-hardware sizing supplied by this package.
-- Production gates validate profile/HTTPS issuer/context, key/secrets/Cookie/Flyway/health and security epoch/admin/ACTIVE clients; an empty administrator DB requires non-Web bootstrap before Web startup. Actual target TLS/proxy/secret custody/deployment acceptance remain launch work; keep initial ingress closed.
-- Default Starter Token/session/index/replay/sid markers and revocation work are process-local or HttpSession. Restart ends business login; persistent accepted revocation tasks require a consumer adapter or explicit reference profile.
-- Reference durable queue retains the pre-submit gap; consumers need explicit recovery intent/OP compensation. V2 supports exact-generation offline dead-task replay, completed-only bounded retention and authenticated drained-key rotation. No multi-key ring or cross-storage atomic logout.
-- ID-hint history grows with live authorizations; cascade follows authorization removal. Lost pre-upgrade hints are not reconstructed; pepper rotation can invalidate historical lookup.
-- Production domains/CA renewal/firewall/CDN trust, keys/secrets/custody, backups/RPO/RTO, real notification routing, hours-scale soak, external consumer gates and complete UI/security checks still require their own evidence.
-- No MFA/email requirement or business permission/Minecraft Claim; qualification events and multi-instance/cross-restart retained login remain deferred.
+## Compatibility and limits
 
-## Compatibility
+| Item | Rule |
+| --- | --- |
+| Runtime | JDK21, Boot4.1/Security7.1; exact versions in locks/catalog |
+| Database | Embedded SSO V1–V16; reference queue V1–V2 is independent |
+| Starter | Default single-JVM/HttpSession; business login ends on restart |
+| Durable revocation | Committed tasks recover; pre-submit compensation remains consumer-owned |
+| Live history | Live hints/RT protected; no whole-storage or audit-archive guarantee |
+| Restore | New epoch/key/kid and consumer barriers; verified schema-compatible rollback only |
+| Deferred | Eligibility events, multi-instance/retained login; no added MFA/email/business Claims |
 
-Target tested Spring Boot4.1/Security7.1 with JDK21. Starter POM/native metadata carry its dependency alignment; application BOM/locks still determine its final runtime. Database upgrade uses embedded Flyway, not a second manual SQL copy. Do not downgrade application/schema or restore an old backup without the documented security epoch/key and consumer barriers.
+Development delivery. Target public CA/renewal/firewall/Linux custody/current image scans/DAST/backup/soak/final opening need their own evidence. No production deployment or hosted signature is implied.

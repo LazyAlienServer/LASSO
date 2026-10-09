@@ -1,33 +1,71 @@
-# Backup And Recovery
+# Backup and old-snapshot restoration
 
-[Index](README.md) · [中文](../zh-CN/backup-and-recovery.md)
+[Index](README.md) · [中文](../zh-CN/backup-and-recovery.md) · [Operations](operations.md)
 
-## Backup Custody
+## Declare objectives
 
-Define RPO/RTO, retention, encryption, restore authority and tested run frequency with operations. No production schedule or backup is delivered. Take transaction-consistent PostgreSQL backups (`pg_dump` custom format for rehearsals; production PITR/WAL policy separately sized), record DB/schema/Flyway/version/epoch/time and verify independent restore. Avoid putting DB passwords in command arguments; use protected credentials. Store signing keys, peppers, configuration/collector/client secrets separately under encrypted custody with recovery access. A dump alone is not recoverable authentication state.
+| Input | Owner supplies |
+| --- | --- |
+| RPO | Acceptable loss interval |
+| RTO | Recovery-time limit |
+| Schedule, retention and off-host location | Frequency, encryption and independent custody |
+| Failure notification / restore authority | Actual channel and responsible operator |
 
-Back up consumer DB/queues separately. Reference accepted tasks need matching AES key and endpoint/client configuration; restoring a queue can duplicate delivered revocations and omit newer accepted tasks. Default business login is intentionally lost on process restart. Post-snapshot password/credential-use/deletion changes cannot be reconstructed by SSO from an old snapshot; reconcile incidents before reopening.
+A Docker volume or same-host dump is not an off-host backup. Configure scheduling and any PITR/WAL strategy separately.
 
-## Restore Barrier — Required For Old Snapshots
+## 1. Inventory
 
-1. Drain public ingress; stop SSO, scheduled jobs and consumer writers. Restore only to an isolated, explicitly identified target. Keep original backup/custody records. Review PostgreSQL/schema compatibility, current admin, permanent UUID/credential/client/audit/deletion facts.
-2. Query and record the restored epoch with a protected DB session:
+| Material | Verify |
+| --- | --- |
+| Consistent PostgreSQL backup | Database/schema/Flyway versions, epoch, time and hash |
+| Signing key/kid, peppers and configuration | Independently encrypted, readable during recovery |
+| Database/key passwords and recovery codes | Separate custody, not plaintext beside the database |
+| Consumer database / reference queue | Separate backup; matching AES key, endpoint and client |
+
+Use a protected password file or connection service, never password arguments. A custom-format pg_dump is only a format choice; verify an actual isolated restore.
+
+Snapshots cannot reconstruct later password changes, recovery-code use or account/deletion facts. Record the impact before restoring.
+
+## 2. Restore workflow
+
+### A. Isolate and stop writers
+
+1. Drain ingress; stop SSO, jobs and relevant consumer writers.
+2. Restore into a separately identified target. Preserve the original backup.
+3. Verify schema compatibility, administrator, UUID, credential, client, audit and deletion facts.
+
+### B. Record restored epoch
 
 ```sql
-SELECT security_epoch, updated_at, change_reason FROM system_security_state WHERE id = 1;
+SELECT security_epoch, updated_at, change_reason
+FROM system_security_state WHERE id = 1;
 ```
 
-3. Verify exact package/JAR/hash, supply target DB/server-only configuration and external secrets; no monitoring/web profile. In interactive PowerShell from package root:
+**Expected:** One current epoch to use as the expected value in the next step.
+
+### C. Execute barrier
+
+**Docker:** Use the isolated target's environment/project, a real terminal and the exact image:
+
+```sh
+dc() { docker compose --env-file /etc/las-sso/restore.env -f "$PWD/deploy/docker/compose.yml" "$@"; }
+dc --profile maintenance run --rm --no-TTY=false maintenance rotate-security-epoch-after-restore \
+  --expected-epoch='<restored-UUID>' --reason=POSTGRES_RESTORE_APPROVED
+```
+
+`restore.env` must identify the isolated restore project/database/key; validate it using the [Docker guide](docker-deployment.md). Replace the UUID with the value queried in step B.
+
+**JAR:** Package root with server-only configuration; no Web or monitoring profile:
 
 ```powershell
-$m = Get-Content -LiteralPath './provenance/release-manifest.json' -Raw | ConvertFrom-Json
+$m = Get-Content ./provenance/release-manifest.json -Raw | ConvertFrom-Json
 $env:SPRING_CONFIG_ADDITIONAL_LOCATION = 'file:/etc/las-sso/server.properties'
-./scripts/rotate-security-epoch-after-restore.ps1 -Profile production -JarPath (Join-Path $PWD $m.artifacts.server.path) -ExpectedSha256 $m.artifacts.server.sha256 -ExpectedEpoch '<restored-epoch>' -Reason 'POSTGRES_RESTORE_APPROVED'
+./scripts/rotate-security-epoch-after-restore.ps1 -Profile production -JarPath (Join-Path $PWD $m.artifacts.server.path) -ExpectedSha256 $m.artifacts.server.sha256 -ExpectedEpoch '<restored-UUID>' -Reason 'POSTGRES_RESTORE_APPROVED'
 ```
 
-The script forces non-web/scheduling=false. The command refuses mismatched/blank epoch, noninteractive console, web mode or active scheduling; operator confirms target, then the SSO transaction rotates epoch/revokes transient security state. Do not retry with the old epoch after successful commit.
+**Expected:** Confirm the target interactively; the new epoch and security reset commit, then the command exits 0. An epoch mismatch, missing console, Web mode or enabled jobs must fail.
 
-4. Verify new epoch differs; active `user_sessions`, `spring_session`, `oauth2_authorization`, unrevoked `oauth2_refresh_token_history` and reauthentication/transient challenges are cleared. Pending outbox may remain but old claims must be reset. SQL checks:
+### D. Check result
 
 ```sql
 SELECT security_epoch FROM system_security_state WHERE id = 1;
@@ -38,10 +76,34 @@ SELECT count(*) FROM oauth2_refresh_token_history WHERE status <> 'REVOKED';
 SELECT count(*) FROM oidc_password_challenges;
 ```
 
-5. Install a **new persistent signing key/kid** separately; retire old kid at all consumer JWKS/verification/cache boundaries. Do not reopen with the restored key. No approved same-key restore policy is part of V1. Epoch transaction cannot atomically update keys/consumer stores.
-6. Consumers clear local sessions and eligibility/password evidence, establish the current epoch through a fresh authoritative reconciliation generation, then reject delayed old-generation responses. Epoch/version/time lexical ordering is invalid; lower restored versions may be valid only within the new epoch. Actual consumers must implement this barrier, not simply accept any returned epoch.
-7. Start SSO/jobs, verify DB readiness/Discovery/new JWKS and fresh login/UserInfo. Start consumers, verify old Cookies/code/AT/RT reject, new refresh/current/global logout/Back-channel succeed, pending outbox and due deletion behavior are reviewed. Reopen gradually only after consumer sign-off.
+**Expected:** A different epoch and five zero counts. Pending outbox work may remain with old claims reset; audit and permanent facts remain retained.
 
-## Failure And Scope
+### E. Key and consumer barriers
 
-On transactional failure keep ingress drained; diagnose target/epoch/DB/permissions before another attempt. On later consumer/key failure keep the new epoch and coordinate repair rather than reverting only the counter. A second restore uses a fresh target or explicitly recorded current epoch. Earlier isolated PostgreSQL/TLS/key/PTY drills are historical evidence, not this environment's disaster-recovery certification. Retain a sanitized signed-off result and test your actual backup/key custody and consumer barrier.
+| Component | Required action |
+| --- | --- |
+| SSO | Install a new persistent signing key/kid; do not reopen with the restored old key |
+| Consumers | Retire the old kid; clear local sessions, eligibility caches and password evidence |
+| Reconciliation | Establish a new local generation through fresh authoritative queries; reject old in-flight responses |
+
+Epoch is opaque and cannot be sorted. Compare versions only within one epoch; do not switch generations on every arriving response.
+
+### F. Verify and open
+
+| Check | Criterion |
+| --- | --- |
+| SSO | Readiness, new Discovery/JWKS, login and UserInfo pass |
+| Old state | Old Cookie/code/AT/RT rejected |
+| Launched consumers | New refresh, local/global logout and Back-channel pass |
+| Jobs | Pending outbox and due deletion work progress correctly |
+| Operator | RPO/RTO measured, acknowledgement recorded, gradual opening |
+
+## Failure actions
+
+| Failure | Action |
+| --- | --- |
+| Epoch transaction | Stay closed; inspect target, epoch, database and grants |
+| Key/consumer failure after commit | Preserve the new epoch and coordinate repair |
+| Another restore | Use a fresh target or explicitly recorded current epoch, not the old expected value |
+
+The database transaction cannot atomically replace external keys/caches. Copying the database or rolling back a JAR alone is not recovery. Historical drills do not verify the target backup.

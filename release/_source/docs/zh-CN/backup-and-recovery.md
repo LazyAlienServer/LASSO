@@ -1,33 +1,73 @@
-# 备份与恢复
+# 备份与旧快照恢复
 
-[目录](README.md) · [English](../en/backup-and-recovery.md)
+[目录](README.md) · [English](../en/backup-and-recovery.md) · [运维](operations.md)
 
-## 备份保管
+## 先确定恢复目标
 
-运维明确 RPO/RTO、保留、加密、恢复授权与实测频率。包不交付生产定时任务或备份。事务一致备份 PostgreSQL（演练可用 pg_dump custom format，生产 PITR/WAL 另作容量策略），记录 DB/schema/Flyway/版本/epoch/时间并验证独立恢复。数据库密码不放参数，使用受保护凭据。签名密钥、pepper、配置/采集/客户端秘密独立加密保管并准备恢复访问；仅有 dump 不代表可恢复认证状态。
+| 项目 | 由负责人填写 |
+| --- | --- |
+| RPO | 可接受丢失时间 |
+| RTO | 恢复时间上限 |
+| 调度 / 保留 / 异机位置 | 频率、加密、独立保管 |
+| 失败通知 / 恢复授权 | 真实渠道和操作员 |
 
-消费方 DB/队列独立备份。参考已提交任务需匹配 AES key 与 endpoint/client 配置；恢复队列可能重复已完成撤销、漏掉较新任务。默认业务登录在进程重启后丢失。旧快照不能重建备份后改密/凭据使用/注销事实，开放前需审查。
+Docker卷或同机dump不是异机备份。包不自动安装备份调度或PITR/WAL。
 
-## 旧快照恢复必需屏障
+## 1. 备份清单
 
-1. 排空公网入口，停止 SSO、定时任务和消费方写入者。仅恢复到隔离且明确标识的目标，保留原备份/保管记录；审查 PostgreSQL/schema兼容、当前管理员、永久 UUID/凭据/客户端/审计/注销事实。
-2. 受控 DB 会话查询并记录恢复代次：
+| 材料 | 核验 |
+| --- | --- |
+| PostgreSQL一致性backup | PG/schema/Flyway、版本、epoch、时间、hash |
+| signing key/kid、pepper、外配置 | 独立加密保管、恢复可读 |
+| 数据库/key密码、恢复码 | 分离保管，不与DB明文捆绑 |
+| 消费方DB / 参考queue | 独立backup，queue匹配AES和endpoint/client |
+
+备份密码用受保护文件/connectionservice，不进argv。custom `pg_dump`只是格式示例；必须验证实际隔离恢复。
+
+旧快照不能重建backup后的改密、已用恢复凭据、账号/注销事实变化；恢复前记录影响。
+
+## 2. 旧快照恢复步骤
+
+### A. 隔离并停止writer
+
+1. 排空公网入口，停止SSO/定时任务及相关消费方writer。
+2. 恢复到独立、明确标识的目标DB；保留原backup。
+3. 核schema兼容、唯一管理员、永久UUID/凭据/client/audit/注销事实。
+
+### B. 记录恢复epoch
+
+在受控DB会话只读查询：
 
 ```sql
-SELECT security_epoch, updated_at, change_reason FROM system_security_state WHERE id = 1;
+SELECT security_epoch, updated_at, change_reason
+FROM system_security_state WHERE id = 1;
 ```
 
-3. 核验精确包/JAR/hash，供应目标 DB/仅服务端配置与外部秘密，无 monitoring/web profile。包根交互 PowerShell 执行：
+**预期：** 单行epoch，供下一步expected检查。不能凭旧运维笔记猜当前值。
+
+### C. 执行安全屏障
+
+**Docker：** 选隔离目标的env/project，不使用仍开放的原项目；真实终端、同一精确镜像。
+
+```sh
+dc() { docker compose --env-file /etc/las-sso/restore.env -f "$PWD/deploy/docker/compose.yml" "$@"; }
+dc --profile maintenance run --rm --no-TTY=false maintenance rotate-security-epoch-after-restore \
+  --expected-epoch='<restored-UUID>' --reason=POSTGRES_RESTORE_APPROVED
+```
+
+`restore.env`必须指向独立恢复project/DB/key；先按[Docker教程](docker-deployment.md)校验。命令中的UUID替换为步骤B实查值。
+
+**JAR：** 包根、server-only配置，无monitoring/Web：
 
 ```powershell
-$m = Get-Content -LiteralPath './provenance/release-manifest.json' -Raw | ConvertFrom-Json
+$m = Get-Content ./provenance/release-manifest.json -Raw | ConvertFrom-Json
 $env:SPRING_CONFIG_ADDITIONAL_LOCATION = 'file:/etc/las-sso/server.properties'
-./scripts/rotate-security-epoch-after-restore.ps1 -Profile production -JarPath (Join-Path $PWD $m.artifacts.server.path) -ExpectedSha256 $m.artifacts.server.sha256 -ExpectedEpoch '<restored-epoch>' -Reason 'POSTGRES_RESTORE_APPROVED'
+./scripts/rotate-security-epoch-after-restore.ps1 -Profile production -JarPath (Join-Path $PWD $m.artifacts.server.path) -ExpectedSha256 $m.artifacts.server.sha256 -ExpectedEpoch '<restored-UUID>' -Reason 'POSTGRES_RESTORE_APPROVED'
 ```
 
-脚本强制 non-web/scheduling=false；命令拒绝 epoch 不匹配/空值、非交互、Web模式/活跃任务。操作者确认目标后，SSO 事务换 epoch/撤销瞬态安全状态。成功提交后不能继续以旧 epoch 重试。
+**预期：** 操作员核目标并交互确认，事务新epoch/撤销安全状态，exit0。拒epoch不匹配/无console/Web或活跃jobs。
 
-4. 新 epoch 必须不同，active user_sessions、spring_session、oauth2_authorization、未撤销 RT history 与重认证/瞬态挑战清空。pending outbox 可保留但旧 claim 需重置。检查：
+### D. 核结果
 
 ```sql
 SELECT security_epoch FROM system_security_state WHERE id = 1;
@@ -38,10 +78,34 @@ SELECT count(*) FROM oauth2_refresh_token_history WHERE status <> 'REVOKED';
 SELECT count(*) FROM oidc_password_challenges;
 ```
 
-5. 单独安装**新持久签名密钥/kid**，在所有消费方 JWKS/校验/缓存边界退休旧 kid。不能使用恢复出的旧密钥开放。V1 无批准的同 key 恢复方案；epoch 事务不能原子更新外部 key/消费方存储。
-6. 消费方清本地会话/资格/密码证据，经 fresh 权威对账建立当前本地 generation，再拒迟到旧 generation 响应。不能按 epoch/version/time 字典顺序选代；较低恢复 version 仅在新 epoch 内有效。真实消费方须实现屏障，不能无条件接受返回代次。
-7. 启 SSO/任务，验 DB readiness/Discovery/新 JWKS/新登录/UserInfo；启动消费方，验旧 Cookie/code/AT/RT 拒绝，新 refresh/当前/全部退出/Back-channel 成功，审查 pending outbox/到期注销行为。消费方签收后逐步开放。
+**预期：** epoch不同；后五项为0。pending outbox可保留，旧claim重置；审计/永久事实保留。
 
-## 失败与覆盖
+### E. 独立换key和消费方屏障
 
-事务失败时继续关闭入口，检查目标/epoch/DB/权限后再试。后续消费方/key失败保留新 epoch 协调修复，不单独回退计数器。二次恢复使用新目标或明确当前 epoch。既往隔离 PostgreSQL/TLS/key/PTY 演练仅历史证据，不是本环境灾备认证。保存脱敏签收结果并演练实际备份/密钥保管及消费方屏障。
+| 组件 | 必做 |
+| --- | --- |
+| SSO | 安装新持久signing key/kid，不能用恢复出的旧key开放 |
+| 消费方 | 退休旧kid，清localSession/资格cache/密码证据 |
+| 资格对账 | 新本地generation + fresh权威查询，拒迟到旧代响应 |
+
+epoch不透明不可排序；version仅同epoch比较。不能随每个返回epoch反复切代。
+
+### F. 验证再开放
+
+| 检查 | 成功判据 |
+| --- | --- |
+| SSO | readiness、新Discovery/JWKS、新登录/UserInfo |
+| 旧状态 | 旧Cookie/code/AT/RT拒绝 |
+| 已上线消费方 | 新refresh/当前与全部退出/Back-channel通过 |
+| 后台 | pending outbox / 到期注销按契约推进 |
+| 运维 | 实测RPO/RTO、操作员签收、逐步开放 |
+
+## 失败处理
+
+| 失败点 | 处理 |
+| --- | --- |
+| epoch事务失败 | 保持关闭，核目标/当前epoch/DB/权限 |
+| 已成功后key/消费方失败 | 保留新epoch协调修复，不回计数器 |
+| 第二次restore | 新目标或明确当前epoch；不重试旧expected |
+
+数据库事务不能原子更新外部key/cache。恢复不是复制DB或回退JAR；历史演练不代本目标backup验证。

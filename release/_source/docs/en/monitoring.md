@@ -1,31 +1,85 @@
-# Monitoring
+# Monitoring: install, verify, respond
 
-[Index](README.md) · [中文](../zh-CN/monitoring.md)
+[Index](README.md) · [中文](../zh-CN/monitoring.md) · [Troubleshooting](troubleshooting.md)
 
-## Private Listener And Credentials
+## 1. Choose the correct address
 
-Enable `monitoring` only on the web process, supplying `config/server/monitoring.properties.example` and a dedicated `LAS_SSO_MONITORING_PASSWORD_HASH`. Accepted format is `{bcrypt}` with cost10–14. Generate through a trusted offline bcrypt utility; app receives hash only, collector receives raw password through a private secret file. Fixed user is `las-sso-metrics`. Never reuse human/OIDC credentials. No collector hash, raw password or bearer webhook value is shipped.
+| Deployment | Management / scrape target |
+| --- | --- |
+| Compose | Internal port 9091; trusted collector on the private monitoring network uses `sso:9091` |
+| Host JAR | Default `127.0.0.1:9091`, same-host collector |
+| Cross-host | Reviewed private transport and verified TLS/mTLS |
 
-Default management address127.0.0.1/port9091 exposes health/prometheus separately; **health moves away from app9000**. Public proxy must not route management. Only independent stateless GET `/actuator/prometheus` on management listener accepts collector Basic. Browser Cookie/client credentials/non-GET/app port are not equivalent; exposure without enabled monitoring remains denied. For cross-host Basic/webhook, provision validated TLS/mTLS or protected transport; `127.0.0.1` examples are same-host, and container localhost is its own container namespace.
+**Monitoring moves health from port 9000 to 9091.** Public Nginx must not proxy it. Container localhost refers to that container.
 
-## Install Configuration
+Compose enables `production,monitoring`; host layout adds its separate monitoring properties template.
 
-`deploy/monitoring/prometheus.yml` references `/etc/prometheus/las-sso-alerts.yml`, same-host9091 and a private password_file; adjust mounts/targets/topology explicitly. Copy the packaged rule file, run `promtool check config`, `promtool check rules`, and `promtool test rules las-sso-alerts.test.yml`. Alertmanager template uses a protected same-host9094 webhook with bearer credentials_file/send_resolved; replace it with actual routing, receiver auth and escalation, validate with `amtool check-config`. These configs do not launch containers or provision secrets/receivers.
+## 2. Independent credentials
 
-Import `grafana-dashboard.json`, select your Prometheus datasource and restrict dashboard/datasource edits. Viewer access must not save/overwrite/change datasource. Eight panels include ten queries; observe actual data rather than a successful import alone. Historical desktop/mobile Viewer checks are not a substitute for your Grafana access/data/width validation.
+| Recipient | Material |
+| --- | --- |
+| SSO | `{bcrypt}` hash, cost 10–14 |
+| Collector | Raw password in protected password_file |
+| Username | Fixed `las-sso-metrics` |
 
-## Semantics And Response
+1. Generate independent high-entropy password/hash using a trusted offline tool.
+2. Supply Docker `secrets/monitoring-hash` or host `LAS_SSO_MONITORING_PASSWORD_HASH`.
+3. Raw password goes only to collector, not human/OIDC credentials.
 
-Metrics use fixed low-cardinality outcomes, no user/client/Token/request/network IDs in labels. Password hash histogram measures actual hashing work. Commit-sensitive refresh-reuse/queue facts publish after commit. A web-ready independent15-second sampler computes cached DB session/queue gauges; scrape itself does not query DB. `snapshot_available=0` or stale last_success invalidates last-known queue/session values; failed sampling never advances success time. Snapshot interval accepts1s–5m, but shipped freshness rules assume at most60s; retain15s or tune rules together.
+**Expected:** GET Prometheus on the private management listener returns 401 without authentication and 200 with collector Basic. Cookies, non-GET methods and application port 9000 are different paths.
 
-| Alert | Default trigger | Initial action |
+## 3. Install templates
+
+| File | Adjust / verify |
+| --- | --- |
+| `deploy/monitoring/prometheus.yml` | Targets, rules path, password_file, mounts |
+| `las-sso-alerts.yml` / `.test.yml` | Seven rules and fixtures |
+| `alertmanager.yml` | Actual receiver/authentication/routing/send_resolved/escalation |
+| `grafana-dashboard.json` | Actual datasource, eight panels/ten queries, Viewer read-only |
+
+Templates do not provision collectors, Grafana, recipients or secrets.
+
+```text
+promtool check config prometheus.yml
+promtool check rules las-sso-alerts.yml
+promtool test rules las-sso-alerts.test.yml
+amtool check-config alertmanager.yml
+```
+
+**Expected:** Exit 0; then verify actual data and firing/resolved notifications. Syntax-only checks do not prove credential files or transport work.
+
+## 4. First response by alert
+
+| Alert | Template trigger | Check |
 | --- | --- | --- |
-| LasSsoScrapeUnavailable | up0 for2m | Process/listener/network/collector password/transport |
-| LasSsoSnapshotUnavailable | unavailable or older60s, for1m while scrape works | Readiness/DB/pool; do not infer queue healthy from stale zeros |
-| LasSsoLogoutBacklog | oldest pending >300s for1m with fresh snapshot | Worker/retry/receiver connectivity |
-| LasSsoLogoutDeadLetters | dead >0 for1m with fresh snapshot | Restricted outbox metadata and receiver repair before approved replay |
-| LasSsoRefreshReuse | committed reuse increase in5m | Restricted security audit and concurrent-refresh/compromise investigation |
-| LasSsoAdminLoginFailures | >=5 failures in5m | Audit/account lock/abuse review |
-| LasSsoPasswordHashSlow | match Argon2 p95 >1s for5m | CPU/memory/workload before password parameter changes |
+| LasSsoScrapeUnavailable | up=0 for 2 minutes | Process/listener/network/password |
+| LasSsoSnapshotUnavailable | Unavailable or stale >60 seconds, for 1 minute | Readiness/DB/pool/sampler |
+| LasSsoLogoutBacklog | Fresh oldest pending >300 seconds, for 1 minute | Worker/retry/receiver |
+| LasSsoLogoutDeadLetters | Fresh dead count >0, for 1 minute | Private outbox metadata/receiver |
+| LasSsoRefreshReuse | Committed reuse increases within 5 minutes | Audit/concurrent refresh/exposure |
+| LasSsoAdminLoginFailures | ≥5 failures in 5 minutes | Audit/lock/abuse |
+| LasSsoPasswordHashSlow | Match p95 >1 second, for 5 minutes | CPU/RAM/workload |
 
-System/JVM/HTTP/pool metrics complement these but do not replace readiness, production capacity tests or unimplemented per-operation dashboards. Deliver real firing **and resolved** notification to the on-call recipient; preserve sanitized timestamps/categories. Package rules are examples, not an agreed SLA. Reference queue metadata uses its own DB and is not silently counted in SSO outbox metrics.
+Example rules are not an agreed SLA. Add disk/backup freshness-failure/clock/certificate/resource alerts.
+
+## 5. Read metrics correctly
+
+| Observation | Meaning |
+| --- | --- |
+| Successful scrape | Does not prove valid DB snapshot |
+| snapshot unavailable/stale | Last gauges are not current health |
+| Sampler failure | Does not advance last_success |
+| Default 15-second sampling | Rules assume 60-second freshness; tune together |
+| Restart resets counters | Use rate/increase, not durable ledger |
+| Reference queue | Separate DB, not SSO outbox |
+
+Fixed low-cardinality labels exclude identity/Token/request/network IDs. Transaction facts publish after commit.
+
+## 6. Credential rotation acceptance
+
+1. Prepare new raw password/hash privately.
+2. Update app hash/collector file and coordinate restart.
+3. Confirm the new credential returns 200, the old one is rejected and scrape recovers.
+4. Actual on-call receives firing **and resolved**; retain sanitized times/categories.
+
+Dashboard import is not data/access validation. Viewer cannot save/overwrite/change datasource; verify target desktop/mobile readability.

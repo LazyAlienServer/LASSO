@@ -1,56 +1,106 @@
-# 运维
+# 运维：检查、重启、管理员重置与升级
 
-[目录](README.md) · [English](../en/operations.md)
+[目录](README.md) · [English](../en/operations.md) · [排障](troubleshooting.md)
 
-## 日常检查
+## 选任务
 
-人工恢复：现有QQ联系后已核私密渠道，确认稳定UUID/当前名、两项独立既有记录，受限单记结论/操作者/原因/request-audit/到期/结果无明文，依据不足不签。不索密码/码/Token/Cookie。管理员码与host/DB独立保护，仅记保管位置/人/generation，换批清旧副本。争议记requestID/原因/有界hold/public非敏感摘要/复查release或本人cancel，release不重置30天。真实人/保管/培训归部署，不以download软件检查代验。
+| 任务 | 本页 / 专项页 |
+| --- | --- |
+| 日常检查 | 下表 |
+| 重启或管理员重置 | 第 1–2 节 |
+| 升级与回退 | 第 3 节 |
+| 表增长 / 清理异常 | [历史清理](history-retention.md) |
+| 人工恢复 / 注销争议 | [管理员操作](user-guide.md) |
+| 参考 BFF 撤销死信 / key轮换 | [参考队列](reference-revocation.md) |
+| 备份 / 旧快照恢复 | [恢复流程](backup-and-recovery.md) |
 
-观察含数据库的 readiness、私有采集/snapshot 新鲜度、登录/管理员失败、refresh/reuse、退出积压/年龄/死信、连接池/存储和证书有效期。通过 `/admin/audit` 检查审计/安全事件，按时间/requestId/action 关联，避免 Token/Cookie/密码数据。CA 续期、备份有效性、真实通知接收与升级响应由运维负责。见[监控](monitoring.md)。
+## 日常检查表
 
-保留发行清单：版本、核验 SHA-256、源码 commit、不含值的配置修订、JDK/PostgreSQL/代理版本及迁移历史。重启不重新生成秘密。SSO 暂时不可用不是账号封禁，消费方应区分拒绝与临时故障。
+| 检查项 | 正常结果 | 异常去哪里 |
+| --- | --- | --- |
+| readiness | 包含 DB，返回 `UP` | [数据库 / 启动排障](troubleshooting.md) |
+| 私有采集 / snapshot | up有效、快照可用且新鲜 | [监控](monitoring.md) |
+| 登录 / 管理员失败、RT reuse | 可解释的风险事件 | 私有审计、并发/泄露调查 |
+| outbox 年龄、pending/dead | 任务可推进、死信已跟踪 | [排障](troubleshooting.md) |
+| pool、磁盘、历史增长 | 有余量、清理吞吐符合预期 | [历史清理](history-retention.md) |
+| 证书、备份、通知 | 续期/备份成功，通知可达 | [备份](backup-and-recovery.md)、[监控](monitoring.md) |
 
-## 维护命令
+保留版本、源码commit、制品SHA、非秘密配置修订、PG/JDK/代理版本、Flyway状态。
 
-从包根执行，提供同一受保护数据库/密钥环境及仅服务端外部配置。停止 Web 写入者、关闭公网入口，先验证包，再读取精确值：
+## 1. Docker 常用操作
+
+**位置：包根。** `dc()` 与[部署教程](docker-deployment.md)一致：
+
+```sh
+dc() { docker compose --env-file /etc/las-sso/deployment.env -f "$PWD/deploy/docker/compose.yml" "$@"; }
+dc ps
+dc restart sso
+dc ps
+```
+
+**预期：** SSO重新健康，key/kid不变。不要重生成secret；默认消费方BFF重启丢登录，顶层SSO重入。
+
+## 2. 离线重置管理员
+
+**前提：** 排空/关闭入口，停止Web写入者，备份/维护授权已准备。
+
+```sh
+dc stop proxy sso
+dc --profile maintenance run --rm --no-TTY=false maintenance admin-reset-password
+```
+
+| 提示 | 操作 |
+| --- | --- |
+| 显示当前管理员 username/UUID | 核对唯一管理员 |
+| `Type YES` | 确认重置当前管理员 |
+| 两次新密码提示 | 隐藏输入，不录屏/管道 |
+
+**成功结果：** exit0，新密码状态 `ACTIVE`；旧密码、会话、授权及恢复材料失效。Reset不是新的临时密码，不再要求bootstrap强改。
+
+```sh
+dc up -d sso proxy
+dc ps
+```
+
+用新密码登录、核旧会话拒绝、重新生成和保管恢复码，再开放。
+
+### JAR / PowerShell 方式
+
+包根、真实终端、同一server-only外部配置：
 
 ```powershell
 $env:SPRING_CONFIG_ADDITIONAL_LOCATION = 'file:/etc/las-sso/server.properties'
-$m = Get-Content -LiteralPath './provenance/release-manifest.json' -Raw | ConvertFrom-Json
-$j = Join-Path $PWD $m.artifacts.server.path
-$h = $m.artifacts.server.sha256
-./scripts/reset-admin-password.ps1 -Profile production -JarPath $j -ExpectedSha256 $h
+$m = Get-Content ./provenance/release-manifest.json -Raw | ConvertFrom-Json
+./scripts/reset-admin-password.ps1 -Profile production -JarPath (Join-Path $PWD $m.artifacts.server.path) -ExpectedSha256 $m.artifacts.server.sha256
 ```
 
-Reset 隐藏读取密码、针对当前管理员，并非任意用户重置 API。Bootstrap 的 `-Username`/`-UserId` 见[部署](deployment.md)。恢复另需 ExpectedEpoch/原因并明确关闭 scheduling，见[恢复](backup-and-recovery.md)。包内维护在 Java 启动前拒绝缺少/错误摘要，不使用通配符或“最新”程序。私密保管恢复输出并审计操作者/原因/结果。
+错误摘要在Java前拒绝；不用通配符选择“最新”JAR。Bootstrap见[Docker教程](docker-deployment.md)或[JAR教程](jar-deployment.md)。
 
-## 升级与回退
+## 3. 升级与回退
 
-1. 核验独立候选版本及其源码/测试/扫描覆盖；在隔离副本演练空库与旧版本升级。备份数据库并独立记录密钥/pepper/配置保管。
-2. 排空入口、停止写入者/worker，记录 epoch 和 Flyway，安装新不可变目录。外部配置独立版本管理且不暴露值。启动单个 SSO，验证迁移/readiness/TLS/浏览器/消费方刷新退出，再启消费方、逐步开放。
-3. 记录部署时间、摘要与验收。失败时继续关闭入口。旧二进制不能未经兼容性验证直接操作新 schema。恢复旧快照必须执行完整 epoch/新签名密钥/消费方屏障，单纯回退文件不够。
+| 顺序 | 操作 | 成功判据 |
+| --- | --- | --- |
+| 1 | 验新包、制品、扫描；隔离演练已填数据升级 | 新版本证据匹配 |
+| 2 | 核备份可恢复，记录epoch/Flyway/旧镜像及配置 | 回退材料齐全 |
+| 3 | 停proxy/sso及相关writer | 无并发写入/worker |
+| 4 | 选新精确镜像，离线database-migrate | 迁移exit0 |
+| 5 | 重跑runtime权限SQL | Flyway历史只读 |
+| 6 | 启动、readiness/TLS/管理员/已上线消费方冒烟 | 所有必要路径通过 |
+| 7 | 记录版本时间和結果，逐步开放 | 通知/观察正常 |
 
-V16支持有限历史清理：5min各phase batch100，终态session/已用废普通人工摘要90天，全过期parent/family后30天，无parent REVOKED RT expiry/revoke后30天，支持成功outbox30天。live hint/RT、pending/leased/dead/未知event、audit/身份/注销事实保留，不宣称全存储有界/archive。全局scheduling=false关闭维护任务，各phase10秒事务/5秒statement/500ms锁，busy跳、失败rollback；auth>10000 RT报告跳，parentbatch不是child/WAL上限，默认28800 parent/天需测disposal>eligiblearrival，目标另验。
+- V16普通索引DDL需目标数据量的时间/磁盘演练。
+- Flyway只前向；旧binary只有已验schema兼容才可回退，生产门禁拒未知futuremigration。
+- 恢复旧快照执行[新epoch/key/消费方屏障](backup-and-recovery.md)，不是只换JAR。
+- `down --volumes`删除数据库，不用于升级、重启或回退。
 
-只读 `psql --dbname=<protected-connection-service> -v ON_ERROR_STOP=1 -f scripts/history-status.sql` 报count/fanout/size无Token/user值，自定义期限传实际day变量。监控las_sso_history_cleanup_* rows/completed_runs/skipped_runs/failures/duration/oversized_authorizations/busy_authorizations，rows commit后，skip非success。不massdelete未知/大family/live hint/dead。普通VACUUM (ANALYZE)空间复用，DELETE不缩文件；archive/保留/bloat/backup/pepper失效/目标准入吞吐仍运维审查。
+## 4. 事件记录模板
 
-## 参考持久撤销
+| 字段 | 填写内容 |
+| --- | --- |
+| 时间 / 环境 / 版本 | UTC、部署目标、image/JAR hash |
+| 现象 | route、稳定错误类别、requestId |
+| 影响与操作 | 停入口/恢复/授权记录引用 |
+| 验证结果 | readiness、登录、旧状态拒绝 |
+| 后续 | 负责人、复查时间 |
 
-默认BFF重启丢登录。可选独立PostgreSQL参考V1–V2/AES32byte队列仅恢复已提交task，pre-submit仍需消费方intent/OP补偿。V2的reference-revocation-maintenance.ps1要求精确参考JAR/hash/currentkey/actor/reason/真实YES；replay精确deadtask/replay_count并核密文审计新8次campaign。完成回执默认30天/batch100每小时清，pending/dead/lease不删。换key拒未完成/same或复用ID/material，registry核key并阻旧进程；先停全部producer/worker及旧V1程序，维护小上下文无OIDC/Web/worker。新key以受控reference.revocation.next-key-base64供给非参数，commit后换active配置。DB/key独立备份，无持久登录/multikey/跨存储原子。
-
-## 故障处置
-
-包根参考队列操作（SPRING_CONFIG_ADDITIONAL_LOCATION选独立参考queue配置，不能SSO配置）：
-
-```powershell
-$m = Get-Content -LiteralPath './provenance/release-manifest.json' -Raw | ConvertFrom-Json
-$j = Join-Path $PWD $m.artifacts.'reference-bff'.path
-$h = $m.artifacts.'reference-bff'.sha256
-./scripts/reference-revocation-maintenance.ps1 -Command replay -JarPath $j -ExpectedSha256 $h -ExpectedKeyId $CurrentKeyId -Actor $Operator -Reason 'receiver repaired' -TaskId $TaskId -ExpectedReplayCount $ReplayCount
-./scripts/reference-revocation-maintenance.ps1 -Command purge-completed -JarPath $j -ExpectedSha256 $h -ExpectedKeyId $CurrentKeyId -Actor $Operator -Reason 'completed receipt retention'
-./scripts/reference-revocation-maintenance.ps1 -Command rotate-key -JarPath $j -ExpectedSha256 $h -ExpectedKeyId $CurrentKeyId -Actor $Operator -Reason 'queue drained key rotation' -NextKeyId $NextKeyId
-```
-
-只选所需命令，换key需停producer/worker且未完成task为空。reference_revocation.tasks仅查task ID/key_id/replay_count/attempt_count/时间/类别，不查询ciphertext/Token。replay核预期代次/认证载荷/审计后才reset预算，worker仍核当前endpoint/client/issuer。未解决dead保留调查，必要时OP补偿，purge不解决dead。rotate时当前key保持，新材料仅外部临时供给，成功后装新active配置并去next输入。审计保留，定义权限保管/增长监控；旧V1程序绕过V2门禁，必须停。
-
-凭据/密钥泄露时按范围关闭入口，通过支持的管理操作撤销会话/授权/客户端，在验证过的连续性方案下替换秘密，保留脱敏审计。签名密钥泄露/恢复协调全部消费方和旧 kid 缓存屏障。DB down 时 readiness503、liveness200，应恢复连接而非形成重启风暴。疑似攻击查看固定低基数指标和风险/审计结果，不通过关闭 CSRF/限流消除症状。人工恢复联系现有 QQ 群；仅确定联系渠道不代表已核实申请人或完成整套人工恢复流程。
+不记录密码、恢复码、Token、完整Cookie、私钥或队列密文。SSO故障是不可用状态，不等账号封禁。

@@ -1,31 +1,57 @@
-# Acceptance And Evidence
+# Acceptance: package integrity and opening criteria
 
-[Index](README.md) · [中文](../zh-CN/acceptance.md)
+[Index](README.md) · [中文](../zh-CN/acceptance.md) · [Release notes](../../RELEASE-NOTES.md)
 
-## This Package
+## 1. Evidence inside this package
 
-Run `python scripts/verify-package.py` from extracted root. It validates exact file inventory/SHA-256, no missing/extra files, safe relative paths, package-local documentation links, declared artifact/embedded migration hashes and aligned versions. ZIP checksums are transport integrity, not signatures/trusted release authority. The source ZIP is `git archive` of the recorded commit; SDK/JARs are built from that clean commit with explicit server/Starter version and all module tasks rerun. Reproducible file ordering/timestamps are used, but no independent two-builder byte-for-byte reproducibility claim is made.
+Run `python scripts/verify-package.py` at package root; expect exit 0.
 
-`provenance/verification-summary.json` records actual command/tool versions/times/report hashes/module test counts and scanner coverage. Zero report errors/skips required. `provenance/dependencies/` contains three locks/catalog/Wrapper settings and actual nested JAR names/hashes; recognize opaque JAR scanners may see zero dependencies until extraction. Scans do not certify absence of all vulnerabilities; see actual tool/database/rule scope, findings and review limitations. Only executed checks are current evidence.
-
-Earlier acceptance remains historical: `.7` real TLS dual BFF/initial-hint logout/Grafana Viewer desktop/mobile and two five-minute mixed runs, `.6` three actual alert firing/resolved notifications, `.5` administrator/restore rehearsals. Short45-second AT was a fixture; one sampled RuntimeError gap was not precisely attributed and short memory observations do not rule out leaks. None implies hours-scale/default-lifetime production soak or new-package real-process validation unless explicitly rerun.
-
-Current source includes P02–P06, with dated acceptance in the source ZIP. Source/local Compose fixtures and earlier image scans are not this version's final deployed-image evidence. Read [release notes](../../RELEASE-NOTES.md) for scope/scan limits. Single-host account-site-only first opening has no business-client prerequisite; consumer-specific TLS/OIDC/session/password/eligibility gates apply when each named consumer launches. SSO transport/custody/backup/monitoring/capacity/security/rollout gates still apply.
-
-## Deployment Gates To Execute
-
-| Area | Required environment-specific evidence |
+| File | Read |
 | --- | --- |
-| Inputs/startup | Approved issuer/network/clients/owners; independent secrets/persistent key; production gates and no-local defaults; non-Web admin initialization, then target checks with closed ingress |
-| Database | Fresh + populated V15→V16 upgrade/index creation time/disk, retention/lock/timeout/protocol continuity, backup/restore/permissions; DB outage readiness200→503→200 with liveness200 |
-| TLS/browser | Actual CA/domain/proxy headers/direct-port denial, Secure Cookie/CSRF/Origin, two sites/login/consent/rename stable UUID |
-| Lifecycle/admin | Recent-password/admin guards, freeze/unfreeze/deletion wait/hold/cancel/execute, manual recovery and auditable handover without last-admin bypass |
-| Consumer security | Real15-minute originating-session evidence, refresh not advancing auth_time, one-minute eligibility denial and epoch/in-flight barriers |
-| Refresh/logout | Parallel refresh coalescing/RT reuse rejection, local-only vs all-site logout after refresh, Back-channel repeated/late callback/receiver outage and actual local revocation |
-| Persistence | Default restart loses business login as agreed; durable committed task restart/retry/dead-task/key custody; pre-submit gap handled explicitly |
-| Observability | Real Grafana data/Viewer restrictions, actual on-call firing/resolved receipt; stale snapshot/outbox/reuse/admin/hash cases and alert ownership |
-| Recovery | Real target backup/key restoration, new epoch/kid, old Cookie/code/AT/RT rejection and each consumer clearing old evidence |
-| Capacity/security | Target JDK/image/proxy/DB scans and DAST, hours-scale ramp/soak/history-growth/cleanup/RPO/RTO; establish thresholds from measurements |
-| Rollout | Candidate rehearsal, immutable trusted delivery, limited launch/rollback, assigned escalation and first operational cycle |
+| release-manifest | Version/commit/tree/artifact and file hashes |
+| SHA256SUMS | Integrity, not signature |
+| verification-summary | Commands/tools/times/module tests/scan dates and reviews |
+| dependencies | Locks/catalog/Wrapper/nested JAR inventory |
+| migration-manifest | Embedded migration hashes |
+| source | Exact clean git archive and dated historical records |
 
-Record version, hashes, date, environment, operator, result and exception/follow-up for each gate. This development package is complete as a handoff, not a production-release gate waiver. SSO cannot accept the business application's implementation on its behalf.
+Verifier rejects missing/extra/hash/version/source/migration mismatches and nonlocal handbook links.
+
+## 2. Use evidence correctly
+
+- Complete DB-required test reports must have zero failures/errors/skips.
+- Extract opaque JARs/use locks for actual dependency coverage.
+- Zero findings is not proof of absence; inspect dates/packages/reviews.
+- Historical TLS/restore/Grafana/short-AT load does not become current-version acceptance.
+- Fixture certificate/Windows access does not prove public CA/Linux custody/target soak.
+- Stable archive order/timestamps, no independent two-builder reproducibility claim.
+
+## 3. Account-site opening
+
+| Area | Pass when | Record |
+| --- | --- | --- |
+| Inputs/startup | Official issuer/owner/independent key-secret/production | Environment/config revision |
+| Administrator | Offline bootstrap, first change, recovery custody and reset | Operator/UUID/audit reference |
+| Database | Fresh/populated upgrade/grants/index time-space/DB recovery | Schema/version/time |
+| TLS/network | Public CA, renewal, spoof resistance, Secure Cookie and private ports | External probes |
+| Lifecycle | Freeze/deletion/hold/cancel/execute, manual recovery and password guards | Sanitized results |
+| Monitoring | Private authentication, real firing/resolved, disk/backup/clock | Recipient acknowledgement |
+| Backup | Encrypted off-host restore, new key/epoch and old-credential rejection | Measured RPO/RTO |
+| Capacity/security | Target ramp/soak/history, current image/JDK/proxy scan and DAST | Limits/findings |
+| Opening | Candidate, rollback, limited traffic and first operations cycle | Owner acceptance |
+
+## 4. Per launched consumer
+
+| Area | Pass when |
+| --- | --- |
+| OIDC | Two clients, Code/PKCE/state/nonce, stable UUID and consent |
+| Refresh/logout | Coalescing, reuse denial, local/global and duplicate/late Back-channel |
+| Local state | Agreed restart logout, accepted-task durability and pre-submit compensation |
+| Recent password | Originating session/pending action/15 minutes; refresh does not advance auth_time |
+| Eligibility | One-minute refusal and epoch/cache/inflight barriers |
+
+Account-site first launch may have no clients. SSO cannot implement consumer business authorization on its behalf.
+
+## Record
+
+Record version/hash, date, target, owner, command, expected/actual result and follow-up. Sanitized results only; no password, Token, private key or recovery code.

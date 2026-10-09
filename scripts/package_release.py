@@ -162,6 +162,17 @@ def package(version, work):
             target.write_text(text, encoding="utf-8", newline="\n")
     shutil.copytree(SERVER / "deploy/monitoring", stage / "deploy/monitoring")
     shutil.copytree(SERVER / "deploy/docker", stage / "deploy/docker")
+    for language, name in (("en", "README.md"), ("zh-CN", "README.zh-CN.md")):
+        target = stage / "deploy/docker" / name
+        text = target.read_text(encoding="utf-8").replace("../../../release/_source/docs/", "../../docs/")
+        # The package has task handbooks; source-only environment matrices remain in its source ZIP.
+        source_matrix = "../../../docs/" + ("zh-CN/" if language == "zh-CN" else "") + "operations/docker-compose-deployment.md"
+        text = text.replace(source_matrix, "../../docs/" + language + "/docker-deployment.md")
+        source_heading = "## 源码构建入口" if language == "zh-CN" else "## Source-build entry"
+        text = text.split(source_heading, 1)[0]
+        text = text.replace("源码中的手册是发行模板，`{{VERSION}}` 在打包时替换。实际解压包已有精确版本，无需源码或 Git。", "本包镜像构建按上方教程执行，使用包内精确 JAR/hash 和 manifest，无需源码或 Git。")
+        text = text.replace("Source handbooks are templates; packaging substitutes `{{VERSION}}`. Extracted packages have exact versions and need no source/Git.", "Build images using the tutorial above and this package's exact JAR/hash/manifest. No source checkout or Git is needed.")
+        target.write_text(text.replace("{{VERSION}}", version), encoding="utf-8", newline="\n")
     for name in ("build_docker_image.py", "build_docker_infrastructure.py", "verify_docker_deployment.py"):
         shutil.copy2(ROOT / "scripts" / name, stage / "scripts" / name)
     shutil.copy2(SERVER / "deploy/nginx/las-forwarding.conf", stage / "deploy/nginx/las-forwarding.conf")

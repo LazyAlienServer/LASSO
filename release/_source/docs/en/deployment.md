@@ -1,68 +1,42 @@
-# Deployment
+# Choose a deployment method
 
 [Index](README.md) · [中文](../zh-CN/deployment.md)
 
-The selected account-site first launch uses single-host Docker Compose, same-host Nginx, separate SSO/PostgreSQL and no initial CDN. Use `deploy/docker/README.md` from the package root, copied image tools and the non-secret input template; that path enables private monitoring and separate runtime/migration/backup roles. This handbook's host/JAR/systemd path is separate. Account-site-only opening may have no consumer clients; P11/P12 apply when each consumer launches. Domains/hardware/traffic/backup/RPO/RTO/notification values remain operator inputs.
+## Selected topology
 
-## 1. Prepare The Environment
+**Single-host Docker Compose, same-host Nginx, separate PostgreSQL, account-site first launch.**
 
-Use JDK21, PostgreSQL (18.4 was the acceptance baseline), a private app/DB network and a canonical HTTPS issuer. Supply an operator-owned domain, exact consumer callback/logout URLs, CA/renewal, firewall rules, storage/capacity and incident contacts. Use separate staging/production DBs and clients. Production rejects example/HTTP/loopback issuers and requires the issuer path to match servlet context. A non-development process requires explicit `production`, never mixed with `local`/`test`. Without a usable administrator, Web startup fails; initialize through offline maintenance. Keep ingress closed until target checks succeed.
+Start with **[Docker deployment](docker-deployment.md)**.
 
-Verify the package from its root with `python scripts/verify-package.py`. Read `provenance/release-manifest.json` and retain its trusted server hash. Install the entire immutable version directory at `/opt/las-sso/{{VERSION}}`, create an unprivileged `las-sso` user and a protected `/etc/las-sso/` configuration location. Do not let the runtime user rewrite release files.
+| Method | Instructions | Use |
+| --- | --- | --- |
+| Docker Compose | [Step-by-step guide](docker-deployment.md) | Selected first launch |
+| Host JAR / systemd | [Step-by-step guide](jar-deployment.md) | An existing independent host-process layout |
 
-## 2. Database, Secrets And Signing Key
+## Supply first
 
-Create dedicated PostgreSQL roles with appropriate Flyway V1–V16 privileges. V16 ordinary index DDL needs populated rehearsals, time/disk and drained traffic. Configure DB authentication/network access/backup first; JDBC example `jdbc:postgresql://db.internal:5432/las_sso`, validated cross-host TLS. Identity DB is not a business or reference queue DB.
-
-Copy `config/server/server.properties.example` to `/etc/las-sso/server.properties`. In a root/service-readable protected environment file or secret mechanism, supply:
-
-| Variable | Meaning |
+| Input | Purpose |
 | --- | --- |
-| `LAS_SSO_DB_URL`, `LAS_SSO_DB_USER`, `LAS_SSO_DB_PASSWORD` | Actual JDBC target and credentials |
-| `LAS_SSO_ISSUER` | Exact canonical HTTPS URL; discovery/clients must match scheme, host, port and path |
-| `LAS_SSO_SIGNING_KEY_PATH`, `LAS_SSO_SIGNING_KEY_PASSWORD`, `LAS_SSO_SIGNING_KEY_ALIAS`, `LAS_SSO_SIGNING_KEY_ID` | Persistent PKCS12 RSA pair, same keystore/private-key password, stable nonblank kid |
-| `LAS_SSO_RECOVERY_PEPPER` | Independent high-entropy recovery hash secret |
-| `LAS_SSO_TRANSIENT_SECURITY_PEPPER` | Independent high-entropy transient/HMAC key secret; also affects retained hint lookup |
-| `LAS_SSO_CAPTCHA_HMAC_SECRET` | Independent high-entropy CAPTCHA secret |
+| Official domain, HTTPS issuer, certificate and renewal | Browser edge and identity namespace |
+| Host OS/architecture/CPU/RAM/disk and limits | Runtime and capacity validation |
+| Secret/signing key/kid custody | Stable identity across restart and maintenance |
+| Off-host backup, retention and RPO/RTO | Disaster recovery |
+| Real notification channel and maintenance window | Operator response |
 
-Generate secrets through a trusted secret manager/CSPRNG; preserve exact values across restarts and protect custody/backups. Do not use local values, sample client credentials or a shared human password. Keytool may create a PKCS12 RSA3072 `RS256` pair with interactive hidden password input (`-genkeypair -keyalg RSA -keysize 3072 -storetype PKCS12`); choose your path/alias/validity and use the same key password. No signing private key belongs in public JWKS. The app loads one configured key, not a seamless multi-key rotation manager; plan outages/cache expiry and [recovery barriers](backup-and-recovery.md).
+Account-site-only opening may have no business clients. Each consumer supplies its callbacks, authorization and integration evidence when it launches.
 
-## 3. Initialize While Ingress Is Closed
-
-Production minimums: recovery/transient/CAPTCHA secrets each at least32 UTF-8 bytes; DB/key passwords at least12 bytes. All five must be distinct and not contain known local/test/change-me markers. Length alone does not prove entropy. Keep Flyway validation/clean protection and the sole embedded location enabled; a separate migration role may use the same JDBC URL. Web Cookie retains Path=/ with no Domain. `production` activates the required gates; it does not provision resources. Failed gates print category/property names only.
-
-Offline maintenance uses JDK21 plus the same DB/key/secrets and explicit external config. Stop web writers before initialization. In PowerShell from package root:
-
-```powershell
-$env:SPRING_CONFIG_ADDITIONAL_LOCATION = 'file:/etc/las-sso/server.properties'
-$manifest = Get-Content -LiteralPath './provenance/release-manifest.json' -Raw | ConvertFrom-Json
-$jar = Join-Path $PWD $manifest.artifacts.server.path
-$sha = $manifest.artifacts.server.sha256
-./scripts/bootstrap-admin.ps1 -Username '<chosen-login-name>' -Profile production -JarPath $jar -ExpectedSha256 $sha
-```
-
-Use `-UserId '<existing-UUID>'` instead of Username for an existing account. Real passwords are read by the Java console without echo, not parameters/env/history. Keep operator prompts and one-time recovery output private. Packaged bootstrap/reset defaults select `production`; JAR and expected hash are mandatory. Production is required and activates startup checks, not resource provisioning. No `local`/`test` in live settings. Linux administrators can install PowerShell or invoke the same Java non-web maintenance command with explicit profile/config/JAR, disabling scheduling/session cleanup/monitoring and retaining hash/console checks; no source checkout is required.
-
-## 4. Start And Configure The Proxy
-
-From package root, manual web startup:
+## Shared startup order
 
 ```text
-java -jar application/las-sso-server-{{VERSION}}.jar --spring.profiles.active=production --spring.config.additional-location=file:/etc/las-sso/server.properties
+Verify package → configuration/key → database → offline migration
+→ hidden bootstrap → Web → first password change → target checks → opening
 ```
 
-For Linux, review/install `deploy/systemd/las-sso.service`, adjust Java/install/config paths, secure the environment file, then run `systemd-analyze verify`, `systemctl daemon-reload` and `systemctl start las-sso`. Use a maintenance window for upgrades; no privileged runtime account or writable package is needed. Capture logs to access-controlled journal/storage, never authentication payloads.
+| Rule | Check |
+| --- | --- |
+| Non-development requires `production` | Never combine `local` / `test` |
+| Initialize administrator before Web | Missing usable administrator rejects Web startup |
+| Keep embedded Flyway validation | No checksum repair or published migration edits |
+| Private app, database and metrics | Access only through the reviewed Nginx edge |
 
-Review `deploy/nginx/sso-site.conf.example`; replace hostname/certificate paths and install `deploy/nginx/las-forwarding.conf` as `/etc/nginx/snippets/las-sso-forwarding.conf`. `nginx -t` before reload. Direct app9000 must be inaccessible to untrusted callers. Proxy removes alternate forwarding metadata and overwrites canonical host/proto/port/client address. Preserve OIDC/API paths; do not strip a prefix. The sample rejects unknown hosts and hides `/actuator/`; it does not design your CDN/load-balancer trust chain. Secure/HttpOnly/Lax `__Host-las_sso` is HTTPS host-only; no Cookie Domain.
-
-## 5. Verify, Register Clients, Then Open
-
-Check private readiness200/UP and liveness200, Flyway V1–V16, canonical discovery/public JWKS and real TLS Cookies. Monitoring moves health to management port; otherwise app port. Run:
-
-```text
-python scripts/smoke.py --issuer https://auth.example.com --readiness-url http://127.0.0.1:9000/actuator/health/readiness
-```
-
-This checks protocol/health, not login or a full deployment. Verify administrator login, required-password change, exact client registration and all [acceptance](acceptance.md) paths before ingress opens. Register independent confidential clients through `/admin/clients`, deliver each one-time secret privately, then follow [integration](external-integration.md).
-
-Optional monitoring: supply its independent hash; use profiles `production,monitoring` and additional locations `file:/etc/las-sso/server.properties,file:/etc/las-sso/monitoring.properties`. Update the service ExecStart explicitly; maintenance uses only server config/profile. See [monitoring](monitoring.md).
+Failures: [troubleshooting](troubleshooting.md). Opening criteria: [acceptance](acceptance.md).

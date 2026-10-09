@@ -1,31 +1,57 @@
-# 验收与证据
+# 验收：包完整性与开放判据
 
-[目录](README.md) · [English](../en/acceptance.md)
+[目录](README.md) · [English](../en/acceptance.md) · [发行说明](../../RELEASE-NOTES.zh-CN.md)
 
-## 当前包
+## 1. 当前包可直接查的证据
 
-解压根运行 `python scripts/verify-package.py`，验证精确文件清单/SHA-256、缺失/多余文件、安全相对路径、包内文档链接、程序/内嵌迁移摘要和版本一致。ZIP checksum只是传输完整性，不是签名/可信发行授权。source ZIP为所记录commit的git archive；SDK/JAR由同一干净commit显式server/Starter版本、三模块rerun构建。归档使用稳定排序/时间戳，但不宣称独立双构建器字节级可重现。
+包根执行 `python scripts/verify-package.py`，预期exit0。
 
-provenance/verification-summary.json记录实际命令/工具版本/时间/报告hash/模块测试数和扫描覆盖；测试fail/error/skip必须零。provenance/dependencies含三锁/catalog/Wrapper及实际nested JAR名称/hash。opaque JAR扫描可能识别零依赖，需解包。扫描不认证“绝无漏洞”，以实际工具/DB/rule范围、发现和复核限制为准，仅已执行检查算本轮证据。
-
-历史验收：.7真实TLS双BFF/刷新后初始hint退出/Grafana Viewer桌面移动/两条5分钟混合运行，.6三类真实告警firing/resolved，.5管理员/恢复演练。45秒AT是fixture，一个RuntimeError采样gap未精确归因，短期内存不能排漏。不代表小时级/default-lifetime生产soak；未明确重跑不算新包真实进程验收。
-
-当前源码纳入P02–P06，日期验收记录在sourceZIP；源码/本地Compose fixture及其镜像扫描不等本版本最终部署镜像证据。范围/扫描限制见[发行说明](../../RELEASE-NOTES.zh-CN.md)。单机SSO账号站首发无需业务客户端提前完成；各消费方自身上线时适用TLS/OIDC/session/密码/资格门禁，SSO本身传输/保管/备份/监控/容量/安全/发行仍必需。
-
-## 部署环境需执行
-
-| 范围 | 环境专项证据 |
+| 文件 | 查什么 |
 | --- | --- |
-| 输入/启动 | 已确认issuer/网络/客户端/负责人、独立秘密/持久key/生产门禁/无local默认；非Web初始化admin，再关闭入口验目标环境 |
-| DB | 空库/代表V15→V16/建索引时间空间、retention/lock/timeout/协议连续、backup/restore/权限；DB断连readiness200→503→200/liveness200 |
-| TLS/浏览器 | 实际CA/域名/代理头/禁止直连、Secure Cookie/CSRF/Origin、双站登录/consent/改名稳定UUID |
-| 生命周期/admin | 近期密码/admin门禁、冻结解冻/注销等待hold取消执行、人工恢复/交接，不绕last-admin |
-| 消费安全 | 真实发起会话15分钟证据、refresh不推进auth_time、一分钟资格拒绝与epoch/在途屏障 |
-| 刷新/退出 | 并发刷新合并/RTreuse拒绝、刷新后当前vs全部退出、重复/迟到回调/接收者故障及真实本地撤销 |
-| 持久化 | 同意默认重启丢登录；已提交task重启/retry/dead/key保管，明确处理pre-submit gap |
-| 可观察性 | Grafana真实数据/Viewer权限、真人firing/resolved；snapshot/outbox/reuse/admin/hash及责任 |
-| 恢复 | 实际目标备份/key恢复、新epoch/kid、旧Cookie/code/AT/RT拒绝、每消费方清旧证据 |
-| 容量/安全 | 目标JDK/image/proxy/DB扫描与DAST、小时级ramp/soak/history增长清理/RPO/RTO，以测量定阈值 |
-| 上线 | 候选演练、不可变可信交付、限量开放/回退、响应负责人和首运维周期 |
+| `provenance/release-manifest.json` | 版本/source commit/tree、制品及文件hash |
+| `provenance/SHA256SUMS` | 文件完整性；不等签名 |
+| `provenance/verification-summary.json` | 实际命令/工具/时间、三模块tests、扫描范围/日期/复核 |
+| `provenance/dependencies/` | 三锁/catalog/Wrapper、nestedJAR清单 |
+| `database/migration-manifest.json` | JAR内嵌迁移hash |
+| `source/` | 精确干净gitarchive；历史日期记录 |
 
-每门禁记录版本/hash/日期/环境/操作者/结果/例外后续。开发包完成交付不豁免生产门禁；SSO不能替业务应用验收其实现。
+校验器拒缺失/多文件、hash/版本/来源/迁移不一致、包外链接。源码和程序以本包记录commit为准。
+
+## 2. 证据如何使用
+
+- 全量数据库测试须fail/error/skip=0；以实际版本报告为准。
+- opaqueJAR扫描可识别零依赖，故依赖扫描需解包/锁覆盖。
+- 0发现不证明无漏洞；查看数据库日期、识别包数和人工复核。
+- 历史TLS/restore/Grafana/5分钟短AT负载不自动算本版本重跑。
+- 已验fixture证书/WindowsUID不能代公共CA/Linux保管/小时级目标容量。
+- 文件排序/时间戳固定，不宣称独立双构建器字节级重现。
+
+## 3. SSO账号站开放前
+
+| 范围 | 通过条件 | 记录 |
+| --- | --- | --- |
+| 输入/启动 | 正式issuer/负责人/独立secret/key、production、不混local | 环境与配置修订 |
+| 管理员 | 离线bootstrap→首登强改、码保管、reset可执行 | 操作员/UUID/audit引用 |
+| DB | 空库/代表旧schema迁移、权限/索引时间空间、DB故障恢复 | 版本/schema/耗时 |
+| TLS/网络 | 公共CA/续期、伪头拒、SecureCookie、不可直连app/DB/metrics | 外部探针 |
+| 生命周期 | 冻结/注销/hold/cancel/执行、人工恢复、近期密码门禁 | 非秘密结果 |
+| 监控 | 私有认证采集、真实firing/resolved、disk/backup/clock | 真实收件人确认 |
+| 备份/恢复 | 异机加密可恢复、新key/epoch/旧凭据拒 | RPO/RTO实测 |
+| 容量/安全 | 目标ramp/soak/history、当前镜像/JDK/代理扫描及DAST | 限额和处置 |
+| 开放 | 最终候选/回退/有限流量/首运维周期 | 负责人签收 |
+
+## 4. 每个消费方上线时追加
+
+| 检查 | 通过条件 |
+| --- | --- |
+| OIDC | 两客户端、Code/PKCE/state/nonce、稳定UUID/consent |
+| refresh/logout | same-session合并、reuse拒、当前/全部退出、重复迟到Back-channel |
+| 本地状态 | 重启丢登录符合初期方案、已接受撤销恢复、提交前补偿 |
+| 近期密码 | 发起本地session/待操作绑定15分钟、refresh不推进auth_time |
+| 资格 | 一分钟内观察拒绝、旧epoch/cache/inflight屏障 |
+
+账号站首发可无业务客户端；SSO通过不替消费方实现业务授权。
+
+## 记录模板
+
+版本/hash、日期、目标环境、负责人、命令、预期/实际、例外/后续。结果存脱敏摘要，不存密码/Token/私钥/恢复码。

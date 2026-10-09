@@ -1,26 +1,100 @@
-# Troubleshooting
+# Troubleshooting reference
 
-[Index](README.md) · [中文](../zh-CN/troubleshooting.md)
+[Index](README.md) · [中文](../zh-CN/troubleshooting.md) · [Docker guide](docker-deployment.md)
 
-Record version/hash, UTC time, route/category/requestId and sanitized status first. Reproduce on an isolated environment when necessary. Never attach Authorization, complete Cookie, code/Token, passwords/recovery codes, private keys or decrypted queue values. Do not weaken TLS/CSRF/Origin/signature/rate limits to make a failing path appear successful.
+## Locate the failing layer
 
-| Symptom | Check / expected action |
+```text
+Unreachable → proxy healthy? → sso healthy? → postgres healthy?
+Page opens, login fails → Cookie / CSRF / risk / credential state
+Only business site fails → client / refresh / Back-channel / eligibility
+Only metrics fail → management port 9091 / collector credential / snapshot
+```
+
+## 1. First Docker checks
+
+**Package root:**
+
+```sh
+dc() { docker compose --env-file /etc/las-sso/deployment.env -f "$PWD/deploy/docker/compose.yml" "$@"; }
+dc ps
+dc logs --tail 100 postgres
+dc logs --tail 100 sso
+dc logs --tail 100 proxy
+```
+
+Inspect privately; share time/version/requestId/category, not raw authentication logs.
+
+| Symptom | First check | Action |
+| --- | --- | --- |
+| Input validation fails | Blank values, host/port mismatch, mutable image ID, limits or shell overrides | [Deployment step 4](docker-deployment.md) |
+| Image missing | never-pull ID not loaded | Inspect/load exact image |
+| postgres unhealthy | Init error, PG UID/secret, disk/access | PG logs; existing volume does not rerun init |
+| sso cannot start | DB/key/config/admin gate | Categories below |
+| proxy restarts/unhealthy | TLS UID101/template/upstream | Proxy logs and certificate/host |
+| 502/504 | SSO/DB/pool | Readiness first |
+
+```sh
+dc exec -T sso curl --silent --output /dev/null --write-out '%{http_code}\n' http://127.0.0.1:9091/actuator/health/readiness
+dc exec -T sso curl --silent --output /dev/null --write-out '%{http_code}\n' http://127.0.0.1:9091/actuator/health/liveness
+```
+
+| Readiness/liveness | Meaning |
 | --- | --- |
-| Startup key/config error | JDK21, nonlocal external placeholders, PKCS12 path/read permission/alias/same password/RSA pair/kid, exact DB target. No fallback to ephemeral local key |
-| Flyway validation/migration failure | Correct database/schema/history and privileges, candidate compatibility, previous migration hashes. Preserve failure and restore isolated backup; no checksum repair/drop-table bypass |
-| Discovery/callback mismatch | Exact issuer scheme/host/port/path, HTTPS proxy canonical headers, exact redirect registration and same hostname throughout. Preserve paths; verify CA, no insecure TLS flag |
-| Login returns CAPTCHA/429 | Actual risk/network budget, hidden retry/concurrency and audit outcomes. Wait as directed; maintain trust in client address forwarding |
-| Forbidden browser write | Session/admin/recent-password, CSRF token, same Origin, content type and target lifecycle. Back-channel CSRF exemption does not apply to browser APIs |
-| Cookie lost / endless login | Secure __Host cookie, Path=/, no Domain, correct forwarded HTTPS/base URL, unique business Cookie name, no hostname switch |
-| Required-password or eligibility deny | Finish actual password change; review lifecycle/reason. Business login is not an override for frozen/deletion/held status |
-| Refresh invalid_grant / reuse | Same-session single-flight, absolute RT family expiry, revoked client/session. Definitive rejection clears local auth; do not replay previous RT |
-| Refresh temporary503 | SSO network/DB/provider state; return unavailable, not eligibility denial or new credential evidence |
-| Refreshed global logout400 | This exact V15 build, live authorization and initial hint association, same key-pepper, registered logout URI/client/audience. Pre-upgrade lost hints cannot be rebuilt |
-| Back-channel pending/dead | Signature/issuer/audience/sid receiver checks, TLS/timeout, outbox worker/leases/retries and executed local receipt. Fix receiver before replay; inspect metadata only |
-| BFF restart loses login | Expected default single-JVM behavior; top-level SSO reentry. Durable task queue does not preserve HttpSession/authorized clients |
-| Metrics401/403/404 | Monitoring profile, management9091 rather than app9000, GET, independent las-sso-metrics Basic, bcrypt format/cost and private transport. No browser credentials |
-| Scrape works, snapshot stale | DB/pool/sampler, availability and last_success. Readiness503 on DB down; scrape cannot validate cached DB gauges |
-| Restore receives lower version | New epoch and authoritative consumer generation barrier. Reject old in-flight responses; never select epoch lexically or flip on each response |
-| Maintenance no console/hash failure | Interactive real terminal, exact package JAR/hash, explicit server-only config and target DB; no redirected password input or wildcard artifact |
+|200/200 | Process+DB ready; not all target gates |
+|503/200 | DB/pool/readiness fault; repair connection, avoid restart storm |
+|No connection | Process/listener/startup failure |
 
-Healthy liveness alone is not DB readiness. Monitoring changes health's port. SSO DB restoration, signing-key replacement and consumer cache/session barriers are separate coordinated steps. If the issue persists, capture bounded sanitized logs/audit/category and escalate to the designated operator; [operations](operations.md) and [recovery](backup-and-recovery.md) define safe continuation.
+## 2. Startup categories
+
+| Category/message | Meaning | Action |
+| --- | --- | --- |
+| `PRODUCTION_PROFILE_REQUIRED` / `PRODUCTION_PROFILE_CONFLICT` | Missing production or mixed local/test | Correct profile and source |
+| `PRODUCTION_ISSUER_INVALID` / `PRODUCTION_ISSUER_CONTEXT_MISMATCH` | Canonical URI/path mismatch | Actual HTTPS host/port and root-path topology |
+| PRODUCTION_SECRET_* | Missing/short/reused/dev secret | Protected files, never print |
+| Unable to load persistent signing key | Path/UID/alias/password/RSA | Access/same password, no ephemeral fallback |
+| PRODUCTION_ADMIN_INITIALIZATION_REQUIRED | No unique usable admin/expired temporary password | Offline bootstrap/reset |
+| PRODUCTION_SCHEMA_INCOMPATIBLE | Checksum, migration state or future schema | Use compatible exact binary; no checksum repair |
+| DB permission denied | Runtime needs migration/wrong grants | Migrator offline plus permission SQL |
+| INTERACTIVE_CONSOLE_REQUIRED | No interactive terminal | Real terminal, `--no-TTY=false`; omit `-T` |
+
+## 3. Browser/account
+
+| Symptom | Check | Action |
+| --- | --- | --- |
+| Cookie/login loop | Secure __Host, Path=/, no Domain, HTTPS and consistent hostname | Correct proxy/Cookie settings |
+| Write returns 403 | Session, administrator, recent password, CSRF, Origin and content type | New CSRF and genuine reauthentication |
+| CAPTCHA/429 | Risk budget, retries and proxy IP trust | Wait for Retry-After; retain rate limiting |
+| Password change required | Temporary bootstrap/manual credential | Genuine password change, not refresh |
+| Eligibility denied | Freeze/deletion/held/credentials | Reason, not business-login override |
+| One-time output gone | Closed/navigated cleanup | Supported reissue/rotation, no redisplay |
+
+## 4. OIDC/refresh/logout
+
+| Symptom | Check | Action |
+| --- | --- | --- |
+| Discovery/callback mismatch | Issuer, scheme, host, port, path, exact URI and CA | Preserve paths; retain TLS verification |
+| Refresh invalid_grant/reuse | Same-session coordination, absolute expiry or revocation | End login after definite rejection; do not reuse old RT |
+| Refresh temporarily returns 503 | Database, provider or network | Unavailable, not a ban or password evidence |
+| Global logout returns 400 after refresh | V15+, live initial hint, pepper and client URI | Lost pre-upgrade hints cannot be reconstructed |
+| Back-channel pending/dead | TLS, claims, lease, retry and local receipt | Repair the receiver; inspect metadata only |
+| BFF restart ends login | Default single JVM | Expected; the queue does not preserve HttpSession |
+| Lower version after restore | New epoch, local generation and in-flight responses | Compare within an epoch; reject the prior generation |
+
+Contracts: [integration](external-integration.md). Reference task recovery: [queue](reference-revocation.md).
+
+## 5. Metrics/recovery
+
+| Symptom | Check | Action |
+| --- | --- | --- |
+| Metrics returns 401 | Dedicated Basic credential, hash and cost | Collector credentials, not human/OIDC credentials |
+| Metrics returns 403/404 | Monitoring, GET and private port 9091 | Public actuator 404 is expected |
+| Scrape succeeds, stale snapshot | DB, pool, sampler and last_success | Gauges are invalid; [monitoring](monitoring.md) |
+| History grows | Eligible/busy/oversized/audit | [History](history-retention.md) |
+| Epoch command refuses | Target, current epoch and repeated execution | No counter override; [recovery](backup-and-recovery.md) |
+
+## Support record
+
+Version/hash, UTC, route, category, requestId, readiness/liveness and action/result.
+
+No passwords, codes, Tokens, full Cookies, private keys or decrypted queue contents. Keep TLS, CSRF, Origin and signature checks enabled.

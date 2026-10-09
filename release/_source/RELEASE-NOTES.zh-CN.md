@@ -1,33 +1,59 @@
 # 发行说明 — {{VERSION}}
 
-[English](RELEASE-NOTES.md)
+[English](RELEASE-NOTES.md) · [交付入口](README.md)
 
-## 范围
+## 相较 0.1.0-dev.20261009.1
 
-本次为当前干净提交Java21源码的独立开发交付，纳入P02–P06。包含SSO可执行程序、Servlet Starter/file Maven仓库、参考BFF、源码ZIP、双语部署/运维/接入/用户/恢复/监控/排障/验收手册、外部配置及Docker/Nginx/systemd/monitoring模板、维护和校验工具。
+| 范围 | 改进 |
+| --- | --- |
+| 入口 | 按任务导航，首页直接链接 Docker 教程与排障 |
+| Docker | 独立八步教程，每步命令、预期结果、失败处理 |
+| 手册 | 短章节、速查表，JAR/systemd 独立说明 |
+| 专项 | 历史清理与参考撤销队列拆分 |
+| 文件权限 | 明确 DB 秘密由 PostgreSQL 与 SSO 按用途共同读取 |
+| 打包 | Docker 入口链接在解压包内可直接跳转 |
 
-相较独立包 `0.1.0-dev.20261007.1`：
+本次手册修订不改变认证运行逻辑、依赖锁或既有数据库迁移。
 
-- P02生产profile/issuer/key/secret/Cookie/Flyway/epoch/admin/ACTIVE客户端启动门禁；无管理员先离线初始化再Web。
-- P03显式本地撤销提交结果；参考V2精确代次死信恢复、完成任务有界保留、排空后key轮换；提交前崩溃缺口仍需消费方补偿。
-- P04账号/恢复/生命周期UI修复、关闭/离页清一次性秘密，人工恢复按用户确认两项独立依据核验和最小工单。
-- P05 SSO V16索引与90/30天有界运行历史清理、忙锁/超时/固定指标、只读 `scripts/history-status.sql`。有效Token/hint及审计/注销事实不自动删除，目标容量/归档仍运维任务；参考队列V1–V2独立。
-- P06单机Compose、独立SSO/PG/Nginx、文件secrets、app/DB/management私有网络、迁移/runtime/backup角色及离线 `database-migrate`。独立镜像工具核精确JAR/hash/干净构建或包来源。基础设施安全层另构建/扫描，ZIP不内置容器镜像。
+## 已包含功能
 
-首发已确认仅SSO账号站、同机Nginx、初期无CDN；业务消费方各自上线时联调验收。域名/硬件/流量/备份/RPO/RTO/通知仍待运维输入。本次不是正式生产部署批准。
+| 阶段 | 内容 |
+| --- | --- |
+| P02 | 生产 profile/config/key/admin/client 启动门禁 |
+| P03 | 撤销提交结果、参考 V2 死信恢复/保留/排空换 key |
+| P04 | 账号/恢复/生命周期界面修复、一次性秘密清理与人工核验 |
+| P05 | V16 索引、90/30天有界运行历史清理、只读报告 |
+| P06 | 单机 Compose、私有网络/文件秘密、独立DB角色、离线迁移 |
 
-## 校验与证据
+包含 server、Starter file Maven、参考 BFF、source ZIP、双语手册/配置/工具。容器镜像另构建或加载。
 
-`provenance/verification-summary.json`记录本版本命令/工具/来源/三模块测试/扫描范围；完整构建要求数据库测试且拒skip。程序/SDK/配置/内嵌迁移/依赖/source摘要见manifest和SHA256SUMS。解压后在包根执行 `python scripts/verify-package.py`。
+## 首发范围
 
-历史`.7`双BFF TLS/Grafana Viewer/两条五分钟混合、`.6`三类真实告警、`.5`管理员/恢复仍历史；P02–P06日期记录在源码快照。先前Compose用worktree fixture镜像测hidden bootstrap/reset/首登改密/权限/真实fixture TLS/伪头/重启/DB故障，不是本发行干净镜像。其SSO扫描Medium40/Low4，修补基础设施运行文件零报告，但保留已替换gosu旧基础层发现及较旧Java包映射缓存限制。本包依赖扫描只代表本版本精确JAR/锁；最终部署镜像/OS/JDK须独立当前扫描，未重跑的真实进程路径不自动当本版通过。
+- 仅 SSO 账号站：一个实例、独立 PostgreSQL、同机 Nginx、初期无 CDN。
+- 各消费方自身上线前联调验收。
+- 正式域名、硬件/流量、保管、备份/RPO/RTO、通知渠道仍由运维填写。
 
-## 限制与兼容
+## 到哪里查证据
 
-- 开发交付；无远程push/托管签名/目标生产执行或容量保证。
-- Starter默认状态在进程/HttpSession，初期BFF重启丢登录；已接受撤销持久恢复需实际消费Adapter或显式参考profile。无多实例/跨存储原子退出。
-- 存活授权hint历史保持，删除授权级联清；不重建早期丢失hint，pepper轮换可使旧摘要查找失效。
-- 正式域名/公共CA/续期/firewall/代理信任、key/secret保管、异机backup/恢复/RPO/RTO、真实通知、小时级负载、消费方15分钟发起会话证据/一分钟资格拒绝/epoch屏障和最终目标安全仍单独门禁。
-- 不新增MFA/邮箱/业务权限/Minecraft Claim；独立资格事件、多实例/跨重启保登录仍延期。
-- JDK21、Boot4.1/Security7.1；精确版本以catalog/锁和nested-library清单为准。Starter POM/native metadata对齐受应用BOM/锁约束。
-- 数据库使用server内嵌Flyway V1–V16，不维护第二份手工迁移。回退只在已验schema兼容允许；恢复旧快照必须新epoch/key/kid、全局安全重置和消费方屏障。
+| 问题 | 文件 |
+| --- | --- |
+| 精确程序/来源 | provenance/release-manifest.json、SHA256SUMS |
+| 本版本测试和扫描 | provenance/verification-summary.json |
+| 依赖和迁移 | provenance/dependencies、database/migration-manifest.json |
+| 目标部署需验什么 | [验收表](docs/zh-CN/acceptance.md) |
+
+先前 `.20261009.1` 精确包 Compose 冒烟及 P02–P06 日期记录仍是历史，只有明确重跑才算本版本结果。旧 SSO OS Medium/Low、被替换 gosu 归档元信息、Java 映射缓存限制保留在其记录中。
+
+## 兼容与限制
+
+| 项目 | 规则 |
+| --- | --- |
+| 运行 | JDK21、Boot4.1/Security7.1；精确版本以锁/catalog为准 |
+| 数据库 | SSO 内嵌 V1–V16；参考queue V1–V2独立 |
+| Starter | 默认单JVM/HttpSession，BFF重启结束业务登录 |
+| 持久撤销 | 仅已commit任务；提交前补偿由消费方实现 |
+| 有效历史 | 保live hint/RT，不保证全存储有界或审计归档 |
+| 恢复 | 新epoch/key/kid与消费方屏障；回binary须已验schema兼容 |
+| 延期 | 独立资格事件、多实例/跨重启保登录；不加MFA/邮箱/业务Claim |
+
+本包为开发交付。公共CA/续期/防火墙/Linux保管、当前镜像扫描/DAST、备份/持续负载和最终开放仍需目标证据，不自动执行生产或托管签名发行。

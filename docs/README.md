@@ -63,6 +63,8 @@
 
 ## 部署与运维
 
+- [新版发行手册导航](zh-CN/operations/handbook-reading-guide.md)（[English](operations/handbook-reading-guide.md)）：Docker优先入口、步骤/结果/失败表、排障与历史清理/参考队列专项。
+
 - [Docker部署/环境输入矩阵](zh-CN/operations/docker-compose-deployment.md)（[English](operations/docker-compose-deployment.md)）：单机/无CDN/账号站首发确认、待定值、P06–P10目标门禁；[容器步骤](../las-sso-server/deploy/docker/README.zh-CN.md)／[English](../las-sso-server/deploy/docker/README.md)。
 
 - [SSO 部署指南](operations/sso-deployment-guide.md)：当前仓库可执行的 JAR、PostgreSQL、反向代理部署步骤。

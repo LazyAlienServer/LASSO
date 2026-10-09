@@ -2,7 +2,7 @@
 
 `_source/` contains the tracked handbook/configuration/tool sources. Version directories and distribution ZIPs are generated, ignored artifacts, not committed binaries.
 
-Current packaging target: **0.1.0-dev.20261009.1**, including P02–P06 and standalone Docker tools. Build/scan/package verification is recorded per version. Existing `.20261007.1` and historical `.20261006.7` bytes remain immutable.
+Current packaging target: **0.1.0-dev.20261009.2**, with task-oriented bilingual handbooks and a prominent Docker deployment tutorial. Runtime P02–P06 is retained. Existing `.20261009.1`, `.20261007.1` and historical bytes remain immutable.
 
 Completed latest local delivery: [English](../docs/integration/development-delivery-2026-10-09-1.md) / [中文](../docs/zh-CN/integration/development-delivery-2026-10-09-1.md), [trusted ZIP/artifact hashes and exact-version checks](verification/0.1.0-dev.20261009.1.json). Source `b847486`;90files/109links,834strict tests, independent SDK/packaged image/Compose smoke. Subsequent verification commits do not alter its bytes.
 
@@ -11,10 +11,10 @@ Previous local delivery: [English verification record](../docs/integration/devel
 From the repository root, with a clean committed checkout, JDK21, Docker and Python3.10+:
 
 ```powershell
-python scripts/package_release.py build 0.1.0-dev.20261009.1
-python scripts/scan_release.py 0.1.0-dev.20261009.1 --gitleaks <installed-gitleaks-executable>
-python scripts/package_release.py package 0.1.0-dev.20261009.1
-python release/0.1.0-dev.20261009.1/scripts/verify-package.py
+python scripts/package_release.py build 0.1.0-dev.20261009.2
+python scripts/scan_release.py 0.1.0-dev.20261009.2 --gitleaks <installed-gitleaks-executable>
+python scripts/package_release.py package 0.1.0-dev.20261009.2
+python release/0.1.0-dev.20261009.2/scripts/verify-package.py
 ```
 
 On Windows the build command honors `JAVA_HOME`; use JDK21. Packaging rejects a dirty checkout, missing/failed/skipped module reports, incorrect artifact versions and existing version directories/ZIPs. It records the build source commit, exact application/SDK/configuration hashes, migration manifest and count-only verification evidence. A new version is required for changed inputs.

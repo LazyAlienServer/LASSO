@@ -1,22 +1,52 @@
-# 外部接入
+# 业务网站接入步骤
 
-[目录](README.md) · [English](../en/external-integration.md) · [SDK](../../sdk/README.md)
+[目录](README.md) · [English](../en/external-integration.md) · [Starter SDK](../../sdk/README.md)
 
-## 通用 OIDC
+**适用：** 服务端 / BFF Confidential Client。浏览器只持有业务 Session Cookie。
 
-每环境使用独立 Confidential 服务端/BFF 和持续维护的 OIDC 库。在 `/admin/clients` 登记 client_id、名称/类型（LAS 控制部署为 FIRST_PARTY，审核合作方为 REVIEWED_PARTNER）、精确 HTTPS 回调/post-logout/Back-channel URI、`openid profile` 和资源 audience；秘密一次性私密保管。合作方 consent、第一方免 consent 均不放宽安全检查。不将 Secret 放浏览器，不用 implicit/password grant。
+## 接入路线
 
-从精确 Issuer Discovery 获取端点，不能混用 localhost/127.0.0.1 或其他公网域名。使用 Code+PKCE S256、client_secret_basic、一次性有时限的 state/nonce/登录事务、站内允许列表 returnTo；验签/算法/kid/iss/aud/azp/时间/nonce 后，以 `(issuer,sub)` 唯一映射。sub 是不可变 UUID，用户名可变且大小写敏感。`LasUserPrincipal.getName()/getUsername()` 返回 UUID，`loginUsername()` 才是登录名。新业务身份不自动获敏感角色。
+| 步骤 | 成功判据 |
+| --- | --- |
+| 1. 登记客户端 | 每站/环境独立，精确 HTTPS URI |
+| 2. 配置 Code + PKCE | state/nonce/签名校验，稳定 UUID 映射 |
+| 3. 接入 Starter 或自有库 | 本地会话隔离、正确 CSRF / Cookie |
+| 4. 刷新和退出 | 同会话合并，明确拒绝清登录，本地执行回执 |
+| 5. 第一方资格/近期密码 | 一分钟拒绝、15分钟发起会话绑定 |
+| 6. 真实消费方验收 | 下表测试通过 |
 
-Token/Secret 留服务端；回调可向服务端传 code，但不得进入前端存储/分析/日志。浏览器只持有随机 Secure/HttpOnly/Lax、host-only 业务 Session Cookie。业务角色、Minecraft 绑定/准入由消费方负责。ID Token 不是 API Bearer；资源服务器校验 AT 的 audience/scope/issuer/签名/时间。
+## 1. 登记客户端
 
-默认 AT15分钟，RT family 绝对14天，轮换不顺延，以实际 Token 到期为准。同会话并发刷新须合并，明确拒绝则清登录，暂时故障返回独立503而非封禁。当前站退出先结束本地登录，再尝试 RFC7009，不结束 SSO 主会话。全部退出使用 Discovery end_session、保留的 ID hint、精确已登记 post-logout URI 与一次性 state。服务端为存活授权保存跨刷新 HMAC hint 关联，但不能重建升级前已丢的 hint。
+在 SSO `/admin/clients` 由管理员填写：
 
-Back-channel 无浏览器 Cookie，接收签名 form `logout_token`；校验 typ=logout+jwt、RS256/issuer/audience/时间/jti/events/sid或sub，拒 nonce/畸形 Claim，按本地 absolute lifetime 保存重放/sid 撤销标记。成功意味着本地执行已提交，不只是解析请求；按 `(issuer,sid)` 幂等撤销并防迟到回调/刷新登记复活。
+| 字段 | 值 |
+| --- | --- |
+| client_id / 名称 / 环境 | 独立维护 |
+| 类型 | LAS控制部署为FIRST_PARTY；批准合作方为REVIEWED_PARTNER |
+| callback / post-logout / Back-channel | 精确可达HTTPS地址 |
+| scope / audience | `openid profile`、目标资源audience |
+| Secret | 一次显示，私密交付服务端 |
 
-## Spring Boot Starter
+合作方需 consent；第一方免 consent 不放宽协议检查。不把 Secret 放浏览器，不使用 implicit/password grant。
 
-按 [SDK](../../sdk/README.md)消费固定 file 仓库坐标。应用需 servlet Web、OIDC JSON 转换器、Boot4.1/JDK21，自行审查最终依赖/锁。最小外部配置：
+## 2. OIDC 与身份映射
+
+| 检查 | 要求 |
+| --- | --- |
+| Discovery | 精确Issuer，不混hostname/localhost/127.0.0.1 |
+| 授权 | Code + PKCE S256，client_secret_basic |
+| 登录事务 | state/nonce一次性有期限，returnTo站内allowlist |
+| ID Token | 验签/算法/kid/iss/aud/azp/时间/nonce |
+| 主体 | `(issuer, sub)`唯一；sub为不可变UUID |
+| 登录名 | 可变且大小写敏感；不作业务主键 |
+
+`LasUserPrincipal.getName()/getUsername()` 返回UUID，`loginUsername()`返回登录名。新身份不自动获得业务敏感角色。
+
+Token/Secret/code不进入前端存储、分析或日志；ID Token不是API Bearer。资源服务器按AT的audience/scope/issuer/签名/时间校验。
+
+## 3. Starter 配置
+
+消费[固定版本SDK](../../sdk/README.md)，应用需JDK21、Servlet Web、OIDC JSON转换器及最终依赖锁审查。
 
 ```properties
 spring.security.oauth2.client.registration.las-sso.provider=las-sso
@@ -34,18 +64,81 @@ las.sso.client.session-cookie-name=__Host-my_business
 las.sso.client.session-absolute-lifetime=P14D
 ```
 
-实际 servlet Cookie 同名并设置 Secure/HttpOnly/Lax/Path=/，无 Domain。端点 GET `/api/auth/login`、`/api/auth/session`、`/logged-out`；POST `/api/auth/logout`、`/api/auth/logout/global`、`/internal/oidc/backchannel-logout`。Cookie 变更需 CSRF，仅签名 Back-channel 协议 POST 例外，不豁免浏览器 API 分组。`/api/auth/session` 表示本地身份，不是业务授权响应。
+实际Servlet Cookie同名，Secure/HttpOnly/Lax/Path=/、无Domain。
 
-自有 SecurityFilterChain 时 Starter 不覆盖它。一次调用 `LasSsoSecurityConfigurer.configure(http, existingSuccessHandler)` 接入 repository、PKCE、回调/登记/刷新/退出过滤器；路由/CSRF/权限仍由应用配置，之后不覆盖包装后的 success handler。[样例](../../examples/reference-bff/README.md)含默认与自有两种模式。默认授权客户端/刷新合并/session index/replay/revocation sink 为单 JVM，使用默认 HttpSession；重启丢业务登录，再顶层 SSO 重入。跨重启保登录/多实例需等效协调 Adapter。sid 标记至少保留本地 absolute lifetime（默认14天）。
+| 端点 | 方法 / 用途 |
+| --- | --- |
+| `/api/auth/login`、`/api/auth/session`、`/logged-out` | GET，本地身份 / 登录返回，不等业务授权 |
+| `/api/auth/logout`、`/api/auth/logout/global` | POST，CSRF保护 |
+| `/internal/oidc/backchannel-logout` | 签名协议POST，只对此例外；不豁免浏览器API |
 
-可选参考https,durable-revocation在独立PostgreSQL/reference_revocation迁移内嵌参考V1–V2，见[模板](../../config/README.md)。已提交加密任务/lease/8次campaign恢复；V2加精确代次offline dead恢复、完成保留、认证排空换key。请求LasSsoRevocationSubmission.REQUEST_ATTRIBUTE提供submit结果，非OP回执；pre-submit补偿/分布式业务会话仍由消费方负责，见[运维](operations.md)。
+### 自有 SecurityFilterChain
 
-## LAS 第一方资格与近期密码
+1. Starter不会覆盖应用链。
+2. 调用一次 `LasSsoSecurityConfigurer.configure(http, existingSuccessHandler)`。
+3. 保留应用route/CSRF/业务权限策略；之后不覆盖包装后的success handler。
+4. 参考[默认/自有链样例](../../examples/reference-bff/README.md)。
 
-仅 ACTIVE FIRST_PARTY Basic 客户端可 GET `/internal/v1/principals/{UUID}/service-access`，不能以浏览器 Cookie/Bearer 替代。no-store 响应精确七字段：issuer、subject、decision、reason、stateEpoch、stateVersion、changedAt。未知 UUID 为200 DENIED/PRINCIPAL_NOT_FOUND/version0/changedAt null；全局 epoch 缺失返回503。认证/预算失败不能当 ALLOWED。冻结/注销等待/held/必须改密/凭据禁用拒绝，合法 ACTIVE 允许；这是身份服务资格，不是业务角色。
+## 4. 刷新与退出
 
-仅在 `(issuer,subject,stateEpoch)` 内比较版本。epoch 不透明、不可排序；消费方保留同代单调事实，遇意外代次先 fail closed，以新本地 generation fresh 对账，清旧证据、拒迟到旧代响应，不能随响应反复切代。查询/活跃刷新补偿必须在一分钟内观察拒绝；包不实现消费方 timer/cache，SERVICE_ACCESS_CHANGED 仍延期，Logout 不是资格同步。
+| 场景 | 实现要求 |
+| --- | --- |
+| AT / RT期限 | 默认AT15分钟、RT family绝对14天，轮换不顺延；以实际exp为准 |
+| 并发refresh | 同本地session single-flight合并 |
+| 明确refresh拒绝 | 清业务登录，不重试旧RT |
+| 暂时故障 | 独立503，不当封禁或密码证据 |
+| 当前站退出 | 先销本地登录，再RFC7009；不结束SSO主会话 |
+| 全部退出 | Discovery end_session、保留ID hint、精确URI、一次性state |
 
-消费方高风险操作通过标准授权 customizer 发起 `prompt=login` 与适当 max_age，关联 pending 操作/本地浏览器登录会话/state/nonce/PKCE，验签初始 ID Token auth_time，仅在发起会话内15分钟使用密码证据。OP 浏览器/请求挑战5分钟、JDBC 原子完成/消费。Refresh/Token issue time 不推进密码证据。Starter `LasSsoSecurityConfigurer` 提供授权 customizer，验证登录后通过 Spring `OidcUser.getIdToken().getAuthenticatedAt()` 读取签名证据；它们不实现消费方 pending/expiry 门禁。弹窗本身不是证据，不增加 MFA 放行门槛。
+存活授权跨refresh保HMAC hint关联；升级前丢失hint不重建。
 
-验收：双客户端、并发刷新、改名仍同身份、当前/全部退出、重复/迟到 Back-channel、禁用客户端、网络/提供方故障、后端重启、一分钟资格拒绝、旧 epoch 在途拒绝、发起会话15分钟及 refresh 不刷新密码证据。真实消费方结果单独记录，不用样例/单测代替。
+### Back-channel 验证与本地执行
+
+- 接收form `logout_token`，不使用浏览器Cookie。
+- 验 `typ=logout+jwt`、RS256、issuer/audience/时间/jti/events、sid或sub。
+- 拒nonce/畸形Claim；按 `(issuer,sid)` 幂等撤销。
+- 重放/sid撤销标记至少保本地absolute lifetime（默认14天）。
+- 成功必须是本地执行commit，不仅解析；防迟到回调/refresh登记复活。
+
+默认repository/index/replay/refresh协调/撤销sink为单JVM/HttpSession，重启丢业务登录。参考持久queue仅保已commit task，提交前补偿/多实例/持久业务登录仍消费方实现；见[队列维护](reference-revocation.md)。`LasSsoRevocationSubmission.REQUEST_ATTRIBUTE`是提交结果，不是OP回执。
+
+## 5. 第一方服务资格与近期密码
+
+### 服务资格
+
+| 项目 | 契约 |
+| --- | --- |
+| 调用者 | ACTIVE FIRST_PARTY Basic，不用Cookie/Bearer替代 |
+| 路由 | GET `/internal/v1/principals/{UUID}/service-access` |
+| 七字段 | issuer、subject、decision、reason、stateEpoch、stateVersion、changedAt；no-store |
+| 未知UUID | 200 DENIED/PRINCIPAL_NOT_FOUND/version0/changedAt=null |
+| epoch缺失 / 认证故障 | 503或认证错误，不能伪ALLOWED |
+| 拒绝状态 | freeze / 删除等待或held / 必须改密 / 禁用凭据 |
+
+版本仅同 `(issuer,subject,stateEpoch)` 比；epoch不可排序。意外代次先fail closed，再新本地generation权威对账、清旧证据/拒旧inflight，不随响应切代。
+
+查询/主动刷新补偿须一分钟内观察拒绝。包不实现业务cache/timer；SERVICE_ACCESS_CHANGED延期，Logout不代资格同步。
+
+### 近期密码
+
+1. 标准授权customizer发 `prompt=login` / 适当 `max_age`。
+2. 绑定待执行操作、发起本地浏览器session、state/nonce/PKCE。
+3. 验证登录后读签名初始ID Token `auth_time`；Spring接点为 `getAuthenticatedAt()`。
+4. 只在发起session内15分钟可复用，到期重输密码。
+
+OP挑战5分钟、JDBC原子完成/消费；refresh/issue time不推进证据。Starter提供接点，不替业务实现pending/expiry；弹窗不是证据，无MFA新增门禁。
+
+## 6. 消费方测试表
+
+| 测试 | 预期 |
+| --- | --- |
+| 双客户端/改名 | 独立登录、同UUID |
+| 并发refresh/reuse | 合并、复用拒绝 |
+| 当前/全局/重复迟到退出 | 精确本地session撤销，无复活 |
+| 客户端禁用/provider网络故障 | 正确拒绝/独立不可用 |
+| 重启 | 初期业务登录结束 |
+| freeze/注销/held | 一分钟内观察拒绝 |
+| 恢复新epoch | 拒旧cache/inflight |
+| 跨浏览器/到期/refresh密码证据 | 发起session15分钟边界正确 |
+
+记录真实业务结果；参考BFF或SSO单测不替实际消费方验收。
