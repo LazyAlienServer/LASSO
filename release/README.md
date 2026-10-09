@@ -4,6 +4,8 @@
 
 Current packaging target: **0.1.0-dev.20261009.1**, including P02–P06 and standalone Docker tools. Build/scan/package verification is recorded per version. Existing `.20261007.1` and historical `.20261006.7` bytes remain immutable.
 
+Completed latest local delivery: [English](../docs/integration/development-delivery-2026-10-09-1.md) / [中文](../docs/zh-CN/integration/development-delivery-2026-10-09-1.md), [trusted ZIP/artifact hashes and exact-version checks](verification/0.1.0-dev.20261009.1.json). Source `b847486`;90files/109links,834strict tests, independent SDK/packaged image/Compose smoke. Subsequent verification commits do not alter its bytes.
+
 Previous local delivery: [English verification record](../docs/integration/development-delivery-2026-10-07-1.md) / [中文](../docs/zh-CN/integration/development-delivery-2026-10-07-1.md), with [trusted checksum and post-package results](verification/0.1.0-dev.20261007.1.json). Its immutable source is `a442b0b`; subsequent commits do not change its bytes.
 
 From the repository root, with a clean committed checkout, JDK21, Docker and Python3.10+:
