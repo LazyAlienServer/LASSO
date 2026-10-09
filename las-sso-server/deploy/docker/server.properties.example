@@ -1,0 +1,12 @@
+# Copy to an external protected config directory as server.properties.
+# configtree filenames are exact Spring property names; no raw secret environment variables.
+spring.config.import=configtree:/run/secrets/
+spring.datasource.url=jdbc:postgresql://postgres:5432/las_sso
+server.address=0.0.0.0
+server.port=9000
+server.forward-headers-strategy=framework
+las.sso.signing-key.path=/etc/las-sso/signing.p12
+management.server.address=0.0.0.0
+management.server.port=9091
+management.endpoints.web.exposure.include=health,prometheus
+las.sso.monitoring.snapshot-interval=PT15S

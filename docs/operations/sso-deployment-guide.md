@@ -7,6 +7,8 @@
 - 详细运维策略：[部署与运维手册](operations-runbook.md)
 - 上线门禁：[实施准备度](../implementation/implementation-readiness.md#7-生产上线门禁)
 
+2026-10-09已确认首发：**单机Docker Compose、同机Nginx、初期无CDN、只开放SSO账号站**。优先使用[Docker输入矩阵](../zh-CN/operations/docker-compose-deployment.md)／[English](docker-compose-deployment.md)和[可执行容器步骤](../../las-sso-server/deploy/docker/README.zh-CN.md)。下文JAR/systemd是独立host部署参考，不能复制其loopback配置到容器。实际域名、容量、RPO/RTO和通知方式仍待定。
+
 ## 1. 当前部署能力与限制
 
 恢复旧库后可用[epoch维护脚本](../zh-CN/operations/restore-epoch-barrier.md)进行预开放屏障；.20261006.1隔离pgdumprestore/持久key/交互命令已验，仍不等生产backup、代理摘流量或consumercache验收。
@@ -16,8 +18,8 @@
 需要明确：
 
 - `las-sso-server/compose.yml` 只用于本地启动 PostgreSQL；
-- 当前仓库没有生产 Dockerfile、Helm Chart 或 Kubernetes 清单；
-- 本指南因此采用“可执行 JAR + 外部 PostgreSQL + 反向代理”作为生产基线；
+- `las-sso-server/deploy/docker/`提供首发Dockerfile/Compose及维护/代理模板，已本地隔离验收，目标环境仍需验；
+- 本指南下文保留“可执行JAR + PostgreSQL + 反向代理”的host/systemd路径；
 - `local` profile 使用临时 RSA 密钥、HTTP Cookie 和示例客户端，严禁用于公网生产；
 - 文档完成不代表已经通过全部[生产上线门禁](../implementation/implementation-readiness.md#7-生产上线门禁)。
 
@@ -32,7 +34,7 @@ flowchart LR
     Backup["异机加密备份"] <-->|定期备份/恢复演练| PG
 ```
 
-第一版约 1,000 用户、低并发，可以部署单实例。应用进程和 PostgreSQL 不应直接暴露公网，只有反向代理监听公网 HTTPS。
+单实例是已确认初期拓扑，用户量/并发/资源上限须目标实测，旧约1,000用户假设不是本轮选定输入。应用和PostgreSQL不直接暴露公网，仅反向代理提供HTTPS。
 
 ## 3. 前置条件
 
@@ -113,7 +115,7 @@ LAS_SSO_SIGNING_KEY_PASSWORD=<Secret>
 
 ## 6. 生成其他 Secret
 
-至少分别生成两个相互独立的高熵值：
+至少分别生成以下三个相互独立的高熵值：
 
 ```text
 LAS_SSO_RECOVERY_PEPPER
@@ -136,7 +138,7 @@ $bytes = [byte[]]::new(48)
 在可信构建机进入 `las-sso-server`：
 
 ```powershell
-.\gradlew.bat clean test bootJar
+.\gradlew.bat build -PrequireDatabaseTests=true --rerun-tasks --no-daemon --console=plain
 ```
 
 注意：PostgreSQL 集成测试依赖 Docker/Testcontainers；Docker 不可用时会跳过，不能把跳过视为验证通过。
@@ -189,14 +191,14 @@ SERVER_SERVLET_SESSION_COOKIE_SECURE=true
 - 环境配置文件权限应限制为 SSO 系统账号可读，例如 Linux `0600`；
 - 不把生产值提交到 Git、镜像、Compose 或终端日志。
 
-当前代码尚未把所有生产门禁都实现为启动时自动检查，因此运维流程必须显式检查正式 Issuer、Cookie、代理、URI 和 Secret。
+P02已实现profile/Issuer/context/key/Secret/Cookie/Flyway/epoch/admin/ACTIVE客户端启动校验；代理信任、公共CA、真实域名所有权、文件保管/备份/容量仍需运维验证，不能只凭启动成功开放。
 
 ## 9. 首次启动与迁移
 
-首次启动时 Flyway 自动执行数据库迁移。先只绑定本机地址或阻止代理公网流量：
+空库不得先启动Web；保持入口关闭，先以相同精确JAR/key/秘密、迁移角色运行内嵌Flyway离线命令：
 
 ```powershell
-java -jar .\las-sso-server-0.1.0-SNAPSHOT.jar
+java -jar $ServerJar --spring.profiles.active=production --spring.main.web-application-type=none --las.sso.maintenance.command=database-migrate --las.sso.scheduling.enabled=false --spring.session.jdbc.cleanup-cron=- --las.sso.monitoring.enabled=false
 ```
 
 观察日志，确认：
@@ -205,11 +207,10 @@ java -jar .\las-sso-server-0.1.0-SNAPSHOT.jar
 PostgreSQL 连接成功
 Flyway migrations 全部成功
 签名 PKCS#12 加载成功
-Tomcat 在 9000 启动
-Started LasSsoApplication
+Database migrations validated; no HTTP listener or application jobs started.
 ```
 
-验证健康状态：
+接着执行第10节隐藏bootstrap；完成后才以运行角色启动Web、验证健康。启用monitoring时health位于私有9091，否则9000：
 
 ```powershell
 Invoke-RestMethod http://127.0.0.1:9000/actuator/health/liveness
@@ -222,7 +223,7 @@ Invoke-RestMethod http://127.0.0.1:9000/actuator/health/readiness
 
 隔离真实WindowsPTY/Edge维护闭环（空库bootstrap/firstchange/reset/旧状态拒）已验，见[中文](../zh-CN/operations/administrator-maintenance-acceptance.md)／[English](administrator-maintenance-acceptance.md)。生产首次上线仍按精确制品/停writer/真实keySecret和离线恢复码保管步骤执行。
 
-在应用未对公网开放时停止 Web 进程或保持维护模式，使用同一套生产环境变量执行：
+迁移完成、入口关闭且无Web写入者时，用同一生产key/秘密和维护数据库角色执行：
 
 ```powershell
 .\scripts\bootstrap-admin.ps1 -Username InitialAdmin -Profile production -JarPath $ServerJar -ExpectedSha256 $ServerJarSha256
@@ -247,6 +248,9 @@ java -jar las-sso-server.jar
   --spring.main.web-application-type=none
   --spring.profiles.active=production
   --las.sso.maintenance.command=admin-bootstrap
+  --las.sso.scheduling.enabled=false
+  --spring.session.jdbc.cleanup-cron=-
+  --las.sso.monitoring.enabled=false
   --username=InitialAdmin
 ```
 
@@ -368,10 +372,10 @@ sudo journalctl -u las-sso -f
 4. Cookie 含 `Secure`、`HttpOnly` 和 `SameSite=Lax`；
 5. 注册、登录、个人中心和改密正常；
 6. 管理员登录、客户端列表和审计页正常；
-7. 第一方 BFF 完成 Authorization Code + PKCE 登录；
-8. Access Token 刷新和轮换正常；
-9. 退出当前应用不会结束其他业务会话；
-10. 全局退出和 Back-channel Logout 能清理业务会话；
+7. 每个实际开放BFF完成Code+PKCE登录（SSO账号站首发可无消费方）；
+8. 开放消费方验Access Token刷新/轮换；
+9. 开放消费方验当前应用退出不影响其他业务会话；
+10. 开放消费方验全局退出/Back-channel清理；
 11. SSO 进程重启后仍保持有效 SSO Session；
 12. 数据库临时不可用时 readiness 失败且恢复后正常；
 13. 日志中没有密码、恢复码、Client Secret、Token 或完整 Cookie。
@@ -380,12 +384,12 @@ sudo journalctl -u las-sso -f
 
 上线前至少建立：
 
-- PostgreSQL 每日加密备份；
+- PostgreSQL按已确认RPO安排加密定时备份（频率待定）；
 - 备份文件异机保存；
 - 签名私钥和 `kid` 的加密离线备份；
 - 数据库 Secret 和签名密钥密码的分离保管；
 - 备份校验和、数据库版本、schema 版本和时间记录；
-- 每季度隔离环境恢复演练。
+- 按负责人确定周期隔离恢复演练，并测RPO/RTO。
 
 示例逻辑备份：
 
@@ -416,7 +420,7 @@ sha256sum las_sso_YYYYMMDD.dump
 → Discovery/JWKS → 管理员登录 → BFF 登录/刷新/退出 → 恢复流量
 ```
 
-回滚只回滚应用 JAR，不自动反向执行 Flyway。破坏性数据库变更必须采用 expand/migrate/contract 多阶段发布。
+Flyway不自动反向执行；仅已验schema兼容才允许回退JAR，生产门禁会拒未知未来迁移。旧快照恢复必须新epoch/key和全局安全重置，不能只回JAR。破坏性变更用expand/migrate/contract多阶段发布。
 
 ## 16. 故障处理摘要
 
@@ -440,10 +444,10 @@ sha256sum las_sso_YYYYMMDD.dump
 - 生产硬件上的密码哈希与资源耗尽测试；
 - 反向代理、可信代理、Cookie、CSP 和 Secret 注入；
 - PostgreSQL 备份恢复与全局安全重置演练；
-- LASLOG、AlienCommon 真实 BFF 黑盒测试；
+- 各消费方实际上线前自己的BFF黑盒测试（SSO账号站首发不要求LASLOG/AlienCommon提前完成）；
 - 全局退出和 Back-channel 重试验证；
 - 浏览器 E2E、可访问性、日志秘密扫描和依赖漏洞处置；
 - 签名 key 平滑轮换方案；
-- 业务端 SDK 的生产持久化能力。
+- 开放消费方的可靠已接受撤销恢复；初期单实例重启结束业务登录，多实例/跨重启保登录是独立任务。
 
 在这些项目形成可复核证据前，只能称为测试或预发布部署，不能称为生产就绪。

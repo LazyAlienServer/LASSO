@@ -16,6 +16,8 @@
 
 ## 领域决策
 
+- [ADR-0016：单机Compose与账号站首发](zh-CN/adr/0016-single-host-compose-account-site-launch.md)（[English](adr/0016-single-host-compose-account-site-launch.md)）：确认拓扑/负责人、私有端口/离线迁移及目标门禁。
+
 - [ADR-0015：运行历史保留](zh-CN/adr/0015-runtime-history-retention.md)（[English](adr/0015-runtime-history-retention.md)）：用户确认90/30天、有效hint保留、审计事实不删，有限batch/锁序/超时与V16。
 
 - [ADR-0014：人工恢复与一次性秘密界面](zh-CN/adr/0014-manual-recovery-verification-and-secret-ui.md)（[English](adr/0014-manual-recovery-verification-and-secret-ui.md)）：两项独立依据/最小工单，关闭及离页清理，管理员恢复路径保持。
@@ -60,6 +62,8 @@
 
 ## 部署与运维
 
+- [Docker部署/环境输入矩阵](zh-CN/operations/docker-compose-deployment.md)（[English](operations/docker-compose-deployment.md)）：单机/无CDN/账号站首发确认、待定值、P06–P10目标门禁；[容器步骤](../las-sso-server/deploy/docker/README.zh-CN.md)／[English](../las-sso-server/deploy/docker/README.md)。
+
 - [SSO 部署指南](operations/sso-deployment-guide.md)：当前仓库可执行的 JAR、PostgreSQL、反向代理部署步骤。
 - [部署与运维手册](operations/operations-runbook.md)：备份、恢复、轮换、监控和故障 Runbook。
 - [人工恢复、凭据保管与注销争议](zh-CN/operations/manual-recovery-and-lifecycle.md)（[English](operations/manual-recovery-and-lifecycle.md)）：用户确认的核验流程、无秘密工单模板、管理员离线保管和hold/release边界。
@@ -74,6 +78,8 @@
 - [Grafana与混合负载验收](zh-CN/operations/grafana-mixed-load-2026-10-07.md)（[English](operations/grafana-mixed-load-2026-10-07.md)）：.7 actualimport/desktopmobilecanvasViewer403/十分钟5subject9Session混合及短Tokenfixture、延迟memsamplinggap和soak边界。
 
 ## 实施、验证与审查记录
+
+- [Compose本地验收](zh-CN/implementation/docker-compose-acceptance-2026-10-09.md)（[English](implementation/docker-compose-acceptance-2026-10-09.md)）：834全量、实际维护/TLS/权限/故障、镜像扫描范围与目标待验。
 
 - [工程规范基线](zh-CN/implementation/engineering-baseline-2026-10-07.md)（[English](implementation/engineering-baseline-2026-10-07.md)）：功能/文档本地提交、共享构建/格式化/CI/校验规则与735全量结果；历史制品保留，生产发行另验。
 - [项目状态与正式生产上线计划](zh-CN/implementation/production-launch-plan.md)（[English](implementation/production-launch-plan.md)）：P01–P19从当前基线到正式部署、有限开放和首轮生产运维；本地工作与运维/外部消费方任务分别注明责任。

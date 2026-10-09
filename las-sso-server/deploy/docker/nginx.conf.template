@@ -1,0 +1,55 @@
+pid /tmp/nginx.pid;
+error_log /dev/stderr warn;
+events { worker_connections 1024; }
+http {
+    include /etc/nginx/mime.types;
+    default_type application/octet-stream;
+    access_log off;
+    server_tokens off;
+    client_max_body_size 64k;
+    client_body_temp_path /tmp/client_temp;
+    proxy_temp_path /tmp/proxy_temp;
+    fastcgi_temp_path /tmp/fastcgi_temp;
+    uwsgi_temp_path /tmp/uwsgi_temp;
+    scgi_temp_path /tmp/scgi_temp;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    resolver 127.0.0.11 ipv6=off valid=5s;
+
+    server { listen 8080 default_server; server_name _; return 421; }
+    server {
+        listen 8080;
+        server_name ${LAS_SSO_HOST};
+        return 308 https://${LAS_SSO_HOST}:${LAS_SSO_HTTPS_PORT}$request_uri;
+    }
+    server {
+        listen 8443 ssl default_server;
+        server_name _;
+        ssl_certificate /etc/las-sso/tls/fullchain.pem;
+        ssl_certificate_key /etc/las-sso/tls/privkey.pem;
+        return 421;
+    }
+    server {
+        listen 8443 ssl;
+        server_name ${LAS_SSO_HOST};
+        ssl_certificate /etc/las-sso/tls/fullchain.pem;
+        ssl_certificate_key /etc/las-sso/tls/privkey.pem;
+        add_header Strict-Transport-Security "max-age=31536000" always;
+        location = /actuator { return 404; }
+        location ^~ /actuator/ { return 404; }
+        location / {
+            set $sso http://sso:9000;
+            proxy_pass $sso;
+            proxy_http_version 1.1;
+            proxy_set_header Forwarded "";
+            proxy_set_header X-Forwarded-Prefix "";
+            proxy_set_header X-Forwarded-Ssl "";
+            proxy_set_header X-Forwarded-Server "";
+            proxy_set_header Host $server_name;
+            proxy_set_header X-Forwarded-Host $server_name;
+            proxy_set_header X-Forwarded-Proto https;
+            proxy_set_header X-Forwarded-Port ${LAS_SSO_HTTPS_PORT};
+            proxy_set_header X-Forwarded-For $remote_addr;
+            proxy_set_header X-Real-IP $remote_addr;
+        }
+    }
+}

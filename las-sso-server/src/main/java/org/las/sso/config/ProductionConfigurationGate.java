@@ -17,6 +17,7 @@ final class ProductionConfigurationGate {
             Set.of(
                     "admin-bootstrap",
                     "admin-reset-password",
+                    "database-migrate",
                     "rotate-security-epoch-after-restore");
 
     static void validate(Environment environment) {

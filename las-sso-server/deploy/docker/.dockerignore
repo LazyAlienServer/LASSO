@@ -1,0 +1,8 @@
+# Dockerfile is built from a restricted staging context, never a source worktree.
+*
+!application/
+!application/*.jar
+!deploy/
+!deploy/docker/
+!deploy/docker/Dockerfile
+!deploy/docker/server-entrypoint.sh

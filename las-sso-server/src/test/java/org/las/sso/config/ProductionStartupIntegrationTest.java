@@ -50,6 +50,36 @@ class ProductionStartupIntegrationTest {
     }
 
     @Test
+    void databaseMigrationCommandRunsWithoutWebOrConsoleAndIsRepeatable() {
+        long applied;
+        try (ConfigurableApplicationContext context =
+                start(false, Map.of("las.sso.maintenance.command", "database-migrate"))) {
+            assertThat(context).isNotInstanceOf(WebServerApplicationContext.class);
+            JdbcClient jdbc = context.getBean(JdbcClient.class);
+            applied =
+                    jdbc.sql("SELECT COUNT(*) FROM flyway_schema_history WHERE success")
+                            .query(Long.class)
+                            .single();
+            assertThat(applied).isEqualTo(16);
+            assertThat(
+                            jdbc.sql(
+                                            "SELECT MAX(version::integer) FROM flyway_schema_history WHERE success")
+                                    .query(Integer.class)
+                                    .single())
+                    .isEqualTo(16);
+        }
+        try (ConfigurableApplicationContext context =
+                start(false, Map.of("las.sso.maintenance.command", "database-migrate"))) {
+            assertThat(
+                            context.getBean(JdbcClient.class)
+                                    .sql("SELECT COUNT(*) FROM flyway_schema_history WHERE success")
+                                    .query(Long.class)
+                                    .single())
+                    .isEqualTo(applied);
+        }
+    }
+
+    @Test
     void emptyDatabaseCannotOpenWebButNonWebBootstrapCreatesAdminThenProductionStarts()
             throws Exception {
         // This test owns the disposable DB for its whole sequence; no local client seeder runs.

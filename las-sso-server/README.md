@@ -25,6 +25,8 @@ SSO 在 `http://127.0.0.1:9000`；开发 PostgreSQL 在 `127.0.0.1:54329`。初�
 
 ## 构建与测试
 
+已选首发生产拓扑为单机Compose/同机Nginx/无CDN/SSO账号站；模板与维护步骤见[Docker说明](deploy/docker/README.zh-CN.md)／[English](deploy/docker/README.md)，[环境矩阵](../docs/zh-CN/operations/docker-compose-deployment.md)。本目录默认Compose仍仅开发PG，不可用于生产。目标域名/容量/备份/通知仍需单独验收。
+
 ```powershell
 .\gradlew.bat spotlessApply --no-daemon --console=plain
 .\gradlew.bat build -PrequireDatabaseTests=true --no-daemon --console=plain

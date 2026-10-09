@@ -2,6 +2,8 @@
 
 [目录](README.md) · [English](../en/deployment.md)
 
+已选账号站首发：单机Docker Compose、同机Nginx、独立SSO/PG、初期无CDN。使用包根 `deploy/docker/README.zh-CN.md`、包内镜像工具和非秘密输入模板；该路径启用私有monitoring、独立runtime/迁移/backup角色。本手册host/JAR/systemd是独立路径。仅账号站可无消费客户端，P11/P12在各消费方上线适用。域名/硬件/流量/备份/RPO/RTO/通知仍需运维提供。
+
 ## 1. 准备环境
 
 使用 JDK21、PostgreSQL（验收基线为18.4）、私有应用/数据库网络与唯一 HTTPS Issuer。由运维确定正式域名、消费方精确回调/退出 URI、CA/续期、防火墙、存储/容量和故障联系人；预发布与生产使用独立数据库和客户端。生产门禁拒绝 example/HTTP/loopback Issuer，并要求 Issuer 路径等于 servlet context。非开发进程必须显式启用 `production`，不能与 `local`/`test` 混用。无可用管理员时 Web 启动失败，应先用离线维护初始化；目标检查成功前关闭入口。

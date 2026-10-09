@@ -1,6 +1,6 @@
 # LAS SSO 项目状态与正式生产上线计划
 
-- 更新：2026-10-07。[English](../../implementation/production-launch-plan.md)。
+- 更新：2026-10-09。[English](../../implementation/production-launch-plan.md)。
 - 本文是当前执行计划；[状态地图](../../implementation/status-issues-and-plan-2026-10-02.md)保留按日期记录的问题与证据。下列任务是安排，不表示已经实现或获准操作生产。
 - 范围：SSO 服务端、Starter、参考 BFF 及部署运维。LASLOG、AlienCommon 由各自实现负责人推进，本计划接收其联验证据，不接管业务代码。
 
@@ -37,6 +37,8 @@ P02源码已校验显式production/issuer/context/秘密/Cookie/Flyway/health及
 
 ## 2. 上线范围与任务约定
 
+已确认首次开放：**SSO账号站、单机Docker Compose、同机Nginx HTTPS、独立SSO/PG、初期无CDN**。用户本人承担发行/部署/值班/key/backup/人工恢复初期职责；域名/目标硬件流量/RPO/RTO/备份通知方式仍[输入矩阵](../operations/docker-compose-deployment.md)待定。P11/P12在每个实际消费方上线适用，不提前阻塞仅账号站；Docker本地验收不等目标P06–P10完成。
+
 - V1用户名密码，无MFA/邮箱上线要求；SSO管身份、账号生命周期和服务资格，消费方管业务权限与本地近期密码门禁。
 - 初期单实例BFF重启结束业务登录，再顶层走SSO；跨重启保登录、多实例SDK不作为本次任务。
 - `SERVICE_ACCESS_CHANGED`延期；P12仍需查询补偿/对账/主动刷新及一分钟观察拒绝要求，Logout不代资格同步。
@@ -62,7 +64,7 @@ P02源码已校验显式production/issuer/context/秘密/Cookie/Flyway/health及
 
 | 编号/任务 | 状态/上线影响 | 推进模块/责任 | 前置 | 精简步骤 | 完成证据 |
 | --- | --- | --- | --- | --- | --- |
-| P01 确定发行范围与环境输入 | 待推进/必需 | S/K/R/D文档 + O/X | 无 | 1. 列首批消费方、开放路由/拓扑和负责人。<br>2. 提供域名Issuer/回调、服务器DB配置、预期流量、备份RPO/RTO及通知人。<br>3. 记录初期限制、候选版本和维护窗口。 | 非秘密环境/责任矩阵、容量目标和范围固定，Secret只记保管位置 |
+| P01 确定发行范围与环境输入 | **范围/拓扑/责任确认；目标值待定/必需** | S/K/R/D文档 + O/X | 无 | 1. 账号站首发、单机Compose/Nginx/无CDN、用户初期运维。<br>2. 提供正式域名/硬件流量/备份RPO/RTO/渠道。<br>3. 记上限/候选存放/窗口。 | [输入矩阵](../operations/docker-compose-deployment.md)，不采fixture容量 |
 | P02 生产配置与启动门禁 | **源码已实现/目标环境待验** | S配置、安全链、健康；D启动输入；Q | P01范围；仍需目标值/拓扑 | 1. 对照手册核对Issuer、密钥、pepper、客户端、Cookie、profile和schema校验。<br>2. 按既有规则补失败关闭、无管理员时的维护初始化路径，规则空缺先记录决策。<br>3. 测合法/缺失/示例/无效配置、非Web维护及local/test兼容。 | `production-startup-gates-2026-10-07.md`；JDK21/Docker PostgreSQL/PKCS12/servlet聚焦证据。正式域名、Secret保管、目标代理/备份/消费方和上线证据仍必需 |
 | P03 可靠撤销与操作恢复契约 | **源码/参考工具已验；消费方/目标采用待验** | K sink/handler；R队列；O/X；S outbox另流程 | P01/P11目标采用 | 1. 核验已接受任务持久化、提交前失败/崩溃及本地/远程退出结果。<br>2. 定任务保留、死信查看和人工恢复、密钥排空轮换，补样例最小缺口。<br>3. 交付消费方适配要求，验重启、租约、数据库和端点故障。 | [P03记录](revocation-recovery-2026-10-07.md)：808严格测试、参考V2恢复/保留/key竞争和真实JAR/PowerShell维护；pre-submit补偿/真实消费Adapter仍P11，SSO outbox独立恢复 |
 | P04 核心UI与生命周期补验 | **当前源码/浏览器补验完成；目标人员/合作条件待验** | S templates/assets；Q browser；O核验/保管 | P01目标输入/P02 | 1. 复用已完UI/DB/admin证据，补恢复/旧码/注销/墓碑/晋升。<br>2. 验桌面手机键盘/秘密/错误并修实际缺陷。<br>3. 按用户确认两项独立依据/工单、凭据保管/争议手册执行。 | [P04记录](ui-lifecycle-acceptance-2026-10-07.md)/[人工流程](../operations/manual-recovery-and-lifecycle.md)：隔离production HTTPS/browser/维护、跟踪DOM回归；真人核验/保管培训/目标TLS/partner consent仍按范围验 |
@@ -72,7 +74,7 @@ P02源码已校验显式production/issuer/context/秘密/Cookie/Flyway/health及
 
 | 编号/任务 | 状态/上线影响 | 推进模块/责任 | 前置 | 精简步骤 | 完成证据 |
 | --- | --- | --- | --- | --- | --- |
-| P06 主机网络、DNS与TLS | 待推进/必需，CDN/prefix条件必需 | D Nginx；S/R传输配置；O | P01 | 1. 建与目标相当的隔离预发布主机、网络和公共CA域名。<br>2. 配规范代理、未知Host拒绝、防火墙、私有管理口和证书续期。<br>3. 验回调/Cookie/来源伪头、后端/指标不可公开访问及证书续期。 | 实际域名/TLS/续期/信任边界通过，无浏览器证书例外或未定义多跳信任 |
+| P06 主机网络、DNS与TLS | **Compose/本地验收完成；目标待验/必需** | D Docker/Nginx；S传输；O | P01剩余输入 | 1. 供应目标Linux/网络/公共CA域名。<br>2. 核Docker私有网络/主机firewall/续期/精确镜像。<br>3. 目标重验canonical伪头/Cookie/Origin/未知Host/私有端口。 | [本地记录](docker-compose-acceptance-2026-10-09.md)，正式域名/CA/续期/外部检查仍必需，不把fixture证书例外升级 |
 | P07 持久Secret与签名key保管 | 待推进/必需 | S密钥、pepper、监控；K/R客户端；D/O | P01/P02/P06 | 1. 私有注入独立持久key/kid、pepper、DB/客户端/采集/队列凭据。<br>2. 核权限、挂载、无开发默认值、重启稳定及错误密钥拒绝。<br>3. 演练轮换/恢复和负责人访问，证据不存秘密值。 | 持久密钥重启/新密钥恢复通过，无local profile或示例凭据，保管轮换可执行 |
 | P08 PostgreSQL V1–V16部署与回退 | 待推进/必需 | S迁移/persistence；D/O DB；Q | P02/P05/P06/P07 | 1. 空库/代表旧schema最小权限迁移。<br>2. 验V15cascade/V16建索引停机、pool/timeout/health/jobs。<br>3. backup/schema兼容回退，旧P02 binary拒future，恢复需安全屏障。 | 目标迁移/权限/索引耗时/健康/回退，非production试写 |
 | P09 生产监控与真实通知 | 待推进/核心覆盖必需 | S观测；D Prometheus/Alertmanager/Grafana；O | P06/P07/P08，复用.6/.7 | 1. 配私有采集传输、凭据轮换、Grafana认证/Viewer/保留备份。<br>2. 将就绪/快照/积压/复用及磁盘、备份、时钟、资源告警接实际负责人并配重试升级。<br>3. 注入故障/恢复验证通知和轮换，无秘密/高基数标签，按上线风险补指标。 | 实际通知人确认、故障恢复/轮换记录及私有访问；关键覆盖不可省 |
@@ -107,7 +109,7 @@ P05 + 目标环境 → P13；P06–P13 → P14
 P02–P14 → P15 → P16 → P17 → P18 → P19
 ```
 
-下次推荐 **P01目标输入和P06环境准备**，选择Docker才推进该路径。P02–P05源码/参考/隔离完成，目标容量/审计archive/人员/消费采用仍待；P06需环境，P11/P12需消费证据。只对声明首发门禁，拓扑改变适用性不改历史。
+下一步 **补P01剩余输入，再按已选[Compose步骤](../../../las-sso-server/deploy/docker/README.zh-CN.md)执行目标隔离预发布P06–P10**。P02–P05及Docker源码/本地隔离完成；目标容量/审计archive/人员保管/通知/备份仍待。P11/P12适用于未来各消费方，首发账号站仍须SSO运维/最终候选门禁。
 
 ### 需要回传的输入
 

@@ -19,6 +19,7 @@ MODULES = {
 TEXT_SUFFIXES = {
     ".java", ".kts", ".gradle", ".properties", ".toml", ".lockfile", ".md",
     ".json", ".yml", ".yaml", ".sql", ".html", ".css", ".js", ".cjs", ".py", ".ps1",
+    ".sh", ".example", ".conf", ".template", ".Dockerfile",
 }
 EXTERNAL_DOC_PREFIXES = ("LASLOG/docs/",)
 
@@ -54,7 +55,7 @@ def repository():
         if relative.suffix == ".zip" or relative.name.endswith(".init.gradle"):
             failures.append(f"Local archive/init script is a source candidate: {name}")
         if relative.suffix not in TEXT_SUFFIXES and relative.name not in {
-            "gradlew", ".gitignore", ".gitattributes", ".editorconfig",
+            "gradlew", ".gitignore", ".gitattributes", ".editorconfig", "Dockerfile", ".dockerignore",
         }:
             continue
         checked += 1

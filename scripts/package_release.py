@@ -161,6 +161,9 @@ def package(version, work):
                 text = text.replace("{{VERSION}}", version)
             target.write_text(text, encoding="utf-8", newline="\n")
     shutil.copytree(SERVER / "deploy/monitoring", stage / "deploy/monitoring")
+    shutil.copytree(SERVER / "deploy/docker", stage / "deploy/docker")
+    for name in ("build_docker_image.py", "build_docker_infrastructure.py", "verify_docker_deployment.py"):
+        shutil.copy2(ROOT / "scripts" / name, stage / "scripts" / name)
     shutil.copy2(SERVER / "deploy/nginx/las-forwarding.conf", stage / "deploy/nginx/las-forwarding.conf")
     shutil.copy2(SERVER / "scripts/history-status.sql", stage / "scripts/history-status.sql")
     for path in sorted((SERVER / "scripts").glob("*.ps1")):

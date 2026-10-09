@@ -7,6 +7,7 @@
 - [中文手册目录](docs/zh-CN/README.md) / [English handbook index](docs/en/README.md)
 - [Release notes](RELEASE-NOTES.md): changes, compatibility and known limitations
 - [Configuration guide](config/README.md)
+- Single-host Compose: `deploy/docker/README.md` / `deploy/docker/README.zh-CN.md`; exact image provenance, private networks, file secrets and offline migration/bootstrap
 - [Starter consumption](sdk/README.md) / [Reference BFF](examples/reference-bff/README.md)
 - [Database/migrations](database/README.md)
 - `provenance/release-manifest.json`: source commit, tests, file inventory and dependencies

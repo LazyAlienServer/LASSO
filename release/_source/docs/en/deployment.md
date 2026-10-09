@@ -2,6 +2,8 @@
 
 [Index](README.md) · [中文](../zh-CN/deployment.md)
 
+The selected account-site first launch uses single-host Docker Compose, same-host Nginx, separate SSO/PostgreSQL and no initial CDN. Use `deploy/docker/README.md` from the package root, copied image tools and the non-secret input template; that path enables private monitoring and separate runtime/migration/backup roles. This handbook's host/JAR/systemd path is separate. Account-site-only opening may have no consumer clients; P11/P12 apply when each consumer launches. Domains/hardware/traffic/backup/RPO/RTO/notification values remain operator inputs.
+
 ## 1. Prepare The Environment
 
 Use JDK21, PostgreSQL (18.4 was the acceptance baseline), a private app/DB network and a canonical HTTPS issuer. Supply an operator-owned domain, exact consumer callback/logout URLs, CA/renewal, firewall rules, storage/capacity and incident contacts. Use separate staging/production DBs and clients. Production rejects example/HTTP/loopback issuers and requires the issuer path to match servlet context. A non-development process requires explicit `production`, never mixed with `local`/`test`. Without a usable administrator, Web startup fails; initialize through offline maintenance. Keep ingress closed until target checks succeed.
