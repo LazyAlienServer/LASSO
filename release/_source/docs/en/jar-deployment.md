@@ -71,3 +71,26 @@ java -jar application/las-sso-server-{{VERSION}}.jar --spring.profiles.active=pr
 4. [Opening checks](acceptance.md).
 
 Failures: [troubleshooting](troubleshooting.md). systemd was not executed on the Windows build host; verify on target Linux.
+
+## J01 Complete host-installation sequence
+
+**Prerequisites/location:** Selected Linux JAR deployment, package-root terminal, authorized service/proxy/DB operator. Missing environment inputs stop the applicable step; example is not ready production config.
+
+1. Verify Java21/package/hash/unprivileged account; read-only `/opt/las-sso/{{VERSION}}`, external `/etc/las-sso` settings/keys/secrets, service readable/unrelated users denied.
+2. DBA provisions runtime/migrator/backup roles/schema/default grants; section1 protected inputs. Host layout has no Compose automatic role init; do not grant runtime DDL/superuser.
+3. Section2 server-only offline migration0 and owner executes runtime-permissions SQL; fresh DB section3 real-console bootstrap, existing unique admin not bootstrapped again.
+4. Web external config switches to runtime, validates issuer/key/peppers/cookie/loopback/proxy. Optional monitoring unit profile/config hash supplied separately, never applied as maintenance Web settings.
+5. External unit copy sets User/Group/WorkingDirectory/ExecStart/EnvironmentFile/access, validate before install; paths are target-reviewed.
+
+```sh
+set -euo pipefail
+systemd-analyze verify /etc/systemd/system/las-sso.service
+systemctl daemon-reload
+systemctl enable --now las-sso.service
+systemctl status las-sso.service --no-pager
+```
+
+6. Private readiness9000 or monitoring9091, external Nginx forwarding/certificate/canonical settings, test then reload, TLS/unknown-host/public-actuator checks.
+7. BrowserU03/U07/adminA01, monitoringM01/backupB01-B02/targetV02; retain revisions without EnvironmentFile secret contents.
+
+**Expected:** Unprivileged process/private DB/listeners/new admin login/recoverable settings. **Failure:** Diagnose path/access/profile/secret privately; alternate process manager needs equivalent target checks, not claimed systemd execution.

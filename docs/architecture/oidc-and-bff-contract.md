@@ -270,6 +270,10 @@ UserInfo 的 `sub` 必须与 ID Token 完全一致，否则 BFF 终止登录。
 - 检测到已用 Token 再次出现时，撤销整个 family、对应 BFF 会话，写高危安全事件并触发 Back-channel Logout。
 - 改密、密码恢复、账号冻结、账号删除、全局退出和管理员强制下线撤销相关 Refresh Token。
 
+2026-10-11源码修正：已认证client与历史RT所属Authorization/family必须匹配，才执行重用检测、撤销、安全事件或退出outbox；错误client的CURRENT/ROTATED请求拒绝且不改原授权。真实PG回归先暴露ROTATED跨client会删除原授权，随后修正校验顺序；[English记录](../implementation/api-release-readiness-2026-10-11.md)／[中文](../zh-CN/implementation/api-release-readiness-2026-10-11.md)。这不是旧RT撤销后继的补偿接口，也不更新已交付`.2`字节。
+
+刷新响应丢失的接入基线：消费方本地安全失效、已知Token作业持久化尽力撤销，未知远端状态如实记录，核验固定family截止与残余AT访问边界后由责任方决定风险接受。RFC7009的HTTP200不证明旧A的后继family已清理；历史RT补偿属可选可靠性增强，不由此自动增加V1gate。正常重用检测不作为常规补偿协议。
+
 ## 5. BFF 本地契约
 
 2026-10-06参考可选 `https` profile 已经默认/自有链实际TLS验证：外配置issuer/client，host-only __Host Cookie SecureHttpOnlyLaxPath/与logoutCookie清理一致。受控Nginx必须清clientForwarded/Prefix等alternate再canonicalhostschemeportIP，appsDB仅private；SSO精确callback仍必需。例子与certificate信任范围：[English](../operations/tls-proxy-acceptance.md)／[中文](../zh-CN/operations/tls-proxy-acceptance.md)。这不提供自动trustedproxyCIDR或productionCA/firewall部署。

@@ -2,16 +2,16 @@
 
 [中文](../zh-CN/operations/docker-compose-deployment.md) · [Executable instructions](../../las-sso-server/deploy/docker/README.md) · [Launch plan](../implementation/production-launch-plan.md)
 
-Updated2026-10-09. This records user-confirmed scope and local implementation, not a production deployment approval.
+Updated 2026-10-11. The user selected [single external host Nginx](../adr/0017-single-external-nginx-container-edge.md); official domain/HTTPS inputs are supplied at formal target launch. Software candidate preparation continues independently. This records scope, not target deployment approval.
 
 ## Confirmed scope and responsibility
 
 | Input | Confirmed value |
 | --- | --- |
 | First opening | SSO account site; no business consumer required beforehand |
-| Topology | Single-host Docker Compose; one SSO and separate PostgreSQL/Nginx containers |
-| Public edge | Same-host Nginx HTTPS; no CDN initially |
-| Private boundary | No host ports for app9000, management9091 or PostgreSQL; reviewed proxy-only ingress |
+| Topology | Single-host Compose for SSO/PostgreSQL; one external host-installed Nginx |
+| Public edge | Same-host single Nginx HTTPS; no CDN initially |
+| Private boundary | SSO9000 published only on IPv4 loopback; management9091/PostgreSQL unpublished |
 | Database | Same host initially; backup independently off-host |
 | Release/deployment/on-call/manual recovery/key/backup custody | User personally owns initial responsibilities |
 | Consumer rollout | LASLOG/AlienCommon registration, integration and gates apply when each launches |
@@ -20,7 +20,7 @@ Updated2026-10-09. This records user-confirmed scope and local implementation, n
 
 | Input | Value/status | Required evidence |
 | --- | --- | --- |
-| Preproduction/production domain, issuer, DNS | Pending | Exact canonical host and public CA, no fixture/example |
+| Production domain, issuer, DNS/HTTPS | Deferred to formal target launch by user | Exact canonical host/public CA before public use; isolated fixtures for software checks |
 | Host OS/architecture/CPU/RAM/disk/free space/time sync | Pending | Provisioned target identity and resource/headroom limits |
 | User/data counts, peak rates, concurrency, latency/error limits | Pending | P13 representative ramp/soak and initial opening cap |
 | TLS renewal/reload, external firewall/interface | Pending | P06 external probes and renewal/expiry rehearsal |

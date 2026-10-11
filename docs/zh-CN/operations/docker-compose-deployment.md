@@ -2,16 +2,16 @@
 
 [English](../../operations/docker-compose-deployment.md) · [可执行步骤](../../../las-sso-server/deploy/docker/README.zh-CN.md) · [上线计划](../implementation/production-launch-plan.md)
 
-更新2026-10-09。记录用户确认范围与本地实现，不等生产部署批准。
+更新2026-10-11。用户选择[同机单层外部Nginx](../adr/0017-single-external-nginx-container-edge.md)，正式域名/HTTPS在目标正式上线供应，软件候选准备继续。记录范围，不等目标部署批准。
 
 ## 已确认范围和责任
 
 | 输入 | 已确认 |
 | --- | --- |
 | 首次开放 | SSO账号站，不要求业务消费方提前完成 |
-| 拓扑 | 单机Docker Compose，一个SSO实例，独立PostgreSQL/Nginx容器 |
-| 公共入口 | 同机Nginx HTTPS，初期无CDN |
-| 私有边界 | app9000、management9091、PostgreSQL无宿主机端口，只审查proxy入口 |
+| 拓扑 | 单机Compose的SSO/PG，主机单层外部Nginx |
+| 公共入口 | 同机单层Nginx HTTPS，初期无CDN |
+| 私有边界 | SSO9000仅IPv4 loopback发布，management9091/PG不发布 |
 | 数据库 | 初期同机，备份独立异机 |
 | 发行/部署/值班/人工恢复/key/备份保管 | 用户本人承担初期职责 |
 | 消费方上线 | LASLOG/AlienCommon各自上线时登记、联调并执行门禁 |
@@ -20,7 +20,7 @@
 
 | 输入 | 值/状态 | 必需证据 |
 | --- | --- | --- |
-| 预发布/生产域名、Issuer、DNS | 待定 | 精确canonical host、公共CA，不用fixture/example |
+| 正式域名、Issuer、DNS/HTTPS | 用户要求在目标正式上线时确定 | 对外使用前精确host/公共CA；软件检查仅隔离fixture |
 | 主机OS/架构/CPU/RAM/磁盘/可用空间/时钟 | 待定 | 目标配置身份及资源/余量限制 |
 | 用户/数据量、峰值速率、并发、延迟/错误界限 | 待定 | P13代表ramp/soak和初期开放上限 |
 | TLS续期/reload、外部防火墙/接口 | 待定 | P06外部探针及续期/到期演练 |

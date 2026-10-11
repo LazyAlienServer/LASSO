@@ -5,6 +5,8 @@
 - API 前缀：`/api/v1`
 - 依赖：[总纲](../../LAS_SSO_DESIGN.md)、[数据模型](identity-and-data-model.md)
 
+**实施规格不等于当前HTTP参考。** 当前字段/方法/认证及响应例外以[双语实现参考](../../release/_source/docs/zh-CN/api-reference.md)（[English](../../release/_source/docs/en/api-reference.md)）和[OpenAPI3.1](../../release/_source/api/openapi.json)为准；例如恢复改密是PUT、改密局部错误为JSON code、登录字段rememberDevice、当前sid撤销是全用户退出。本文其他未对齐目标不得当成已实现保证。
+
 ## 1. 通用规则
 
 ### 1.1 表示与版本

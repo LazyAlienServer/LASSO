@@ -62,3 +62,25 @@ psql --dbname=<protected-connection-service> -v ON_ERROR_STOP=1 -f scripts/histo
 固定指标前缀 `las_sso_history_cleanup_*`：rows、completed/skipped runs、failures、duration、oversized/busy。rows在commit后计数。
 
 `VACUUM FULL`、reindex、分区及审计archive需独立停机/空间/备份方案；不能通过删除live安全历史释放空间。
+
+## H01 报告与增长分类
+
+1. 包根核dc/source/retention，§1backup角色脚本及days与实配一致。
+2. exit0记录时间、rows/expiry/terminal/deadline/orphan候选、fanout/size；候选不等实际可删。
+3. 核fresh cleanup rows/completed/skipped/failure/busy/oversized，下一次同retention报告比较，单count不证明leak。
+4. live增长看流量/容量，eligible积压看job/锁/timeout/吞吐，audit/墓碑另保留，不删永久事实。
+5. report timeout查size/cost/window，不去限制/增加Token输出。
+
+**预期：** 可比较分类。**失败：** 核backup grants；未知expiry/oversized保护不通过强制REVOKED绕过。
+
+## H02 恢复清理/调参
+
+**前提：** 实测增长/DB余量/窗口；没有包内立即mass-clean命令。
+
+1. 核Web scheduling、maintenance停job属正常，phase故障+DB锁查根因。
+2. 保旧外配置，选有限batch/interval/retention最低90/30天，不盲增/裁liveTTL。
+3. 隔离代表数据验吞吐/锁/WAL/heap/refresh/logout，再O03审核配置安装/进程加载。
+4. 等至少一周期，核commitrows/completed/failure/busy/oversized/报告趋势；0rows可能保护/noeligible，非清完证明。
+5. DB负责人看autovacuum/deadtuple及ordinary VACUUM ANALYZE窗口，FULL/reindex另backup/space计划。
+
+**预期：** 吞吐满足到达且live hint/RT/reuse安全。**失败：** phase rollback修根因，不truncate/delete后继续。

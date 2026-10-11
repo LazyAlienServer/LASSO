@@ -1,10 +1,20 @@
 # LAS SSO Project Status And Production Launch Plan
 
-- Updated: 2026-10-09. [Chinese](../zh-CN/implementation/production-launch-plan.md).
+- Updated: 2026-10-11. [Chinese](../zh-CN/implementation/production-launch-plan.md).
 - This is the current execution plan; [status history](status-issues-and-plan-2026-10-02.md) retains findings and evidence by date. Tasks below are planned, not already implemented or approved production changes.
 - Scope: SSO server, starter, reference BFF and their deployment/operations. LASLOG/AlienCommon are external implementation owners; their evidence is required for launching those consumers.
 
 ## 1. Current Baseline
+
+Latest immutable development package is [0.1.0-dev.20261009.2](../integration/development-delivery-2026-10-09-2.md): source297cdfc,834strict tests, V1–V16, independent ZIP/SDK/Docker/Compose evidence. Subsequent uncommitted [API/software-release preparation](api-release-readiness-2026-10-11.md) adds implemented OpenAPI/bilingual reference, stable/RC packaging and a reproduced refresh client-ownership correction; forced workspace843tests/zero skips passed. It is not a new immutable release. The older `.7` rows below remain historical, not the current source or count.
+
+### Software distribution versus production opening
+
+2026-10-11 steering: use **single external same-host Nginx** with loopback-only application publication ([ADR-0017](../adr/0017-single-external-nginx-container-edge.md)). Official domain/HTTPS will be supplied at formal target launch. Continue software candidate work now; do not wait for production DNS/certificates or mark those target checks completed. The user reports SSO/PostgreSQL started on their host; no target HTTPS/login/monitoring/restore acceptance has been returned.
+
+This P01–P19 plan governs target production operation. Publishing a first installable **software release** does not require an operator's live public domain, production recipients, target backup or every consuming business site to have opened. Software gating is: freeze documented supported scope, fix demonstrated defects, review/commit exact sources, select a new version, clean forced build/publish, exact current scans and independent artifact/API/SDK/install/upgrade/maintenance/protocol checks, retain trusted immutable distribution and limitations. Final supported paths must have adequate evidence; raw test counts do not replace them.
+
+P06–P10 and target P13/P14/P17–P19 remain necessary before public production use. P11/P12 apply only to the consumers actually opening. Remote hosted CI/CD, public Maven/GitHub and OpenID certification are not implicitly mandatory; repeatable source/artifact traceability and necessary verification are. Historical-RT successor revocation is an optional enhancement, not an inferred protocol/V1 gate; consumers still need proven local safety, reliable known-token work and explicitly assessed/accepted unknown remote-state risk. See the paired API preparation record. P18's formal-release wording below refers to production acceptance, not the downloadable software package.
 
 Repository follow-up: the previously verified functionality and documents are now committed locally (`1c287e9`, `f1f1093`), with engineering conventions (`09700e4`) and mechanical formatting (`b21304d`). See [engineering record](engineering-baseline-2026-10-07.md) / [Chinese](../zh-CN/implementation/engineering-baseline-2026-10-07.md). Rows below identify the historical `.7` delivery; current formatted source is not the same fingerprint or a new production release. The complete engineering build again passed735tests with zero skips.
 
@@ -109,7 +119,7 @@ P05 + target environment -> P13; P06-P13 -> P14
 P02-P14 -> P15 -> P16 -> P17 -> P18 -> P19
 ```
 
-Next: **supply remaining P01 inputs, then execute P06–P10 on isolated target preproduction** using the selected [Compose instructions](../../las-sso-server/deploy/docker/README.md). P02–P05 and Docker source/local isolation evidence are complete; target capacity/audit archive/operator custody/notification/backup remain open. P11/P12 apply per future consumer; initial account-site opening still requires SSO operational/final-candidate gates.
+Next software work: complete the [external host-edge templates/checks](../../release/_source/docs/en/host-nginx-deployment.md), then review/commit under explicit authorization and select the clean candidate ID. Formal domain/HTTPS inputs wait for target launch by user request. Target P06–P10 use this selected standalone Compose when inputs are supplied. Existing P02–P05 and bundled Docker evidence remains historical; target capacity/custody/notifications/backup remain open. P11/P12 apply per future consumer.
 
 ### Inputs To Supply
 

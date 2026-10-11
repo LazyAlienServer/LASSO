@@ -1,5 +1,7 @@
 # Docker deployment: package to first login
 
+This page is the **bundled Nginx alternative**. The selected external host edge uses [N01–N06](host-nginx-deployment.md) with standalone compose.host-nginx.yml. Do not mix service/helper commands.
+
 [Index](README.md) · [中文](../zh-CN/docker-deployment.md) · [Troubleshooting](troubleshooting.md)
 
 **Scope:** Linux, one SSO instance, same-host Nginx, separate PostgreSQL, no initial CDN.

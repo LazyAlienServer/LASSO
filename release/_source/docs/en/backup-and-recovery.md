@@ -2,6 +2,8 @@
 
 [Index](README.md) · [中文](../zh-CN/backup-and-recovery.md) · [Operations](operations.md)
 
+**Host edge:** Use [N02/N05](host-nginx-deployment.md)'s standalone helper, close host-site ingress, then `dc stop sso` instead of bundled `dc stop proxy sso`. B02's separate restore helper uses compose.host-nginx.yml and validator `--topology host-nginx`; still start only PostgreSQL before restore and keep Web closed through the same epoch/key barriers. Code below shows the bundled alternative; do not overwrite the selected helper accidentally.
+
 ## Declare objectives
 
 | Input | Owner supplies |
@@ -107,3 +109,59 @@ Epoch is opaque and cannot be sorted. Compare versions only within one epoch; do
 | Another restore | Use a fresh target or explicitly recorded current epoch, not the old expected value |
 
 The database transaction cannot atomically replace external keys/caches. Copying the database or rolling back a JAR alone is not recovery. Historical drills do not verify the target backup.
+
+## B01 Create, inspect and retain one off-host backup
+
+**Prerequisites:** Bash at package root, a verified source `dc` helper, the backup role, a protected existing directory and the selected encryption/off-host destination. This creates one logical dump; scheduling and WAL archiving are configured separately.
+
+1. Record source version/schema/epoch, UTC start, destination and authorized window. Stop ingress, SSO and every other writer; keep PostgreSQL healthy for a clear maintenance snapshot.
+2. Precreate the restricted external directory with its owner and choose a nonexistent destination. Run the block in Bash with the verified source `dc` helper in the same shell; stop on the first failure. Bash supports binary redirection; Windows PowerShell 5.1 text pipelines must not carry custom dump bytes.
+
+```sh
+set -euo pipefail
+set -o noclobber
+umask 077
+BACKUP_DIR='/var/backups/las-sso'
+test -d "$BACKUP_DIR" || exit 1
+BACKUP="$BACKUP_DIR/las-sso-$(date -u +%Y%m%dT%H%M%SZ).dump"
+test ! -e "$BACKUP" || exit 1
+dc stop proxy sso
+dc exec -T postgres sh -c 'PGPASSWORD="$(cat /run/secrets/db_backup_password)" exec pg_dump -h 127.0.0.1 -U las_sso_backup -d las_sso --format=custom' > "$BACKUP"
+test -s "$BACKUP" || exit 1
+dc exec -T postgres pg_restore --list < "$BACKUP" > "$BACKUP.list"
+sha256sum "$BACKUP"
+```
+
+3. Check both dump/list exit 0; a failed/truncated file is not success and must not replace the last good backup. If the block stops, record the failed attempt and follow the approved source-service resume procedure. The list contains object metadata; keep it private.
+4. Encrypt using the operator-selected mechanism and transfer to independent host/storage. Verify the encrypted archive's hash, readability and authorized decryption. Keep keys/peppers/configuration/passwords/codes under separate custody; no key material belongs in the report.
+5. Record time, schema, hash, storage reference and outcome. Resume the source and verify readiness before reopening. Install the chosen schedule/retention/failure notification and perform B02; an archive list alone is not recovery proof.
+
+**Expected:** A consistent dump, an encrypted off-host copy and a resumed source. **Failure:** Permission errors require checking backup grants and migration ownership, not temporarily making the runtime a superuser. The password enters the dump process from a protected file, not argv.
+
+## B02 Restore into a separate empty target and apply barrier
+
+**Expected:** The isolated target has the restored data and correct owner/grants, then a new epoch/key and verified old-state/consumer barriers before cutover.
+
+**Prerequisites:** An explicitly identified isolated target, retained source and protected decrypted dump. Follow the Docker guide with a distinct restore.env/project/volume/secrets/key. Initialize PostgreSQL roles only; **do not migrate empty application tables before restore**.
+
+1. Verify the target helper and input validator identify project/images/ports/paths separate from the source. Start only PostgreSQL and wait for health. Confirm there are no existing application objects/data to overwrite.
+2. Stream the verified binary dump as the migrator, which owns the restored objects. No DROP/clean command targets the source.
+
+```sh
+set -euo pipefail
+dc() { docker compose --env-file /etc/las-sso/restore.env -f "$PWD/deploy/docker/compose.yml" "$@"; }
+python3 scripts/verify_docker_deployment.py --env-file /etc/las-sso/restore.env --compose deploy/docker/compose.yml
+dc up -d --wait --wait-timeout 120 postgres
+RESTORED_DUMP='/var/backups/las-sso/selected-restored.dump'
+test -s "$RESTORED_DUMP" || exit 1
+dc exec -T postgres sh -c 'PGPASSWORD="$(cat /run/secrets/db_migrator_password)" exec pg_restore -h 127.0.0.1 -U las_sso_migrator -d las_sso --no-owner --no-acl --exit-on-error --single-transaction' < "$RESTORED_DUMP"
+dc --profile maintenance run --rm -T maintenance database-migrate
+dc exec -T postgres psql -X -U postgres -d las_sso -v ON_ERROR_STOP=1 < deploy/docker/postgres-runtime-permissions.sql
+```
+
+3. Check every command exits 0. Post-restore migration validates the history and permits only a reviewed forward upgrade. Query the target epoch using section 2B; verify UUID/Flyway/administrator/permanent facts and migrator ownership.
+4. Keep Web stopped. Execute section 2C's real-TTY expected-epoch barrier and 2D's count checks, then install 2E's new signing key/kid, supported peppers and consumer retirement/cache/generation barriers.
+5. Perform section 2F isolated smoke, old-state negatives, new login, notifications and job checks. Measure RPO from the backup boundary and RTO from the incident to usable service before considering cutover.
+6. Drill cleanup targets only the isolated project. A real restoration records the final service/configuration and deliberately retains the source/backup.
+
+**Failure:** Keep a failed restore closed and inspect schema/role/version; never clean the source. After a committed barrier, preserve the new epoch while repairing external components. Validate major-version/extension compatibility explicitly.

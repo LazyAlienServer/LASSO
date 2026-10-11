@@ -2,6 +2,8 @@
 
 [Index](README.md) · [中文](../zh-CN/troubleshooting.md) · [Docker guide](docker-deployment.md)
 
+Use [N02/N05](host-nginx-deployment.md)'s helper for the selected external Nginx. Inspect host Nginx logs separately; `dc logs proxy` applies only to the bundled alternative. SSO `Restarting (1)` needs its latest startup exception, not repeated readiness curl while the process exits.
+
 ## Locate the failing layer
 
 ```text
@@ -53,6 +55,8 @@ dc exec -T sso curl --silent --output /dev/null --write-out '%{http_code}\n' htt
 | `PRODUCTION_ISSUER_INVALID` / `PRODUCTION_ISSUER_CONTEXT_MISMATCH` | Canonical URI/path mismatch | Actual HTTPS host/port and root-path topology |
 | PRODUCTION_SECRET_* | Missing/short/reused/dev secret | Protected files, never print |
 | Unable to load persistent signing key | Path/UID/alias/password/RSA | Access/same password, no ephemeral fallback |
+| PRODUCTION_KEY_ID_INVALID | Invalid public kid/development marker | N02 legal stable ID, distinct from alias; recreate after env change |
+| PRODUCTION_MONITORING_CREDENTIAL_INVALID | Plaintext/missing prefix/full htpasswd line/wrong cost/quotes/spaces | Monitoring guide's `{bcrypt}` cost10–14, refresh mount and collector original password |
 | PRODUCTION_ADMIN_INITIALIZATION_REQUIRED | No unique usable admin/expired temporary password | Offline bootstrap/reset |
 | PRODUCTION_SCHEMA_INCOMPATIBLE | Checksum, migration state or future schema | Use compatible exact binary; no checksum repair |
 | DB permission denied | Runtime needs migration/wrong grants | Migrator offline plus permission SQL |
@@ -65,7 +69,7 @@ dc exec -T sso curl --silent --output /dev/null --write-out '%{http_code}\n' htt
 | Cookie/login loop | Secure __Host, Path=/, no Domain, HTTPS and consistent hostname | Correct proxy/Cookie settings |
 | Write returns 403 | Session, administrator, recent password, CSRF, Origin and content type | New CSRF and genuine reauthentication |
 | CAPTCHA/429 | Risk budget, retries and proxy IP trust | Wait for Retry-After; retain rate limiting |
-| Password change required | Temporary bootstrap/manual credential | Genuine password change, not refresh |
+| Password change required | Temporary bootstrap password / credential state | Complete U03. A manual recovery credential uses U08's two-step recovery, not login as a temporary password |
 | Eligibility denied | Freeze/deletion/held/credentials | Reason, not business-login override |
 | One-time output gone | Closed/navigated cleanup | Supported reissue/rotation, no redisplay |
 
@@ -98,3 +102,18 @@ Contracts: [integration](external-integration.md). Reference task recovery: [que
 Version/hash, UTC, route, category, requestId, readiness/liveness and action/result.
 
 No passwords, codes, Tokens, full Cookies, private keys or decrypted queue contents. Keep TLS, CSRF, Origin and signature checks enabled.
+
+## T01 Diagnose by layer and verify repair
+
+**Expected:** The original fault is corrected and its path, negative checks, readiness and notifications are verified with a recorded configuration revision.
+
+**Failure:** If the fault persists, retain the failing category and send minimal evidence to its owner; protected access stays closed.
+
+1. Record UTC, version/image/source and symptoms before a restart loses evidence. Use section 1 to verify the intended target.
+2. For an external outage check proxy/certificate/host/ports. For 502 check SSO readiness; for readiness/liveness 503/200 inspect DB/pool rather than restarting repeatedly.
+3. A write 403 requires distinguishing identity, role, recent evidence, CSRF and origin. Business-only failure requires checking the consumer's client/URI/session ownership, not speculative account mutations.
+4. Inspect bounded logs, read-back and audit privately. Lost one-time output requires checking commit then following U07/A04/A08, not retrieving old secrets.
+5. Apply a minimal reviewed repair through O03/O04/M01. Reproduce faults in isolation and preserve security checks.
+6. Retest the original path, expected refusal, readiness and notifications. Record recovery time, limitations and review; a running container alone is not success.
+
+**Still failing:** Protected access stays closed, minimal metadata to owning module; SSO outage neither ban nor game-kick authority.

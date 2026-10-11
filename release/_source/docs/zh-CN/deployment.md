@@ -6,11 +6,12 @@
 
 **单机 Docker Compose + 同机 Nginx + 独立 PostgreSQL，首发 SSO 账号站。**
 
-直接从 **[Docker 部署教程](docker-deployment.md)** 开始。
+直接从**[Docker+单层外部Nginx N01–N06](host-nginx-deployment.md)**开始。正式域名/HTTPS在目标正式上线供应，软件fixture不代目标验收。
 
 | 方式 | 文档 | 适用场景 |
 | --- | --- | --- |
-| Docker Compose | [完整步骤](docker-deployment.md) | 当前首发方案 |
+| Docker Compose+主机Nginx | [N01–N06](host-nginx-deployment.md) | 已选首次方案 |
+| Compose+内置Nginx | [替代步骤](docker-deployment.md) | 单独选择的容器入口 |
 | 主机 JAR / systemd | [完整步骤](jar-deployment.md) | 已采用独立主机进程的环境 |
 
 ## 开始前需确定

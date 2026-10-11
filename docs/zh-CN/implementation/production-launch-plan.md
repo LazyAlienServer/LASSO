@@ -1,10 +1,20 @@
 # LAS SSO 项目状态与正式生产上线计划
 
-- 更新：2026-10-09。[English](../../implementation/production-launch-plan.md)。
+- 更新：2026-10-11。[English](../../implementation/production-launch-plan.md)。
 - 本文是当前执行计划；[状态地图](../../implementation/status-issues-and-plan-2026-10-02.md)保留按日期记录的问题与证据。下列任务是安排，不表示已经实现或获准操作生产。
 - 范围：SSO 服务端、Starter、参考 BFF 及部署运维。LASLOG、AlienCommon 由各自实现负责人推进，本计划接收其联验证据，不接管业务代码。
 
 ## 1. 当前基线
+
+最新不可变开发包为[0.1.0-dev.20261009.2](../integration/development-delivery-2026-10-09-2.md)：source297cdfc、834全量0skip、V1–V16、独立ZIP/SDK/Docker/Compose证据。后续未提交[API/软件发行准备](api-release-readiness-2026-10-11.md)补实现级OpenAPI/双语参考、stable/RC工具及已复现refresh client归属顺序修正，workspace843全量0skip通过；不是新不可变发行。下方`.7`行保历史，不代表当前源码/数量。
+
+### 软件交付与生产开放
+
+2026-10-11用户指示：**同机单层外部Nginx**、应用仅loopback发布（[ADR-0017](../adr/0017-single-external-nginx-container-edge.md)），正式域名/HTTPS在正式目标上线时确定。当前继续软件候选准备，不等待生产DNS/证书，也不把目标项勾为完成。用户回报目标SSO/PG已启动，尚无目标HTTPS/登录/监控/恢复验收回传。
+
+P01–P19治理目标生产运维。发布首个可安装**软件版本**不要求某个运维的真实域名/收件人/目标backup或全部业务消费方已经上线。软件门槛是：冻结文档支持范围、修已证实缺陷，审查/提交精确源码、选新版本、clean forced build/publish、精确当前扫描及独立artifact/API/SDK/install/upgrade/维护/协议验收，可信保存不可变交付及限制；最终支持路径有相应证据，不用test数量代替。
+
+public生产使用前P06–P10及target P13/P14/P17–P19仍需完成；P11/P12仅各实际开放消费方适用。remote hosting CI/CD/public Maven/GitHub/OpenID认证不自动强制，来源/制品可追溯和必要验证必需。历史RT撤后继属于可选增强，非推导协议/V1gate；消费方仍须证明本地安全、已知Token可靠作业，并明确评估/接受未知远端状态风险。详见配对API准备记录；下方P18“正式发行必需”指生产验收，不是软件包下载发布。
 
 仓库后续状态：原已验功能/文档现已本地提交（`1c287e9`、`f1f1093`），再补工程规则（`09700e4`）和机械格式化（`b21304d`）；见[工程记录](engineering-baseline-2026-10-07.md)／[English](../../implementation/engineering-baseline-2026-10-07.md)。下表是历史`.7`交付来源，当前格式化源码不同fingerprint，未新生产发行；工程全量再次735通过/0skip。
 
@@ -109,7 +119,7 @@ P05 + 目标环境 → P13；P06–P13 → P14
 P02–P14 → P15 → P16 → P17 → P18 → P19
 ```
 
-下一步 **补P01剩余输入，再按已选[Compose步骤](../../../las-sso-server/deploy/docker/README.zh-CN.md)执行目标隔离预发布P06–P10**。P02–P05及Docker源码/本地隔离完成；目标容量/审计archive/人员保管/通知/备份仍待。P11/P12适用于未来各消费方，首发账号站仍须SSO运维/最终候选门禁。
+下一软件工作：补齐[外部主机入口模板/验证](../../../release/_source/docs/zh-CN/host-nginx-deployment.md)，明确授权后审查/提交并选干净候选ID。按用户要求正式域名/HTTPS等目标上线再供应；目标P06–P10输入齐后用已选独立Compose。既有P02–P05及内置Docker证据保历史，目标容量/保管/通知/备份待验；P11/P12仅未来实际消费方。
 
 ### 需要回传的输入
 

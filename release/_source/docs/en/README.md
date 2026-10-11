@@ -4,15 +4,20 @@
 
 ## Choose a task
 
+**[Complete operation workflow index](operation-index.md)**: user U, admin A, API F, operations O, backup B, monitoring M and related numbered procedures.
+
 | Task | Start here | Next |
 | --- | --- | --- |
-| First deployment | **[Docker deployment](docker-deployment.md)** | [Monitoring](monitoring.md), [opening checks](acceptance.md) |
+| Selected first deployment | **[Docker + external host Nginx](host-nginx-deployment.md)** | [Monitoring](monitoring.md), [opening checks](acceptance.md) |
+| Bundled Nginx alternative | [Bundled Docker deployment](docker-deployment.md) | Separate service/helper selection |
 | Existing host JAR/systemd layout | [JAR deployment](jar-deployment.md) | [Opening checks](acceptance.md) |
 | Unreachable service or failed login | **[Troubleshooting](troubleshooting.md)** | Follow the symptom branch |
 | Restart, administrator reset, upgrade | [Operations](operations.md) | Verify the result before reopening |
 | Backup or disaster restoration | [Backup and recovery](backup-and-recovery.md) | Record recovery time and old-state rejection |
 | Integrate a business website | [External integration](external-integration.md) | Complete consumer acceptance |
-| Account and user administration | [User guide](user-guide.md) | Preserve one-time output privately |
+| Request fields/authentication/errors | [API reference](api-reference.md) | [Call workflows](api-operations.md), [OpenAPI 3.1](../../api/openapi.json) |
+| Personal account | [User procedures](user-guide.md) | Preserve one-time output |
+| Admin users/clients/deletion/audit | [Administrator procedures](administrator-guide.md) | Verify target/audit/one-time output |
 | Growing history or cleanup metrics | [History retention](history-retention.md) | Read the status report |
 | Reference BFF revocation dead tasks | [Reference queue](reference-revocation.md) | Recover the exact task; sample-specific |
 
@@ -34,7 +39,8 @@ Browser → Nginx HTTPS → SSO → PostgreSQL
 | Component | Exposure |
 | --- | --- |
 | Nginx | Reviewed HTTP/HTTPS host interface |
-| SSO 9000, management 9091, database | No host port mappings |
+| SSO 9000 | Host edge: loopback-only publication; bundled edge: no host mapping |
+| Management 9091, database | No host port mappings |
 | Backup | Encrypted off-host storage, configured separately |
 
 SSO owns identity, credentials, account lifecycle and eligibility. Business roles, Minecraft admission and consumer high-risk actions remain business-owned.

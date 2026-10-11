@@ -13,10 +13,16 @@
 | File access | Clarified PostgreSQL/SSO shared readers for database secret files |
 | Packaging | Docker entry links resolve within the extracted package |
 | Test fixture | Future-nbf rejection uses a margin beyond timestamp rounding/JWKS latency; runtime validation unchanged |
+| API documentation | Implemented endpoint/DTO OpenAPI3.1 and bilingual authentication/error reference; drift checks |
+| Operating procedures | Numbered bilingual user/admin/API/integration/upgrade/backup/monitoring/queue workflows and operation index |
+| Release tooling | Distinct dev/RC/software versions; immutable source/bytes, no deployment approval |
+| Refresh isolation | Authenticated owning client checked before reuse/invalidation side effects, including legacy RT import |
 
-Authentication runtime, dependency locks and existing migrations are unchanged by this handbook revision.
+This revision corrects refresh client-isolation validation order. Dependency locks and existing migrations are unchanged. Historical-RT revocation/family compensation is not added.
 
 ## Included functionality
+
+The selected deployment now has one external same-host Nginx: standalone SSO/PostgreSQL/maintenance Compose, loopback-only app publication, topology-aware validation and N01–N06 bilingual instructions. PostgreSQL-only infrastructure building is supported; bundled Nginx remains an alternative. Formal domain/public HTTPS is configured at target launch. Monitoring hash generation and the observed kid/hash startup errors are documented explicitly.
 
 | Phase | Included |
 | --- | --- |
@@ -57,4 +63,4 @@ Earlier `.20261009.1` exact-package Compose smoke and P02–P06 records remain h
 | Restore | New epoch/key/kid and consumer barriers; verified schema-compatible rollback only |
 | Deferred | Eligibility events, multi-instance/retained login; no added MFA/email/business Claims |
 
-Development delivery. Target public CA/renewal/firewall/Linux custody/current image scans/DAST/backup/soak/final opening need their own evidence. No production deployment or hosted signature is implied.
+{{DELIVERY_EN}}. Software delivery and target deployment acceptance are separate. Target public CA/renewal/firewall/Linux custody/current image scans/DAST/backup/soak/final opening need their own evidence. No production deployment or hosted signature is implied.

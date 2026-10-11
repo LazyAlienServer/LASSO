@@ -1,6 +1,6 @@
 # Business website integration
 
-[Index](README.md) · [中文](../zh-CN/external-integration.md) · [SDK](../../sdk/README.md)
+[Index](README.md) · [中文](../zh-CN/external-integration.md) · [SDK](../../sdk/README.md) · [API reference](api-reference.md)
 
 **Scope:** Confidential server/BFF client. Browser holds only the business Session Cookie.
 
@@ -142,3 +142,67 @@ The OP challenge lasts 5 minutes with atomic JDBC consumption. Refresh/issue tim
 | Other browser/expiry/refresh evidence | Originating-session15minute boundary |
 
 Record real consumer results; sample/SSO tests cannot substitute them.
+
+## I01 Prepare registration handoff
+
+**Actors/location:** Consumer backend/SSO administrator, isolated config record and SSO browser; business routes closed.
+
+1. Agree issuer/business HTTPS origin/registrationId/exact callback/logout/reachable Back-channel/audience/single-instance restart policy.
+2. Containers require reachable verified-TLS addresses, not another container's localhost; preserve callback path, no legacy strip-api rule.
+3. Administrator [A05](administrator-guide.md) registers independent client; exchange non-secret settings/version and private backend secret.
+4. Match type/scopes/URIs and pin SDK/SSO/hashes. Account-site-only opening needs no invented client.
+
+**Expected:** Precise inputs agree. **Failure:** Resolve URI/reachability, not wildcard or omitted logout acceptance.
+
+## I02 Install fixed SDK and one chain
+
+**Location: consumer project, not SSO package root.** Reference sample does not create/start LASLOG.
+
+1. Verify the package and configure its [file Maven repository](../../sdk/README.md), exact starter version `{{VERSION}}`, final BOM/locks and Java 21 compatibility.
+2. Install section 3 settings externally and supply the secret/issuer privately. Configure the matching Servlet Cookie as Secure/HttpOnly/Lax, Path=/, without Domain, and a same-origin proxy.
+3. Call the public configurer once, retain business default-denial/CSRF/success delegate, and avoid duplicate Filters or unwrapped overrides. Use the public return-target wrapper where needed.
+4. Replace the public repository/session/replay/sink/refresher/manager according to the consumer policy and prove these Beans are called. A database alone does not make defaults persistent; the selected adapter supplies the worker.
+5. Start the isolated consumer and verify routes, errors, Cookie, proxy and restricted access. Only SSO collects the password.
+
+**Expected:** Fixed dependency/unique chain/explicit permissions. **Failure:** Repair external settings/composition, no hidden source copying.
+
+## I03 First login and browser isolation
+
+1. Browser A enters through the consumer's `/api/auth/login` with a controlled `returnTo` and completes SSO login and any partner consent.
+2. The backend validates one-time state/nonce/PKCE/code and signed Tokens, saves and registers the session before callback success. The browser receives only safe local Cookie/session data.
+3. Browser B logs in independently as the same user. Confirm separate Tokens, refreshing A cannot overwrite B, and renaming preserves the subject.
+4. Wrong/reused callbacks and unsafe return/client values must not authenticate. A consumer restart refuses old Cookies/pending transactions; a new login follows the independent SSO session.
+5. Record actual HTTP/browser results, versions and safe correlation references. Identity alone does not grant eligibility, onboarding or business authority.
+
+**Expected:** Independent valid login, failed transaction no success. **Failure:** Shared Token/automatic privilege is consumer gap, not bypass.
+
+## I04 Refresh failure and two logout types
+
+1. Use an isolated fixture or actual expiry to test single-flight refresh and successful persistent CAS before protected access. Do not shorten production expiry simply to test faster.
+2. Test definite refusal, save failure, timeout/lost response, logout races, late results and real process restart. Prove local refusal, durable accepted known work and actual retries separately.
+3. CSRF-protected local logout ends the business login/Cookie and retains SSO. A new top-level ordinary login may reuse the SSO session without another password prompt.
+4. Global browser flow uses the trusted end-session URL, original hint, state and exact return URI. Test two consumers/browsers and repeated/late Back-channel messages without login revival.
+5. Record unknown B honestly; old A's HTTP 200 is not family cleanup. Verify the fixed deadline and residual AT exposure, obtain explicit acceptance or select a separate enhancement; do not deliberately reuse A.
+
+**Expected:** Ended/uncertain login stays ended. **Failure:** Outage not ban; submission/log/ordinary200 not family completion.
+
+## I05 Eligibility/password wiring
+
+1. Validate the seven query fields, issuer/subject/reason and same-epoch high-watermark. Implement the one-minute cache/activity schedule; idle-game and business enforcement remain consumer-owned.
+2. A restored epoch needs independent verification, expected local generation and a fresh query. Clear old session/cache/pending/evidence, reject delayed replies, and never sort epoch UUIDs/timestamps.
+3. Bind the pending action, state/nonce/verifier to the initiating local session and request prompt=login/max_age=0. Only SSO accepts the password.
+4. Match issuer/sub/sid/session/signed auth_time and consume the callback once. Enforce the exact fifteen-minute boundary; logout/restart clears evidence. Local login success, Token refresh and dialogs do not renew it; only validated new password-authentication evidence can establish a new timestamp.
+5. Require explicit user resubmission and recheck eligibility/business/resource state. The callback executes no command. Test other browsers, exact expiry, wrong identity and old callbacks.
+
+**Expected:** Independent gates/verifiable evidence. **Failure:** SSO count not consumer acceptance, no addedMFA.
+
+## I06 Complete and maintain
+
+**Expected:** The consumer's own evidence covers supported integration and failure paths, with pinned versions and an assigned operating owner.
+
+**Failure:** Failed or unexecuted consumer checks remain open; repair the owning adapter/configuration and retest before opening the affected routes.
+
+1. Record expected/actual/unexecuted results and limits for section 6 and [API F07–F08](api-operations.md).
+2. The consumer owner reviews permissions, recovery, notifications and negative paths, then opens only tested routes. The sample is not their own acceptance evidence.
+3. Rerun affected flows after A06–A08 settings/secret changes. SDK upgrades pin the new version/hash/locks and check public compatibility, never follow a moving sibling HEAD.
+4. Incidents first invalidate local access and preserve accepted work, inspect safe metadata and use authorized scope rather than automatic global escalation.

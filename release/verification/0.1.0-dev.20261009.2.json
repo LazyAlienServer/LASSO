@@ -1,0 +1,111 @@
+{
+  "schemaVersion": 1,
+  "version": "0.1.0-dev.20261009.2",
+  "kind": "post-package-local-verification",
+  "sourceCommit": "297cdfc0dcf06a9db421064d5328b7bb71f07859",
+  "sourceTree": "a7b9bc6493083d1959d079158391ab6e77b45d59",
+  "distribution": {
+    "path": "release/las-sso-0.1.0-dev.20261009.2.zip",
+    "bytes": 81241365,
+    "sha256": "1e9d5782536cb0eec00f9175060b3ed4291e81a14be72f230e701c2a001b38eb"
+  },
+  "sourceArchiveSha256": "c792ee5037e44b8a5c2805f4b789c7a1c6ada69d10a1f4313e472369d3fcfce9",
+  "artifacts": {
+    "server": "10c5755b481ec4bdd8461cc75907408b79bb32ce6650f55df613d819299d2310",
+    "starter": "1a916c9df33f2a0b5eab88795cdc49bce1115d4b3c6914f5d65f81608841f5ad",
+    "reference-bff": "e6bdf55dbfdde06b6faa1947fb675e2e7754d3f099dc90f2a14fd0663fbfadd6"
+  },
+  "tests": {
+    "server": 588,
+    "starter": 196,
+    "reference-bff": 50,
+    "total": 834,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "databaseRequired": true,
+    "cleanForcedCompleteRun": true,
+    "starterLocalPublication": "passed"
+  },
+  "package": {
+    "files": 98,
+    "localLinks": 229,
+    "extractedZipVerified": true,
+    "tamperedFileRejected": true,
+    "extraFileRejected": true,
+    "sourceGitArchiveCommitVerified": true,
+    "embeddedFlywayVersions": "V1-V16",
+    "bilingualEightStepDockerTutorials": true,
+    "dockerNavigationResolvesWithinPackage": true,
+    "containerImagesIncluded": false
+  },
+  "scans": {
+    "trivyVersion": "0.75.0",
+    "vulnerabilityDatabaseUpdatedAt": "2026-10-08T15:33:46.578791096Z",
+    "vulnerabilityDatabaseRefreshCheck": "passed; existing database within scanner freshness window",
+    "javaMappingUpdatedAt": "2026-10-09T01:08:27.151814351Z",
+    "javaMappingRefresh": "download succeeded; no fallback",
+    "lockedDependencyRows": 241,
+    "nestedJarDependencyRows": 157,
+    "reportedDependencyVulnerabilities": 0,
+    "semgrepVersion": "1.179.0",
+    "scannedPaths": 488,
+    "errors": 0,
+    "findings": 6,
+    "semgrepReview": "Same six reviewed rule/path/line findings as the prior delivery: one fixed-context redirect, two operator-local/fixed-rule URLs and three trusted-local XML metadata parsers; no new production-path defect identified.",
+    "gitleaksVersion": "8.30.1",
+    "currentSourceFindings": 0,
+    "currentArtifactFindings": 0,
+    "historyFindings": 1,
+    "historyFindingReview": "Previously reviewed synthetic MockEnvironment keystore-path label in f5048d2; identical finding identity and original exit 1 retained, with no suppression or secret material.",
+    "extractedCompletePackageArchiveDepth": 3,
+    "extractedCompletePackageFindings": 0
+  },
+  "postPackageChecks": {
+    "maintenancePowerShellSyntax": "passed",
+    "maintenanceWrongHashBeforeJava": "rejected",
+    "pythonToolsSyntax": "passed",
+    "nativeMetadataConsumer": "compile and Boot4.1.1/Security7.1.1/Framework7.0.9/Log4j2.25.5 alignment passed",
+    "pomOnlyConsumer": "compile and same alignment passed",
+    "prometheus3.6": "configuration, rules and rule fixtures passed",
+    "alertmanager0.28.1": "configuration validation passed",
+    "emptyDockerInputTemplate": "rejected",
+    "packagedDockerImageBuildWithoutGit": "exact extracted manifest/JAR/hash, external staging, clean-build provenance passed",
+    "packageImmutableAfterImageBuild": true,
+    "systemd": "template only; no target Linux execution"
+  },
+  "packagedRuntimeFixture": {
+    "imageId": "sha256:3a8a328bef7d06927a48ebb678534e9fa1da537d1b4d1ad50197322f8f16b143",
+    "imageSourceCommit": "297cdfc0dcf06a9db421064d5328b7bb71f07859",
+    "unverifiedSourceFixture": false,
+    "productionApproved": false,
+    "configuration": "Copied extracted Compose/properties, random protected fixture secrets/key and loopback ports",
+    "database": "Previously verified patched PostgreSQL local fixture image; no fresh target-image acceptance",
+    "tls": "Two-day self-signed auth.las.test fixture with explicit certificate trust/browser SPKI exception; not public CA acceptance",
+    "offlineMigration": "Fresh V1-V16 and repeat exit 0; migrator owns objects and runtime Flyway history remains read-only",
+    "hiddenBootstrapAndForcedChange": "passed with exact delivered image",
+    "canonicalForwardingUnknownHostPublicActuator": "spoofed headers did not alter endpoints; unknown Host 421; public actuator 404",
+    "unprivilegedReadOnlyAppProxyAndPrivatePorts": true,
+    "secureHostCookie": true,
+    "sameKeyAndJDBCSessionAfterRestart": true,
+    "managementMetrics": [401, 200],
+    "noConsoleMaintenance": "rejected",
+    "readiness": [200, 503, 200],
+    "livenessDuringDatabaseOutage": 200,
+    "browserPageErrors": 0,
+    "fixtureSecretValuesAbsentFromContainerLogs": true,
+    "cleanup": "Containers/networks/volume absent; external secrets/key/config/private state deleted"
+  },
+  "previousDistributionChecks": {
+    "0.1.0-dev.20261009.1": "3009f5d8b748d677a845b25fa304a9d0353f5fb29fa184850573ae4f8aede11c",
+    "0.1.0-dev.20261007.1": "9f41ee29b14efae8534ca052678af48d01a27d115cfc9949a9c63669cbe88d1b"
+  },
+  "limitations": [
+    "Development delivery only; no production deployment, approval, push or hosted release.",
+    "Post-package verification is outside immutable package bytes and source snapshot.",
+    "Target deployment image/OS/JDK scans and DAST remain separate from dependency scan coverage.",
+    "Exact-version full dual-BFF OIDC/refresh/logout/restore/Grafana/live notification and hours-scale target load were not rerun.",
+    "Official DNS/public CA and renewal, firewall/Linux UID custody, capacity, off-host backup/RPO/RTO and notification channel require target acceptance."
+  ],
+  "productionApproved": false
+}

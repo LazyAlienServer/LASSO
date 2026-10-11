@@ -1,5 +1,7 @@
 # Docker 部署：从解压包到首次登录
 
+本页为**内置Nginx替代拓扑**。已选单层外部主机入口用[N01–N06](host-nginx-deployment.md)及独立compose.host-nginx.yml，两者service/helper不能混用。
+
 [目录](README.md) · [English](../en/docker-deployment.md) · [排障](troubleshooting.md)
 
 **适用：** Linux 主机、单实例、同机 Nginx、独立 PostgreSQL、初期无 CDN。

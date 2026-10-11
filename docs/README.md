@@ -2,12 +2,13 @@
 
 本目录按文档用途分组。产品总纲仍位于仓库根目录的 [LAS_SSO_DESIGN.md](../LAS_SSO_DESIGN.md)。
 
-当前状态与下一步优先阅读[正式生产上线计划](zh-CN/implementation/production-launch-plan.md)（[English](implementation/production-launch-plan.md)）：截至`.20261006.7`的完成状态、19项按依赖排序任务，每项列推进模块、精简步骤、上线影响和完成证据。
+当前软件发行进度见[API/发行准备](zh-CN/implementation/api-release-readiness-2026-10-11.md)（[English](implementation/api-release-readiness-2026-10-11.md)）；目标生产使用见[正式生产上线计划](zh-CN/implementation/production-launch-plan.md)（[English](implementation/production-launch-plan.md)）：区分最新`.2`/工作区/历史`.7`证据与19项部署任务，不把软件包发行等同公众开放。
 
 ## 架构与协议契约
 
 - [身份与数据模型](architecture/identity-and-data-model.md)：身份边界、状态机、数据库约束和并发规则。
 - [账号与管理 API](architecture/api-contract.md)：页面与管理接口、错误语义和安全门禁。
+- [已实现 API 参考](../release/_source/docs/zh-CN/api-reference.md)（[English](../release/_source/docs/en/api-reference.md)、[OpenAPI3.1](../release/_source/api/openapi.json)）：实际路由/DTO/认证/响应例外；发行时替换精确版本，无Swagger运行端点。
 - [OIDC 与 BFF 接入契约](architecture/oidc-and-bff-contract.md)：协议、Token、Claims、会话和退出契约。
 - [安全、密码与恢复](architecture/security-and-recovery.md)：密码、恢复码、威胁控制和 Secret 规则。
 - [SSO 架构与 SSO 专属交付计划](architecture/sso-architecture-and-roadmap.md)：只覆盖 SSO 服务端、starter 和参考 BFF 的架构、当前→预期矩阵、问题修复与后续交付。
@@ -15,6 +16,8 @@
 服务访问资格的第一阶段只使用第一方机密客户端查询和单调版本；独立状态事件投递已确认延后。Back-channel Logout 不承担资格状态同步。
 
 ## 领域决策
+
+- [ADR-0017：同机单层外部Nginx](zh-CN/adr/0017-single-external-nginx-container-edge.md)（[English](adr/0017-single-external-nginx-container-edge.md)）：主机Nginx直达loopback发布的SSO，PG/管理不发布，域名/HTTPS在正式目标上线供应。
 
 - [ADR-0016：单机Compose与账号站首发](zh-CN/adr/0016-single-host-compose-account-site-launch.md)（[English](adr/0016-single-host-compose-account-site-launch.md)）：确认拓扑/负责人、私有端口/离线迁移及目标门禁。
 
@@ -39,7 +42,8 @@
 ## 业务系统接入
 
 - [参考BFF持久撤销](zh-CN/integration/reference-durable-revocation.md)（[English](integration/reference-durable-revocation.md)）：显式profile/独立PG/key/加密task/lease重启恢复，消费schema与submit前crash边界独立。
-- [当前独立开发包0.1.0-dev.20261009.1](zh-CN/integration/development-delivery-2026-10-09-1.md)（[English](integration/development-delivery-2026-10-09-1.md)，[验收摘要](../release/verification/0.1.0-dev.20261009.1.json)）：P02–P06、90files/109links、834全量0skip、精确扫描、独立SDK/无Git包内镜像构建及真实Compose账号站冒烟，映射缓存/目标门禁限制保留。
+- [当前独立开发包0.1.0-dev.20261009.2](zh-CN/integration/development-delivery-2026-10-09-2.md)（[English](integration/development-delivery-2026-10-09-2.md)，[验收摘要](../release/verification/0.1.0-dev.20261009.2.json)）：双语任务型手册/Docker八步教程、98文件/229包内链接、834全量0skip、精确扫描、独立ZIP/SDK/无Git镜像与Compose浏览器冒烟；目标门禁保留。
+- [历史独立开发包0.1.0-dev.20261009.1](zh-CN/integration/development-delivery-2026-10-09-1.md)（[English](integration/development-delivery-2026-10-09-1.md)，[验收摘要](../release/verification/0.1.0-dev.20261009.1.json)）：P02–P06、90files/109links、834全量0skip、精确扫描、独立SDK/无Git包内镜像构建及真实Compose账号站冒烟，映射缓存/目标门禁限制保留。
 - [历史独立开发包0.1.0-dev.20261007.1](zh-CN/integration/development-delivery-2026-10-07-1.md)（[English](integration/development-delivery-2026-10-07-1.md)，[验收摘要](../release/verification/0.1.0-dev.20261007.1.json)）：三模块程序/SDK/源码、独立中英手册、配置维护与来源摘要；735全量0skip、独立解压/双metadata消费及实际模板DBreadiness验证。
 - [历史交付0.1.0-dev.20261006.7](zh-CN/integration/development-delivery-2026-10-06-7.md)（[English](integration/development-delivery-2026-10-06-7.md)，[manifest](integration/development-delivery-2026-10-06-7.json)）：V15修refresh后oldIDhint global400，735全量0skip；实际Grafana desktop/mobileViewer及两chain十分钟12,598混合操作/120refresh/无reuse，productionrampsoak另验。
 - [历史交付0.1.0-dev.20261006.6](zh-CN/integration/development-delivery-2026-10-06-6.md)（[English](integration/development-delivery-2026-10-06-6.md)，[manifest](integration/development-delivery-2026-10-06-6.json)）：734全量0skip、低基数领域指标/独立管理端口认证/缓存DBsnapshot、Prometheus到Alertmanager实际3类firing/resolved与TLS双链；当时面板只query已验。
@@ -63,6 +67,10 @@
 
 ## 部署与运维
 
+- [单层外部Nginx准备2026-10-11](zh-CN/operations/external-nginx-validation-2026-10-11.md)（[English](operations/external-nginx-validation-2026-10-11.md)）：独立host Compose/模板/验证器、14工具case、TLS探针转发及SNAPSHOT隔离运行，目标域名/HTTPS留正式上线。
+
+- [操作手册验证2026-10-11](zh-CN/operations/operation-handbook-validation-2026-10-11.md)（[English](operations/operation-handbook-validation-2026-10-11.md)）：中英各17页/57流程、59 API operation覆盖，415渲染links、命令解析/失败停止及隔离SQL/backup/restore；实际部署/浏览器证据另验。
+
 - [新版发行手册导航](zh-CN/operations/handbook-reading-guide.md)（[English](operations/handbook-reading-guide.md)）：Docker优先入口、步骤/结果/失败表、排障与历史清理/参考队列专项。
 
 - [Docker部署/环境输入矩阵](zh-CN/operations/docker-compose-deployment.md)（[English](operations/docker-compose-deployment.md)）：单机/无CDN/账号站首发确认、待定值、P06–P10目标门禁；[容器步骤](../las-sso-server/deploy/docker/README.zh-CN.md)／[English](../las-sso-server/deploy/docker/README.md)。
@@ -81,6 +89,8 @@
 - [Grafana与混合负载验收](zh-CN/operations/grafana-mixed-load-2026-10-07.md)（[English](operations/grafana-mixed-load-2026-10-07.md)）：.7 actualimport/desktopmobilecanvasViewer403/十分钟5subject9Session混合及短Tokenfixture、延迟memsamplinggap和soak边界。
 
 ## 实施、验证与审查记录
+
+- [API与软件发行准备](zh-CN/implementation/api-release-readiness-2026-10-11.md)（[English](implementation/api-release-readiness-2026-10-11.md)）：实现级OpenAPI/双语参考、正式/RC版本工具、已复现跨client RT重用撤销顺序修正，软件发行与目标部署门槛分开。
 
 - [Compose本地验收](zh-CN/implementation/docker-compose-acceptance-2026-10-09.md)（[English](implementation/docker-compose-acceptance-2026-10-09.md)）：834全量、实际维护/TLS/权限/故障、镜像扫描范围与目标待验。
 

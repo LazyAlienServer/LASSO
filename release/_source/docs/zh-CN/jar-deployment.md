@@ -71,3 +71,26 @@ java -jar application/las-sso-server-{{VERSION}}.jar --spring.profiles.active=pr
 4. 执行[开放前验收](acceptance.md)。
 
 失败入口：[排障](troubleshooting.md)。systemd 在当前 Windows 构建机未执行，目标 Linux 必须验证。
+
+## J01 主机安装的完整顺序
+
+**前提/位置：** 已选Linux JAR方式的目标主机，当前终端在发行包根；操作员有管理service、proxy及DB权限。未配置的环境停在该步，不把模板当可直接运行的生产配置。
+
+1. 核Java21、完整包/hash和受限service账号；程序目录按`/opt/las-sso/{{VERSION}}`只读安装，外配置/key/secret在`/etc/las-sso`或审核等效路径，service User可读但其他普通用户不可读。
+2. DB负责人建立独立runtime/migrator/backup角色及schema/default grants，环境值按§1供应；迁移使用migrator、Web使用runtime。主机没有Compose init自动建角色，不用runtime DDL/超级权限掩盖。
+3. 按§2server-only非Web执行迁移，exit0；DB owner按包内postgres-runtime-permissions.sql授权runtime只读Flyway history。新空库按§3真实终端bootstrap；已有唯一管理员不再bootstrap。
+4. 切Web到runtime外配置，检查issuer/key/pepper/Cookie、loopback及proxy一致。monitoring选择时unit profile改production,monitoring，并在additional-location中包含独立monitoring配置/哈希，不将此Web配置套维护命令。
+5. 修改**外部unit副本**User/Group/WorkingDirectory/ExecStart/EnvironmentFile及目录权限，先验证再安装；非秘密路径替换后执行：
+
+```sh
+set -euo pipefail
+systemd-analyze verify /etc/systemd/system/las-sso.service
+systemctl daemon-reload
+systemctl enable --now las-sso.service
+systemctl status las-sso.service --no-pager
+```
+
+6. 在目标私有端口核readiness，未启monitoring9000、启用后9091；Nginx外部配置安装forwarding include/正式域名/证书，nginx -t通过再reload，TLS及未知Host/public actuator检查。
+7. 浏览器完成U03/U07、管理员A01读验证，监控M01、备份B01/B02及目标验收V02。保存unit/config修订，不把EnvironmentFile原内容传报告。
+
+**预期：** 程序低权限启动、DB/端口私有、管理员新登录及可恢复配置。**失败：** unit失败核权限/path/profile/secret，日志私有查看；系统未提供systemd时使用已有进程管理器的等效边界，不宣称上述命令已运行。

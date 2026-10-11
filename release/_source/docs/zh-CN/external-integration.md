@@ -1,6 +1,6 @@
 # 业务网站接入步骤
 
-[目录](README.md) · [English](../en/external-integration.md) · [Starter SDK](../../sdk/README.md)
+[目录](README.md) · [English](../en/external-integration.md) · [Starter SDK](../../sdk/README.md) · [API参考](api-reference.md)
 
 **适用：** 服务端 / BFF Confidential Client。浏览器只持有业务 Session Cookie。
 
@@ -142,3 +142,67 @@ OP挑战5分钟、JDBC原子完成/消费；refresh/issue time不推进证据。
 | 跨浏览器/到期/refresh密码证据 | 发起session15分钟边界正确 |
 
 记录真实业务结果；参考BFF或SSO单测不替实际消费方验收。
+
+## I01 对接准备与登记交接
+
+**操作者/位置：** 消费方后端负责人+SSO管理员，隔离测试配置记录及SSO浏览器；先保持业务路由拒绝。
+
+1. 确定issuer、业务HTTPS origin、registrationId、完整callback/post-logout/可达Back-channel、audience，以及单实例/重启失效政策。
+2. 容器也需可达地址/验证TLS，不把localhost当另一容器；代理保留完整回调路径，不复制旧strip-api规则。
+3. 管理员[A05](administrator-guide.md)建立独立client，交接非秘密配置/version，secret仅私密交后端。
+4. 消费方核类型/scope/URI一致，固定SDK/SSO版本及hash。仅SSO账号站不需创建虚构client。
+
+**预期：** 精确输入一致。**失败：** URI/可达性先确认，不用wildcard或省略退出验收。
+
+## I02 固定SDK与唯一安全链安装
+
+**位置：消费方项目，非SSO包根。** 参考BFF不自动创建/启动LASLOG接入。
+
+1. 验包并声明[SDK file Maven](../../sdk/README.md)，精确starter{{VERSION}}、最终BOM/锁/Java21兼容。
+2. 第3节properties放消费方外部配置，私密secret/issuer；Servlet Cookie与配置同名、Secure/HttpOnly/Lax/Path=/、无Domain，代理同源。
+3. public configurer在自有SecurityFilterChain只configure一次，保业务默认拒绝/CSRF/成功delegate；不重复Filter/覆盖包装handler，返回目标采用公开wrapper。
+4. 按政策替换public repository/session/replay/sink/refresher/manager，验证实际Bean调用；有DB不等default持久，worker由所选适配完成。
+5. 起隔离测试consumer，核路由/错误/Cookie/代理/受限状态，密码只在SSO输入。
+
+**预期：** 固定依赖/唯一链启动，权限边界明确。**失败：** 修外部secret/discovery/链组合，不复制隐藏源码。
+
+## I03 首次登录与双浏览器隔离
+
+1. 浏览器A从业务/api/auth/login?returnTo=受控站内路径进入，完成SSO登录及适用partner consent。
+2. 后端核一次性state/nonce/PKCE/code/签名Token，回调成功前保存及登记session索引；浏览器只接local Cookie和安全session。
+3. 浏览器B同用户独立登录，确认两个local session/Token不共享，refreshA不覆盖B，改名保持sub。
+4. 错/重用callback、非法returnTo/client不得建立登录；重启consumer后旧Cookie/未决事务拒绝，新顶层登录依SSO主会话。
+5. 记录实际HTTP/browser/版本/非秘密关联；资格/入站/业务授权未实现仍不开放业务。
+
+**预期：** 正确回调建立独立会话，坏事务无成功。**失败：** 共享Token/自动授敏感角色为消费端缺口，不以身份通过放行。
+
+## I04 刷新故障及两类退出
+
+1. 隔离fixture或真实到期验证自动single-flight refresh，结果验证且持久CAS成功才继续访问，不改生产期限快测。
+2. 测明确拒绝、save故障、超时/丢响应、退出竞争、迟到结果、真实进程restart；本地拒绝、已接受已知作业持久恢复、worker重试分别有证据。
+3. CSRF POST业务/api/auth/logout：local Cookie/登录结束，SSO保持；新顶层登录可普通免密。
+4. global endpoint按end_session/hint/state/精确return走浏览器，核双consumer/浏览器/重复迟到Back-channel无复活。
+5. 未知B如实记录，旧A200不记family清理；核固定family截止/残余AT访问，由责任方接受或另选增强，不故意reuseA补偿。
+
+**预期：** 故障/退出不重新打开旧登录。**失败：** outage非封禁，接受作业/日志/普通200不等family完成。
+
+## I05 资格和近期密码接线
+
+1. 后端认证七字段query，核issuer/sub/reason，同epoch高水位/一分钟cache及active调度；空闲游戏/业务权限归所属责任。
+2. 恢复epoch要独立核验/expected generation/fresh query，清旧session/cache/pending/evidence，拒迟到，不排序UUID/time。
+3. 高风险动作发起session绑定pending/state/nonce/verifier，prompt=login/max_age=0；只SSO收密码。
+4. callback核issuer/sub/sid/session/签名auth_time，一次消费；15分钟仅发起session，期限/退出/重启清证据。本地登录成功、refresh或dialog不推进时间；只有已验证的新密码认证证据可建立新时间戳。
+5. 用户明确重新提交业务动作，重新查资格/业务/resource；callback不执行命令，测跨浏览器/截止相等/错身份/旧callback。
+
+**预期：** 身份/资格/业务门禁独立，证据可验证。**失败：** SSO count不代consumer验收，不新增MFA。
+
+## I06 完成及升级维护
+
+**预期：** 消费方自身证据覆盖支持的接入及故障路径，版本固定且有运维负责人。
+
+**失败：** 消费方失败或未执行的检查保持未完成；修对应适配器/配置并重验后才开放相关路径。
+
+1. 第6节及[API F07–F08](api-operations.md)记录expected/actual/未执行/限制。
+2. consumer负责人核权限/恢复/通知/负例，只开放已验路径，样例不能替自己的结果。
+3. client/secret变更按A06–A08复验；SDK升级固定新version/hash/锁/public API兼容，不随兄弟HEAD。
+4. 事故先本地失效保作业，查safe metadata，按授权scope处理，不自动全用户升级撤销。

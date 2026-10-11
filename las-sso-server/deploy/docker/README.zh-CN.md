@@ -1,5 +1,7 @@
 # Docker 部署文件入口
 
+已选[同机单层外部Nginx](../../../release/_source/docs/zh-CN/host-nginx-deployment.md)，使用独立compose.host-nginx.yml及deployment.host-nginx.env.example；原compose.yml是内置proxy替代。
+
 [English](README.md) · **[完整 Docker 部署教程](../../../release/_source/docs/zh-CN/docker-deployment.md)**
 
 首发拓扑：单机 Compose、同机 Nginx、独立 SSO/PostgreSQL，初期无 CDN。

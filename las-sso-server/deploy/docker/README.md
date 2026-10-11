@@ -4,6 +4,8 @@
 
 Selected topology: single-host Compose, same-host Nginx, separate SSO/PostgreSQL, no initial CDN.
 
+Selected edge: [one external host Nginx](../../../release/_source/docs/en/host-nginx-deployment.md), standalone compose.host-nginx.yml. Original compose.yml is the bundled-proxy alternative.
+
 ## Choose a task
 
 | Task | Read |
@@ -20,6 +22,7 @@ Source handbooks are templates; packaging substitutes `{{VERSION}}`. Extracted p
 | File | Purpose |
 | --- | --- |
 | `compose.yml` | SSO, PostgreSQL, Nginx and offline maintenance |
+| `compose.host-nginx.yml` / `deployment.host-nginx.env.example` | Selected SSO/PG/maintenance, loopback app publication and external host edge |
 | `Dockerfile` | Exact JAR/hash, non-root SSO image |
 | `postgres.Dockerfile` / `proxy.Dockerfile` | Pinned bases with build-time security updates |
 | `deployment.env.example` | Non-secret hostname/path/image/resource inputs |

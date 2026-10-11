@@ -6,11 +6,12 @@
 
 **Single-host Docker Compose, same-host Nginx, separate PostgreSQL, account-site first launch.**
 
-Start with **[Docker deployment](docker-deployment.md)**.
+Start with **[Docker + one external host Nginx](host-nginx-deployment.md)**. Official domain/HTTPS inputs are supplied at formal target launch; software fixtures do not substitute target acceptance.
 
 | Method | Instructions | Use |
 | --- | --- | --- |
-| Docker Compose | [Step-by-step guide](docker-deployment.md) | Selected first launch |
+| Docker Compose + host Nginx | [N01–N06 guide](host-nginx-deployment.md) | Selected first launch |
+| Compose + bundled Nginx | [Alternative guide](docker-deployment.md) | Independently chosen container edge |
 | Host JAR / systemd | [Step-by-step guide](jar-deployment.md) | An existing independent host-process layout |
 
 ## Supply first
