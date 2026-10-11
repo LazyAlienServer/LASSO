@@ -42,11 +42,11 @@ public final class RefreshTokenFamilyService {
      * Must run inside the transaction that performs the refresh. The history and authorization rows
      * remain locked until the rotated token has been saved.
      */
-    public boolean lockAndValidate(String rawRefreshToken) {
+    public boolean lockAndValidate(String rawRefreshToken, String registeredClientId) {
         byte[] tokenHash = hash(rawRefreshToken);
         Optional<TokenHistory> history = findHistoryForUpdate(tokenHash);
         if (history.isEmpty()) {
-            importLegacyCurrentToken(rawRefreshToken, tokenHash);
+            importLegacyCurrentToken(rawRefreshToken, tokenHash, registeredClientId);
             history = findHistoryForUpdate(tokenHash);
         }
         if (history.isEmpty()) {
@@ -54,6 +54,24 @@ public final class RefreshTokenFamilyService {
         }
 
         TokenHistory token = history.orElseThrow();
+        // History lookup can identify a rotated token that the standard provider cannot find.
+        // Establish ownership before reuse detection, invalidation, audit or outbox side effects.
+        boolean owned =
+                jdbcClient
+                        .sql(
+                                """
+                SELECT a.id FROM oauth2_authorization a
+                JOIN oauth2_authorization_security s ON s.authorization_id = a.id
+                WHERE a.id = :authorizationId AND a.registered_client_id = :registeredClientId
+                  AND s.token_family_id = :familyId
+                """)
+                        .param("authorizationId", token.authorizationId())
+                        .param("registeredClientId", registeredClientId)
+                        .param("familyId", token.tokenFamilyId())
+                        .query(String.class)
+                        .optional()
+                        .isPresent();
+        if (!owned) return false;
         if (!"CURRENT".equals(token.status())) {
             if ("ROTATED".equals(token.status())) {
                 recordReuseAndRevoke(token);
@@ -211,7 +229,8 @@ public final class RefreshTokenFamilyService {
                 .optional();
     }
 
-    private void importLegacyCurrentToken(String rawToken, byte[] tokenHash) {
+    private void importLegacyCurrentToken(
+            String rawToken, byte[] tokenHash, String registeredClientId) {
         Optional<LegacyToken> legacy =
                 jdbcClient
                         .sql(
@@ -224,10 +243,11 @@ public final class RefreshTokenFamilyService {
                        s.family_absolute_expires_at
                   FROM oauth2_authorization a
                   JOIN oauth2_authorization_security s ON s.authorization_id = a.id
-                 WHERE a.refresh_token_value = :rawToken
+                  WHERE a.refresh_token_value = :rawToken AND a.registered_client_id = :registeredClientId
                  FOR UPDATE OF a, s
                 """)
                         .param("rawToken", rawToken)
+                        .param("registeredClientId", registeredClientId)
                         .query(
                                 (rs, rowNum) ->
                                         new LegacyToken(

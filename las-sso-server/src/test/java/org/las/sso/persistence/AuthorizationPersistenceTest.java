@@ -27,6 +27,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
 import org.altcha.altcha.v2.Altcha;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.las.sso.account.AccountRegistrationService;
 import org.las.sso.account.PasswordChangeService;
 import org.las.sso.account.PasswordRecoveryService;
@@ -3055,6 +3057,165 @@ class AuthorizationPersistenceTest {
         assertThat(expired.getResponse().getStatus()).isEqualTo(400);
         assertThat(authorizations.findById(fixture.authorizationId())).isNull();
         assertThat(refreshHistoryCount(fixture.authorizationId(), "REVOKED")).isEqualTo(1);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void anotherAuthenticatedClientCannotTriggerRefreshFamilyInvalidation(boolean rotate)
+            throws Exception {
+        RefreshFixture owner =
+                createRefreshFixture(rotate ? "CrossClientRotated" : "CrossClientCurrent");
+        RefreshFixture other =
+                createRefreshFixture(rotate ? "OtherClientRotated" : "OtherClientCurrent");
+        String current = owner.refreshToken();
+        if (rotate) {
+            MvcResult result = refresh(owner, current);
+            assertThat(result.getResponse().getStatus()).isEqualTo(200);
+            current =
+                    objectMapper
+                            .readTree(result.getResponse().getContentAsString())
+                            .get("refresh_token")
+                            .asText();
+        }
+        double reuses = meters.get("las.sso.refresh.reuse").counter().count();
+        MvcResult rejected = refresh(other, owner.refreshToken());
+        assertThat(rejected.getResponse().getStatus()).isEqualTo(400);
+        assertThat(
+                        objectMapper
+                                .readTree(rejected.getResponse().getContentAsString())
+                                .get("error")
+                                .asText())
+                .isEqualTo("invalid_grant");
+        assertThat(authorizations.findById(owner.authorizationId())).isNotNull();
+        assertThat(authorizations.findById(other.authorizationId())).isNotNull();
+        assertThat(refreshHistoryCount(owner.authorizationId(), "REVOKED")).isZero();
+        assertThat(meters.get("las.sso.refresh.reuse").counter().count()).isEqualTo(reuses);
+        assertThat(
+                        jdbcClient
+                                .sql(
+                                        "SELECT COUNT(*) FROM security_events WHERE user_id=:id AND event_type='REFRESH_TOKEN_REUSE_DETECTED'")
+                                .param("id", owner.userId())
+                                .query(Long.class)
+                                .single())
+                .isZero();
+        assertThat(
+                        jdbcClient
+                                .sql(
+                                        "SELECT COUNT(*) FROM outbox_events WHERE aggregate_id=:id AND payload_json->>'reason'='REFRESH_TOKEN_REUSE_DETECTED'")
+                                .param("id", owner.userId().toString())
+                                .query(Long.class)
+                                .single())
+                .isZero();
+        assertThat(refresh(owner, current).getResponse().getStatus()).isEqualTo(200);
+    }
+
+    @Test
+    void repeatedRefreshPreservesAbsoluteFamilyDeadline() throws Exception {
+        RefreshFixture fixture = createRefreshFixture("FixedFamilyDeadline");
+        var original =
+                jdbcClient
+                        .sql(
+                                "SELECT family_created_at,family_absolute_expires_at FROM oauth2_authorization_security WHERE authorization_id=:id")
+                        .param("id", fixture.authorizationId())
+                        .query(
+                                (row, index) ->
+                                        List.of(
+                                                row.getObject(
+                                                        "family_created_at", OffsetDateTime.class),
+                                                row.getObject(
+                                                        "family_absolute_expires_at",
+                                                        OffsetDateTime.class)))
+                        .single();
+        String token = fixture.refreshToken();
+        for (int index = 0; index < 3; index++) {
+            MvcResult result = refresh(fixture, token);
+            assertThat(result.getResponse().getStatus()).isEqualTo(200);
+            token =
+                    objectMapper
+                            .readTree(result.getResponse().getContentAsString())
+                            .get("refresh_token")
+                            .asText();
+            var saved =
+                    jdbcClient
+                            .sql(
+                                    "SELECT family_created_at,family_absolute_expires_at FROM oauth2_authorization_security WHERE authorization_id=:id")
+                            .param("id", fixture.authorizationId())
+                            .query(
+                                    (row, number) ->
+                                            List.of(
+                                                    row.getObject(
+                                                            "family_created_at",
+                                                            OffsetDateTime.class),
+                                                    row.getObject(
+                                                            "family_absolute_expires_at",
+                                                            OffsetDateTime.class)))
+                            .single();
+            assertThat(saved).isEqualTo(original);
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void missingOrWrongClientSecretCannotInvalidateRotatedFamily(boolean wrongSecret)
+            throws Exception {
+        RefreshFixture fixture =
+                createRefreshFixture(wrongSecret ? "WrongSecretRotated" : "MissingClientRotated");
+        MvcResult result = refresh(fixture, fixture.refreshToken());
+        assertThat(result.getResponse().getStatus()).isEqualTo(200);
+        String current =
+                objectMapper
+                        .readTree(result.getResponse().getContentAsString())
+                        .get("refresh_token")
+                        .asText();
+        var request =
+                post("/oauth2/token")
+                        .accept(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .param("grant_type", "refresh_token")
+                        .param("refresh_token", fixture.refreshToken());
+        if (wrongSecret)
+            request.with(
+                    org.springframework.security.test.web.servlet.request
+                            .SecurityMockMvcRequestPostProcessors.httpBasic(
+                            fixture.clientId(), "wrong-client-secret"));
+        assertThat(mockMvc.perform(request).andReturn().getResponse().getStatus())
+                .isBetween(400, 401);
+        assertThat(authorizations.findById(fixture.authorizationId())).isNotNull();
+        assertThat(refreshHistoryCount(fixture.authorizationId(), "REVOKED")).isZero();
+        assertThat(refresh(fixture, current).getResponse().getStatus()).isEqualTo(200);
+    }
+
+    @Test
+    void rotatedTokenReuseRacingCurrentRefreshStillRevokesWithoutLockInversion() throws Exception {
+        RefreshFixture fixture = createRefreshFixture("ReuseAndCurrentRace");
+        MvcResult first = refresh(fixture, fixture.refreshToken());
+        assertThat(first.getResponse().getStatus()).isEqualTo(200);
+        String current =
+                objectMapper
+                        .readTree(first.getResponse().getContentAsString())
+                        .get("refresh_token")
+                        .asText();
+        var start = new CountDownLatch(1);
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var reuse =
+                    executor.submit(
+                            () -> {
+                                start.await();
+                                return refresh(fixture, fixture.refreshToken())
+                                        .getResponse()
+                                        .getStatus();
+                            });
+            var rotation =
+                    executor.submit(
+                            () -> {
+                                start.await();
+                                return refresh(fixture, current).getResponse().getStatus();
+                            });
+            start.countDown();
+            assertThat(reuse.get(10, java.util.concurrent.TimeUnit.SECONDS)).isEqualTo(400);
+            assertThat(rotation.get(10, java.util.concurrent.TimeUnit.SECONDS)).isIn(200, 400);
+        }
+        assertThat(authorizations.findById(fixture.authorizationId())).isNull();
+        assertThat(refreshHistoryCount(fixture.authorizationId(), "CURRENT")).isZero();
     }
 
     @Test
