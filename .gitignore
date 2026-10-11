@@ -29,6 +29,49 @@ logs/
 *.key
 *.pem
 
+# Deployment copies and credentials: templates ending in .example remain trackable.
+secrets/
+.private/
+deployment.env
+deployment.*.env
+restore.env
+server.properties
+monitoring.properties
+queue-maintenance.properties
+bff.properties
+durable-revocation.properties
+credentials.txt
+LOCAL-ADMIN-CREDENTIALS.txt
+private-state*.json
+*-private-state.json
+storage-state*.json
+*-storage-state.json
+storageState*.json
+
+# Runtime backups, authentication captures, heap dumps and exported images.
+backups/
+dumps/
+*.dump
+*.pgdump
+*.backup
+*.sql.gz
+*.sql.zst
+*.har
+*.hprof
+*.tar
+*.tar.gz
+*.tgz
+*.zip
+playwright-report/
+test-results/
+
+# Application binaries are release assets, not source; retain the build bootstrap JAR.
+*.class
+*.jar
+*.war
+*.ear
+!**/gradle/wrapper/gradle-wrapper.jar
+
 # Python verification tools.
 __pycache__/
 *.py[cod]

@@ -69,6 +69,8 @@
 
 ## 部署与运维
 
+- [GitHub源码提交范围检查](zh-CN/operations/github-source-publication-2026-10-11.md)（[English](operations/github-source-publication-2026-10-11.md)）：源码/模板/Wrapper与本地秘密/构建产物边界、全refs历史扫描、main分支及许可证/可见性选择。
+
 - [单层外部Nginx准备2026-10-11](zh-CN/operations/external-nginx-validation-2026-10-11.md)（[English](operations/external-nginx-validation-2026-10-11.md)）：独立host Compose/模板/验证器、14工具case、TLS探针转发及SNAPSHOT隔离运行，目标域名/HTTPS留正式上线。
 
 - [操作手册验证2026-10-11](zh-CN/operations/operation-handbook-validation-2026-10-11.md)（[English](operations/operation-handbook-validation-2026-10-11.md)）：中英各17页/57流程、59 API operation覆盖，415渲染links、命令解析/失败停止及隔离SQL/backup/restore；实际部署/浏览器证据另验。
