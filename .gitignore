@@ -35,5 +35,5 @@ __pycache__/
 node_modules/
 
 # Generated versioned deliveries; keep their templates and packaging tools tracked.
-/release/0.*/
+/release/[0-9]*.*/
 /release/las-sso-*.zip

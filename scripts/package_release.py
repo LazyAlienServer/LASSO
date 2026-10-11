@@ -1,17 +1,18 @@
-"""Build and package a clean committed LAS SSO development release; standard library only."""
+"""Build and package a clean committed LAS SSO delivery; standard library only."""
 
 import argparse
 import datetime as dt
 import hashlib
 import json
 import os
-import re
 import shutil
 import subprocess
 import sys
 import xml.etree.ElementTree as ET
 import zipfile
 from pathlib import Path
+
+from release_version import delivery_kind, template_values
 
 ROOT = Path(__file__).resolve().parents[1]
 SERVER = ROOT / "las-sso-server"
@@ -139,26 +140,20 @@ def zip_tree(root, destination, prefix=""):
             archive.writestr(info, path.read_bytes())
 
 
-def package(version, work):
-    evidence = load_evidence(version, work)
-    if (work / "scan-summary.json").exists():
-        scans = json.loads((work / "scan-summary.json").read_text(encoding="utf-8"))
-        if scans["sourceCommit"] != evidence["sourceCommit"] or scans["artifacts"] != evidence["artifacts"]:
-            raise ValueError("Scan source/artifact mismatch")
-        evidence["scans"] = scans
-    stage = work / "package"
-    if stage.exists():
-        raise ValueError("Staging package already exists; inspect it before retrying")
-    stage.mkdir()
+def copy_templates(version, stage):
+    """Render the real independent-package inputs; no artifact or source-evidence fabrication."""
     templates = ROOT / "release/_source"
     for path in sorted(templates.rglob("*")):
+        if "__pycache__" in path.parts or path.suffix in {".pyc", ".pyo"}:
+            continue
         if path.is_file():
             target = stage / path.relative_to(templates)
             target.parent.mkdir(parents=True, exist_ok=True)
             text = path.read_text(encoding="utf-8")
             # Executable tools contain template-detection literals, not release substitutions.
             if path.suffix != ".py":
-                text = text.replace("{{VERSION}}", version)
+                for placeholder, value in template_values(version).items():
+                    text = text.replace(placeholder, value)
             target.write_text(text, encoding="utf-8", newline="\n")
     shutil.copytree(SERVER / "deploy/monitoring", stage / "deploy/monitoring")
     shutil.copytree(SERVER / "deploy/docker", stage / "deploy/docker")
@@ -173,7 +168,7 @@ def package(version, work):
         text = text.replace("源码中的手册是发行模板，`{{VERSION}}` 在打包时替换。实际解压包已有精确版本，无需源码或 Git。", "本包镜像构建按上方教程执行，使用包内精确 JAR/hash 和 manifest，无需源码或 Git。")
         text = text.replace("Source handbooks are templates; packaging substitutes `{{VERSION}}`. Extracted packages have exact versions and need no source/Git.", "Build images using the tutorial above and this package's exact JAR/hash/manifest. No source checkout or Git is needed.")
         target.write_text(text.replace("{{VERSION}}", version), encoding="utf-8", newline="\n")
-    for name in ("build_docker_image.py", "build_docker_infrastructure.py", "verify_docker_deployment.py"):
+    for name in ("build_docker_image.py", "build_docker_infrastructure.py", "verify_docker_deployment.py", "release_version.py"):
         shutil.copy2(ROOT / "scripts" / name, stage / "scripts" / name)
     shutil.copy2(SERVER / "deploy/nginx/las-forwarding.conf", stage / "deploy/nginx/las-forwarding.conf")
     shutil.copy2(SERVER / "scripts/history-status.sql", stage / "scripts/history-status.sql")
@@ -186,6 +181,20 @@ def package(version, work):
             if "[Parameter(Mandatory = $true)]\n    [ValidatePattern('^[0-9a-fA-F]{64}$')]" not in text:
                 text = text.replace("[ValidatePattern('^[0-9a-fA-F]{64}$')]", "[Parameter(Mandatory = $true)]\n    [ValidatePattern('^[0-9a-fA-F]{64}$')]")
         (stage / "scripts" / path.name).write_text(text, encoding="utf-8", newline="\n")
+
+
+def package(version, work):
+    evidence = load_evidence(version, work)
+    if (work / "scan-summary.json").exists():
+        scans = json.loads((work / "scan-summary.json").read_text(encoding="utf-8"))
+        if scans["sourceCommit"] != evidence["sourceCommit"] or scans["artifacts"] != evidence["artifacts"]:
+            raise ValueError("Scan source/artifact mismatch")
+        evidence["scans"] = scans
+    stage = work / "package"
+    if stage.exists():
+        raise ValueError("Staging package already exists; inspect it before retrying")
+    stage.mkdir()
+    copy_templates(version, stage)
     coordinates = stage / f"sdk/maven/org/las/las-sso-spring-boot-starter/{version}"
     coordinates.parent.mkdir(parents=True, exist_ok=True)
     shutil.copytree(work / f"maven/org/las/las-sso-spring-boot-starter/{version}", coordinates)
@@ -225,7 +234,7 @@ def package(version, work):
     write_json(stage / "provenance/verification-summary.json", evidence)
     source_row = {**evidence["source"], "archive": source_zip.relative_to(stage).as_posix(), "sha256": sha(source_zip)}
     files = [{"path": path.relative_to(stage).as_posix(), "bytes": path.stat().st_size, "sha256": sha(path)} for path in sorted(stage.rglob("*")) if path.is_file()]
-    manifest = {"schemaVersion": 1, "version": version, "kind": "development-delivery", "createdAt": now(), "source": source_row, "artifacts": artifact_rows, "files": files, "productionApproved": False}
+    manifest = {"schemaVersion": 1, "version": version, "kind": delivery_kind(version), "createdAt": now(), "source": source_row, "artifacts": artifact_rows, "files": files, "productionApproved": False}
     write_json(stage / "provenance/release-manifest.json", manifest)
     sums = "".join(f"{sha(path)}  {path.relative_to(stage).as_posix()}\n" for path in sorted(stage.rglob("*")) if path.is_file())
     (stage / "provenance/SHA256SUMS").write_text(sums, encoding="utf-8", newline="\n")
@@ -243,8 +252,10 @@ def main():
     parser.add_argument("action", choices=("build", "package"))
     parser.add_argument("version")
     args = parser.parse_args()
-    if not re.fullmatch(r"0\.\d+\.\d+-dev\.\d{8}\.\d+", args.version):
-        parser.error("Use a distinct development version, e.g. 0.1.0-dev.20261007.1")
+    try:
+        delivery_kind(args.version)
+    except ValueError as error:
+        parser.error(str(error))
     if (ROOT / "release" / args.version).exists() or (ROOT / "release" / f"las-sso-{args.version}.zip").exists():
         parser.error("Version output already exists; never overwrite a delivery")
     # Build evidence must live outside Gradle's cleanable build directories.

@@ -9,6 +9,10 @@ import xml.etree.ElementTree as ET
 from pathlib import Path, PurePosixPath
 from urllib.parse import unquote, urlsplit
 
+# Integrity verification must never add Python cache files to the immutable package.
+sys.dont_write_bytecode = True
+from release_version import delivery_kind
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -32,8 +36,10 @@ def verify():
     sums_name = "provenance/SHA256SUMS"
     manifest = json.loads((ROOT / manifest_name).read_text(encoding="utf-8"))
     version = manifest["version"]
-    if not re.fullmatch(r"0\.\d+\.\d+-dev\.\d{8}\.\d+", version):
-        raise ValueError("Unexpected delivery version")
+    if manifest.get("kind") != delivery_kind(version):
+        raise ValueError("Delivery version/kind mismatch")
+    if manifest.get("productionApproved") is not False:
+        raise ValueError("Software delivery cannot assert deployment approval")
     expected = {}
     for line in (ROOT / sums_name).read_text(encoding="utf-8").splitlines():
         value, name = line.split("  ", 1)
@@ -63,8 +69,9 @@ def verify():
             raise ValueError(f"Artifact provenance mismatch: {name}")
         if name in {"server", "reference-bff"}:
             with zipfile.ZipFile(safe_path(artifact["path"])) as archive:
-                header = archive.read("META-INF/MANIFEST.MF").decode("utf-8")
-                if f"Implementation-Version: {version}" not in header:
+                header = archive.read("META-INF/MANIFEST.MF").decode("utf-8").replace("\r\n", "\n").replace("\n ", "")
+                fields = dict(line.split(": ", 1) for line in header.splitlines() if ": " in line)
+                if fields.get("Implementation-Version") != version:
                     raise ValueError("Executable JAR version mismatch")
     starter = safe_path(manifest["artifacts"]["starter"]["path"])
     pom = ET.fromstring(starter.with_suffix(".pom").read_bytes())
@@ -85,7 +92,7 @@ def verify():
     links = 0
     for path in sorted(ROOT.rglob("*.md")):
         text = path.read_text(encoding="utf-8")
-        if "{{VERSION}}" in text or sum(line.startswith("```") for line in text.splitlines()) % 2:
+        if any(marker in text for marker in ("{{VERSION}}", "{{DELIVERY_EN}}", "{{DELIVERY_ZH}}")) or sum(line.startswith("```") for line in text.splitlines()) % 2:
             raise ValueError(f"Unexpanded template or Markdown fence: {path.relative_to(ROOT)}")
         for target in re.findall(r"\[[^\]]*\]\(([^)]+)\)", text):
             parsed = urlsplit(target.strip("<>"))
@@ -103,6 +110,24 @@ def verify():
     for counts in summary["tests"]["modules"].values():
         if counts["tests"] < 1 or any(counts[key] for key in ("failures", "errors", "skipped")):
             raise ValueError("Missing/failed/skipped release tests")
+    api = json.loads((ROOT / "api/openapi.json").read_text(encoding="utf-8"))
+    if api.get("openapi") != "3.1.0" or api.get("info", {}).get("version") != version:
+        raise ValueError("API reference version mismatch")
+    def references(node):
+        if isinstance(node, dict):
+            for key, value in node.items():
+                if key == "$ref":
+                    if not value.startswith("#/"):
+                        raise ValueError("API reference must be self-contained")
+                    target = api
+                    for part in value[2:].split("/"):
+                        target = target[part.replace("~1", "/").replace("~0", "~")]
+                else:
+                    references(value)
+        elif isinstance(node, list):
+            for item in node:
+                references(item)
+    references(api)
     print(f"Verified {version}: {len(files)} files, {links} local links, artifact/migration/source evidence aligned.")
 
 
