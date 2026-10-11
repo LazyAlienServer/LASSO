@@ -2,6 +2,8 @@
 
 `_source/` contains the tracked handbook/configuration/tool sources. Version directories and distribution ZIPs are generated, ignored artifacts, not committed binaries.
 
+Latest **release candidate**: `0.1.0-rc.1`, clean source `8db0b20`, 843 strict tests/no skips, 113 files/451 links; [English acceptance](../docs/integration/release-candidate-2026-10-11-rc1.md) / [中文](../docs/zh-CN/integration/release-candidate-2026-10-11-rc1.md) / [evidence](verification/0.1.0-rc.1.json). ZIP SHA256 `6c8be5bbfee723d529217430fde8515ef5f64648e4355590fb184a2eb5682c04`. Exact-package SDK/browser/OIDC/maintenance/restore passed. Image follow-up remains: inherited pebble has three High findings; RC is not stable or production-approved. Historical development deliveries below remain unchanged.
+
 Selected next-version topology: [one external same-host Nginx](_source/docs/en/host-nginx-deployment.md) / [中文](_source/docs/zh-CN/host-nginx-deployment.md), SSO/PostgreSQL standalone Compose, loopback application publication and private management. Formal public domain/HTTPS inputs are supplied at target launch. This source change is not present in the immutable `.2` archive.
 
 Latest local delivery: **0.1.0-dev.20261009.2**, with task-oriented bilingual handbooks and a prominent Docker deployment tutorial. [English record](../docs/integration/development-delivery-2026-10-09-2.md) / [中文记录](../docs/zh-CN/integration/development-delivery-2026-10-09-2.md) / [verification evidence](verification/0.1.0-dev.20261009.2.json). Source `297cdfc`; 98 files/229 links, 834 strict tests, independent ZIP/SDK/image/Compose smoke. Runtime P02–P06 is retained. Older packages remain immutable.

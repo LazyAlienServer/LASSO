@@ -6,6 +6,8 @@
 
 ## 1. Current Baseline
 
+New identified [0.1.0-rc.1](../integration/release-candidate-2026-10-11-rc1.md): clean source8db0b20/tree21ce6cf,843strict/no skips,113files/451links, exact-package SDK/account/default+custom OIDC/maintenance/restore evidence. Three inherited-pebble High findings remain before stable-image acceptance; official domain/HTTPS remains target-launch work. The following development/workspace rows are historical. This RC is neither stable0.1.0 nor production approval.
+
 Latest immutable development package is [0.1.0-dev.20261009.2](../integration/development-delivery-2026-10-09-2.md): source297cdfc,834strict tests, V1–V16, independent ZIP/SDK/Docker/Compose evidence. Subsequent uncommitted [API/software-release preparation](api-release-readiness-2026-10-11.md) adds implemented OpenAPI/bilingual reference, stable/RC packaging and a reproduced refresh client-ownership correction; forced workspace843tests/zero skips passed. It is not a new immutable release. The older `.7` rows below remain historical, not the current source or count.
 
 ### Software distribution versus production opening

@@ -6,6 +6,8 @@
 
 ## 1. 当前基线
 
+新辨识[0.1.0-rc.1](../integration/release-candidate-2026-10-11-rc1.md)：干净8db0b20/tree21ce6cf、843strict/0skip、113files/451links，精确包SDK/账号/默认+自有OIDC/维护/restore证据。继承pebble3High为正式镜像前后续，正式域名/HTTPS仍目标上线任务。下方dev/workspace行保历史；RC非stable0.1.0/生产批准。
+
 最新不可变开发包为[0.1.0-dev.20261009.2](../integration/development-delivery-2026-10-09-2.md)：source297cdfc、834全量0skip、V1–V16、独立ZIP/SDK/Docker/Compose证据。后续未提交[API/软件发行准备](api-release-readiness-2026-10-11.md)补实现级OpenAPI/双语参考、stable/RC工具及已复现refresh client归属顺序修正，workspace843全量0skip通过；不是新不可变发行。下方`.7`行保历史，不代表当前源码/数量。
 
 ### 软件交付与生产开放

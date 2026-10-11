@@ -41,6 +41,8 @@
 
 ## 业务系统接入
 
+- [发行候选0.1.0-rc.1](zh-CN/integration/release-candidate-2026-10-11-rc1.md)（[English](integration/release-candidate-2026-10-11-rc1.md)、[验收JSON](../release/verification/0.1.0-rc.1.json)）：干净8db0b20、843全量0skip、113files/451links、独立SDK/账号/双链OIDC/维护/restore；SSO镜像pebble3High保正式镜像前后续，非stable/生产批准。
+
 - [参考BFF持久撤销](zh-CN/integration/reference-durable-revocation.md)（[English](integration/reference-durable-revocation.md)）：显式profile/独立PG/key/加密task/lease重启恢复，消费schema与submit前crash边界独立。
 - [当前独立开发包0.1.0-dev.20261009.2](zh-CN/integration/development-delivery-2026-10-09-2.md)（[English](integration/development-delivery-2026-10-09-2.md)，[验收摘要](../release/verification/0.1.0-dev.20261009.2.json)）：双语任务型手册/Docker八步教程、98文件/229包内链接、834全量0skip、精确扫描、独立ZIP/SDK/无Git镜像与Compose浏览器冒烟；目标门禁保留。
 - [历史独立开发包0.1.0-dev.20261009.1](zh-CN/integration/development-delivery-2026-10-09-1.md)（[English](integration/development-delivery-2026-10-09-1.md)，[验收摘要](../release/verification/0.1.0-dev.20261009.1.json)）：P02–P06、90files/109links、834全量0skip、精确扫描、独立SDK/无Git包内镜像构建及真实Compose账号站冒烟，映射缓存/目标门禁限制保留。
