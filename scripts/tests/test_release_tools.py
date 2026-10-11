@@ -45,18 +45,18 @@ class ReleaseToolsTest(unittest.TestCase):
 
     def test_cli_keeps_existing_version_outputs_immutable(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = Path(directory).resolve()
             (root / "release/0.1.0").mkdir(parents=True)
             with patch.object(package_release, "ROOT", root), patch.object(sys, "argv", ["package_release.py", "build", "0.1.0"]), contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
                 package_release.main()
 
     def test_cli_routes_stable_and_rc_versions_without_relaxing_source_build(self):
         with tempfile.TemporaryDirectory() as directory:
-            with patch.object(package_release, "ROOT", Path(directory)), patch.object(package_release, "build") as build:
+            with patch.object(package_release, "ROOT", Path(directory).resolve()), patch.object(package_release, "build") as build:
                 for version in ("0.1.0", "0.1.0-rc.1"):
                     with patch.object(sys, "argv", ["package_release.py", "build", version]):
                         package_release.main()
-                    build.assert_called_with(version, Path(directory) / ".build-release" / version)
+                    build.assert_called_with(version, Path(directory).resolve() / ".build-release" / version)
 
     def fixture(self, root, version):
         def write(name, data):
@@ -102,20 +102,20 @@ class ReleaseToolsTest(unittest.TestCase):
         spec = importlib.util.spec_from_file_location("package_verifier", ROOT / "release/_source/scripts/verify-package.py")
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
-        module.ROOT = root
+        module.ROOT = root.resolve()
         return module.verify
 
     def test_independent_verifier_accepts_dev_rc_and_stable_packages(self):
         for version in ("0.1.0-dev.20261009.2", "0.1.0-rc.1", "0.1.0", "1.0.0"):
             with self.subTest(version=version), tempfile.TemporaryDirectory() as directory:
-                root = Path(directory)
+                root = Path(directory).resolve()
                 self.fixture(root, version)
                 with contextlib.redirect_stdout(io.StringIO()): self.verifier(root)()
 
     def test_verifier_rejects_resealed_kind_approval_api_drift_and_skips(self):
         for mutation in ("kind", "approval", "api-version", "api-ref", "skipped"):
             with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as directory:
-                root = Path(directory)
+                root = Path(directory).resolve()
                 manifest = self.fixture(root, "0.1.0")
                 if mutation == "kind": manifest["kind"] = "development-delivery"
                 elif mutation == "approval": manifest["productionApproved"] = True
@@ -136,7 +136,7 @@ class ReleaseToolsTest(unittest.TestCase):
     def test_verifier_still_rejects_tampered_and_extra_files(self):
         for mutation in ("tamper", "extra"):
             with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as directory:
-                root = Path(directory)
+                root = Path(directory).resolve()
                 self.fixture(root, "0.1.0-rc.1")
                 (root / ("README.md" if mutation == "tamper" else "extra.txt")).write_text("changed")
                 with self.assertRaises(ValueError): self.verifier(root)()
@@ -144,7 +144,8 @@ class ReleaseToolsTest(unittest.TestCase):
     def test_actual_stable_and_rc_templates_are_independent_and_verifier_imports_packaged_policy(self):
         for version in ("0.1.0", "0.1.0-rc.1"):
             with self.subTest(version=version), tempfile.TemporaryDirectory() as directory:
-                root = Path(directory)
+                # Windows hosted runners may return an 8.3 TEMP alias; compare canonical paths.
+                root = Path(directory).resolve()
                 package_release.copy_templates(version, root)
                 values = template_values(version)
                 for path in root.rglob("*.md"):
@@ -166,7 +167,7 @@ class ReleaseToolsTest(unittest.TestCase):
 
     def test_stable_package_cannot_mislabel_a_release_candidate_executable(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = Path(directory).resolve()
             manifest = self.fixture(root, "0.1.0")
             jar = root / manifest["artifacts"]["server"]["path"]
             with zipfile.ZipFile(jar, "w") as archive:

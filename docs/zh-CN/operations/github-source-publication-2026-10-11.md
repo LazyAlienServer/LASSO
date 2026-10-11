@@ -52,3 +52,9 @@ Gitleaks **8.30.1** `--redact=100`扫描当前608 candidate：**exit0/0发现**�
 ## 上传边界
 
 初次检查仅准备ignore/文档，未提交上传。用户随后要求发布到`https://github.com/LazyAlienServer/LASSO.git`，官方GitHub CLI2.102.0确认public空仓库及ADMIN权限。将已审查最新源码通过本地fast-forward纳入main，普通push；本次不改写历史或上传生成Release附件，不添加/推断许可证。GitHub CI需push后核实际执行，不以本地结果代称。
+
+## 首次上传及托管Runner问题
+
+公开main已在`20e78ab`成功发布610个跟踪文件，保既有历史。本地main fast-forward并跟踪origin/main，旧开发分支未上传；实际秘密/build/发行ZIP保忽略，RC字节不变。
+
+首个[GitHub Verify](https://github.com/LazyAlienServer/LASSO/actions/runs/38147584998)：Linux Java21/PG/格式及报告检查通过；Windows仓库检查通过，工具fixture因TEMP使用`RUNNER~1`别名、destination.resolve后为长路径而失败。本地未解析路径harness复现同三失败case/四error子项，fixture root先resolve后harness及14Python测试通过。仅改测试root，不改shipping verifier越界/symlink检查；用新普通commit/push，不amend或替换不可变RC，后续CI单独核。

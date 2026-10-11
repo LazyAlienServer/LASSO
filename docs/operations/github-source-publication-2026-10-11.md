@@ -52,3 +52,9 @@ These findings describe the inspected snapshot, not a promise that every future 
 ## Upload boundary
 
 The initial review prepared ignore/documentation changes without committing or uploading. The user subsequently requested publication to `https://github.com/LazyAlienServer/LASSO.git`. Official GitHub CLI2.102.0 confirmed that the repository is public, empty and accessible with ADMIN permission. Publish the reviewed latest source as main using a fast-forward local branch update and an ordinary push; do not rewrite history or upload generated release assets in this source-publication step. No license is added or inferred. GitHub CI execution is checked after the push rather than claimed from local results.
+
+## Initial publication and hosted-runner finding
+
+Source publication succeeded on public main at `20e78ab` with 610 tracked files, preserving existing history. Local main was fast-forwarded and tracks origin/main; old development branches were not uploaded. Actual credentials/builds/release ZIPs remain ignored and RC bytes are unchanged.
+
+First [GitHub Verify run](https://github.com/LazyAlienServer/LASSO/actions/runs/38147584998): Linux Java21/PostgreSQL/formatting and report verification passed. Windows repository checks passed, but release-tool fixtures failed because hosted TEMP used the Windows `RUNNER~1` alias while resolved destinations used the canonical long path. A local unresolved-path harness reproduced the same three failed cases/four error subcases; resolving fixture roots before containment checks passed that harness and all14 Python tests. Only test roots changed; the shipping verifier's path traversal/symlink checks remain intact. The fix is a new ordinary commit/push, not an amendment or replacement of the immutable RC package. CI on the follow-up commit must be checked independently.
