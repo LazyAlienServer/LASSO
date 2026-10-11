@@ -1,0 +1,134 @@
+name: ${LAS_SSO_PROJECT:?Set the existing or distinct Compose project name}
+
+x-sso: &sso
+  image: ${LAS_SSO_IMAGE:?Set the verified immutable SSO image reference}
+  pull_policy: never
+  read_only: true
+  user: "10001:10001"
+  init: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  tmpfs: ["/tmp:rw,noexec,nosuid,size=64m,mode=1777"]
+  stop_grace_period: 30s
+  mem_limit: ${LAS_SSO_MEMORY_LIMIT:?Set the application memory limit}
+  cpus: ${LAS_SSO_CPUS:?Set the application CPU limit}
+  volumes:
+    - type: bind
+      source: ${LAS_SSO_CONFIG_DIR:?Set the protected config directory}/server.properties
+      target: /etc/las-sso/server.properties
+      read_only: true
+      bind: {create_host_path: false}
+    - type: bind
+      source: ${LAS_SSO_KEY_PATH:?Set the persistent PKCS12 path}
+      target: /etc/las-sso/signing.p12
+      read_only: true
+      bind: {create_host_path: false}
+  networks: [database]
+  depends_on:
+    postgres: {condition: service_healthy}
+
+services:
+  postgres:
+    image: ${LAS_SSO_DB_IMAGE:?Set the verified immutable PostgreSQL image}
+    pull_policy: never
+    restart: unless-stopped
+    mem_limit: ${LAS_SSO_DB_MEMORY_LIMIT:?Set the database memory limit}
+    cpus: ${LAS_SSO_DB_CPUS:?Set the database CPU limit}
+    environment:
+      POSTGRES_DB: las_sso
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_admin_password
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
+    secrets: [db_admin_password, db_runtime_password, db_migrator_password, db_backup_password]
+    volumes:
+      - postgres_data:/var/lib/postgresql
+      - type: bind
+        source: ./postgres-init.sh
+        target: /docker-entrypoint-initdb.d/10-las-sso.sh
+        read_only: true
+        bind: {create_host_path: false}
+    networks: [database]
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -h 127.0.0.1 -U postgres -d las_sso']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    logging: {driver: json-file, options: {max-size: 10m, max-file: "3"}}
+
+  sso:
+    <<: *sso
+    restart: unless-stopped
+    environment:
+      LAS_SSO_RUN_MODE: web
+      SPRING_CONFIG_ADDITIONAL_LOCATION: file:/etc/las-sso/server.properties
+      LAS_SSO_ISSUER: ${LAS_SSO_ISSUER:?Set the canonical HTTPS issuer}
+      LAS_SSO_SIGNING_KEY_ALIAS: ${LAS_SSO_SIGNING_KEY_ALIAS:?Set the PKCS12 alias}
+      LAS_SSO_SIGNING_KEY_ID: ${LAS_SSO_SIGNING_KEY_ID:?Set the stable key ID}
+      SPRING_DATASOURCE_USERNAME: las_sso_runtime
+    secrets:
+      - source: db_runtime_password
+        target: spring.datasource.password
+      - source: signing_password
+        target: las.sso.signing-key.password
+      - source: recovery_pepper
+        target: las.sso.recovery.pepper
+      - source: transient_pepper
+        target: las.sso.transient-security.key-pepper
+      - source: captcha_secret
+        target: las.sso.transient-security.captcha-hmac-secret
+      - source: monitoring_hash
+        target: las.sso.monitoring.password-hash
+    ports:
+      - target: 9000
+        published: "${LAS_SSO_APP_PORT:?Set an unused loopback application port}"
+        host_ip: 127.0.0.1
+        protocol: tcp
+    networks: [database, application, monitoring]
+    healthcheck:
+      test: [CMD, curl, --fail, --silent, --output, /dev/null, --max-time, "5", http://127.0.0.1:9091/actuator/health/readiness]
+      start_period: 60s
+      interval: 15s
+      timeout: 6s
+      retries: 3
+    logging: {driver: json-file, options: {max-size: 10m, max-file: "3"}}
+
+  maintenance:
+    <<: *sso
+    profiles: [maintenance]
+    restart: "no"
+    environment:
+      LAS_SSO_RUN_MODE: maintenance
+      SPRING_CONFIG_ADDITIONAL_LOCATION: file:/etc/las-sso/server.properties
+      LAS_SSO_ISSUER: ${LAS_SSO_ISSUER:?Set the canonical HTTPS issuer}
+      LAS_SSO_SIGNING_KEY_ALIAS: ${LAS_SSO_SIGNING_KEY_ALIAS:?Set the PKCS12 alias}
+      LAS_SSO_SIGNING_KEY_ID: ${LAS_SSO_SIGNING_KEY_ID:?Set the stable key ID}
+      SPRING_DATASOURCE_USERNAME: las_sso_migrator
+    secrets:
+      - source: db_migrator_password
+        target: spring.datasource.password
+      - source: signing_password
+        target: las.sso.signing-key.password
+      - source: recovery_pepper
+        target: las.sso.recovery.pepper
+      - source: transient_pepper
+        target: las.sso.transient-security.key-pepper
+      - source: captcha_secret
+        target: las.sso.transient-security.captcha-hmac-secret
+    logging: {driver: none}
+
+networks:
+  application: {}
+  database: {internal: true}
+  monitoring: {internal: true}
+volumes:
+  postgres_data: {}
+secrets:
+  db_admin_password: {file: '${LAS_SSO_SECRET_DIR:?Set the protected secret directory}/db-admin-password'}
+  db_runtime_password: {file: '${LAS_SSO_SECRET_DIR:?Set the protected secret directory}/db-runtime-password'}
+  db_migrator_password: {file: '${LAS_SSO_SECRET_DIR:?Set the protected secret directory}/db-migrator-password'}
+  db_backup_password: {file: '${LAS_SSO_SECRET_DIR:?Set the protected secret directory}/db-backup-password'}
+  signing_password: {file: '${LAS_SSO_SECRET_DIR:?Set the protected secret directory}/signing-password'}
+  recovery_pepper: {file: '${LAS_SSO_SECRET_DIR:?Set the protected secret directory}/recovery-pepper'}
+  transient_pepper: {file: '${LAS_SSO_SECRET_DIR:?Set the protected secret directory}/transient-pepper'}
+  captcha_secret: {file: '${LAS_SSO_SECRET_DIR:?Set the protected secret directory}/captcha-secret'}
+  monitoring_hash: {file: '${LAS_SSO_SECRET_DIR:?Set the protected secret directory}/monitoring-hash'}

@@ -14,7 +14,7 @@ TEMPLATES = ROOT / ("las-sso-server/deploy/docker" if (ROOT / "las-sso-server").
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--postgres-tag", required=True)
-    parser.add_argument("--proxy-tag", required=True)
+    parser.add_argument("--proxy-tag", help="Optional bundled Nginx image; omit for the host-Nginx topology")
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--allow-dirty-fixture", action="store_true")
     args = parser.parse_args()
@@ -33,7 +33,10 @@ def main():
     work.mkdir(exist_ok=True)
     receipt = {"sourceCommit": None if args.allow_dirty_fixture else revision, "checkoutBaseCommit": revision,
                "unverifiedFixture": args.allow_dirty_fixture, "productionApproved": False, "images": {}}
-    for name, tag in (("postgres", args.postgres_tag), ("proxy", args.proxy_tag)):
+    requested = [("postgres", args.postgres_tag)]
+    if args.proxy_tag:
+        requested.append(("proxy", args.proxy_tag))
+    for name, tag in requested:
         source = TEMPLATES / (name + ".Dockerfile")
         source_sha = hashlib.sha256(source.read_bytes()).hexdigest()
         with tempfile.TemporaryDirectory(prefix=name + "-", dir=work) as directory:
