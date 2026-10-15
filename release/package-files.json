@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "files": [
+    {"source": "release/templates/README.md", "target": "README.md", "render": true},
+    {"source": "api/openapi.json", "target": "api/openapi.json", "render": true},
+    {"source": "CHANGELOG.md", "target": "CHANGELOG.md", "render": true},
+    {"source": "ROADMAP.md", "target": "ROADMAP.md", "render": true},
+    {"source": "scripts/verify_package.py", "target": "scripts/verify-package.py", "render": false},
+    {"source": "scripts/smoke.py", "target": "scripts/smoke.py", "render": false},
+    {"source": "scripts/release_version.py", "target": "scripts/release_version.py", "render": false},
+    {"source": "scripts/release_layout.py", "target": "scripts/release_layout.py", "render": false},
+    {"source": "scripts/build_docker_image.py", "target": "scripts/build_docker_image.py", "render": false},
+    {"source": "scripts/build_docker_infrastructure.py", "target": "scripts/build_docker_infrastructure.py", "render": false},
+    {"source": "scripts/verify_docker_deployment.py", "target": "scripts/verify_docker_deployment.py", "render": false},
+    {"source": "las-sso-server/scripts/history-status.sql", "target": "scripts/history-status.sql", "render": false}
+  ],
+  "trees": [
+    {"source": "docs/en", "target": "docs/en", "pattern": "*.md", "render": true},
+    {"source": "docs/zh-CN", "target": "docs/zh-CN", "pattern": "*.md", "render": true},
+    {"source": "release/templates/config", "target": "config", "pattern": "**/*.example", "render": true},
+    {"source": "las-sso-server/deploy/docker", "target": "deploy/docker", "pattern": "*", "exclude": ["README.md", "README.zh-CN.md"], "render": false},
+    {"source": "las-sso-server/deploy/nginx", "target": "deploy/nginx", "pattern": "*", "render": false},
+    {"source": "las-sso-server/deploy/systemd", "target": "deploy/systemd", "pattern": "*", "render": true},
+    {"source": "las-sso-server/deploy/monitoring", "target": "deploy/monitoring", "pattern": "*", "render": false},
+    {"source": "las-sso-server/scripts", "target": "scripts", "pattern": "*.ps1", "render": false}
+  ]
+}

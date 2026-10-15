@@ -11,6 +11,7 @@ param(
     [ValidateNotNullOrEmpty()]
     [string]$JarPath,
 
+    [Parameter(Mandatory = $true)]
     [ValidatePattern('^[0-9a-fA-F]{64}$')]
     [string]$ExpectedSha256,
 

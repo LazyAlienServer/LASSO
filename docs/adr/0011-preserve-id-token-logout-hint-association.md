@@ -13,4 +13,4 @@ Store HMAC-only issued ID Token-to-authorization associations in V15 with a casc
 
 ## Consequences
 
-Schema migration and production history sizing/authorization cleanup are required. Older hints already discarded before upgrade cannot be reconstructed. Pepper rotation may require fresh login/reset of historical associations. This fixes protocol continuity without rewriting the BFF principal or manufacturing new password auth_time evidence. Regression red/green and final real two-mode mixed-load verification are in [implementation record](../implementation/refresh-logout-hint-history.md).
+Schema migration/history sizing/cleanup are required. Discarded old hints cannot be reconstructed; pepper rotation may require fresh login. Continuity does not rewrite the BFF principal or manufacture auth_time. Original regression/mixed-flow evidence: [record](https://github.com/LazyAlienServer/LASSO/blob/8390243/docs/implementation/refresh-logout-hint-history.md).

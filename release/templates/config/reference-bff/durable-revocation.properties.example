@@ -1,0 +1,11 @@
+# Reference-only queue DB/key, separate from SSO identity storage and signing material.
+reference.revocation.jdbc-url=${BFF_REVOCATION_DB_URL}
+reference.revocation.username=${BFF_REVOCATION_DB_USER}
+reference.revocation.password=${BFF_REVOCATION_DB_PASSWORD}
+reference.revocation.key-id=${BFF_REVOCATION_KEY_ID}
+reference.revocation.key-base64=${BFF_REVOCATION_KEY_BASE64}
+reference.revocation.allow-loopback-http=false
+reference.revocation.worker-enabled=true
+reference.revocation.completed-retention=P30D
+reference.revocation.cleanup-batch-size=100
+# Rotation only: supply next-key-base64 externally while the current key remains configured.

@@ -28,6 +28,6 @@
 
 后续B2默认sid标记时序见[ADR-0008](0008-retain-sid-revocations-before-local-registration.md)，与短issuer/jti执行回执独立，不为本ADR增加持久保证。
 
-这是用户批准的有意运行兼容变化；消费方须升级 adapter、核对[回执与验证契约](../integration/backchannel-logout-receipts.md)后启用。要求固定 issuer、第一方 sid 与严格短寿命，替换 decoder 仍负责密码学/原始 claim 验证。
+这是用户批准的运行兼容变化；consumer升级adapter见[当前接入](../integration.md)。固定issuer、first-party sid、短寿命保持，替换decoder负责密码学/原始claim验证。
 
 默认原子占用/回执及接收行为通过确定性故障/并发和真实签名/JWKS 负面测试。持久 adapter 自行确定事务、租约、独立 Session 存储效果及重启/多实例验收；`process` 不构成跨存储 exactly-once。退出先于登记仍按 B2 跟踪，ADR 不授权业务数据库、发布或部署操作。

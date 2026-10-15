@@ -1,0 +1,28 @@
+# Default container deployment: same-host external Nginx, loopback upstream. Replace host/certificates/ports.
+# Install las-forwarding.conf as /etc/nginx/snippets/las-sso-forwarding.conf.
+# Integrate into the existing host Nginx; do not add competing default_server blocks.
+server {
+    listen 80;
+    server_name auth.example.com;
+    if ($host != auth.example.com) { return 421; }
+    access_log off;
+    return 308 https://auth.example.com$request_uri;
+}
+server {
+    listen 443 ssl;
+    server_name auth.example.com;
+    if ($host != auth.example.com) { return 421; }
+    ssl_certificate /etc/las-sso/tls/fullchain.pem;
+    ssl_certificate_key /etc/las-sso/tls/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    client_max_body_size 64k;
+    access_log off;
+    add_header Strict-Transport-Security "max-age=31536000" always;
+    location = /actuator { return 404; }
+    location ^~ /actuator/ { return 404; }
+    location / {
+        proxy_pass http://127.0.0.1:19000;
+        proxy_http_version 1.1;
+        include /etc/nginx/snippets/las-sso-forwarding.conf;
+    }
+}

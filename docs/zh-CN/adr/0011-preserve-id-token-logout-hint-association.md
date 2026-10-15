@@ -13,4 +13,4 @@ V15存HMAC-only issuedIDToken→auth/FKcascade，原save事务先保previouscurr
 
 ## 影响
 
-需迁移/historysizing与authcleanup，upgrade前已丢hint不可重建，pepperrotation可能需freshlogin/reset。不重写BFFprincipal或造auth_time。redgreen/final两chain混合见[实现记录](../implementation/refresh-logout-hint-history.md)。
+需迁移/history sizing/cleanup，旧hint不可补造，pepper rotation可需新登录；不改BFF principal/造auth_time。原回归/双链结果见[记录](https://github.com/LazyAlienServer/LASSO/blob/8390243/docs/zh-CN/implementation/refresh-logout-hint-history.md)。

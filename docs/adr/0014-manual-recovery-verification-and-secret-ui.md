@@ -13,4 +13,4 @@ One-time credential/client-secret dialogs must erase plaintext on save/close/Esc
 
 ## Consequences
 
-Human evidence verification and custody remain operator responsibilities; automated UI tests prove the software behavior, not a real claimant's identity. Keep minimally necessary record references in access-controlled operations storage, not public chat or application source. Deletion disputes use existing bounded hold/release/public-summary and owner cancellation flows; no administrator may use SQL to resurrect a deleted identity or silently cancel a user's pending deletion. [Runbook and record templates](../operations/manual-recovery-and-lifecycle.md) define execution.
+Human verification/custody is operator-owned; UI tests do not establish a claimant's identity. Store minimal case references privately. Deletion disputes use bounded hold/release/public summary and owner cancellation, not SQL resurrection or silent cancellation. Current procedure: [administrator guide](../en/administrators.md).

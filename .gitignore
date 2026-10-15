@@ -1,6 +1,7 @@
 SAS-Test/
 __MACOSX/
 .idea/
+.dide/
 build/
 hs_err_pid*
 replay_pid*

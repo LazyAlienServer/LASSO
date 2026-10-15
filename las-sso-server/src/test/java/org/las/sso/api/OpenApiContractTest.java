@@ -20,7 +20,7 @@ import tools.jackson.databind.json.JsonMapper;
  * Detects API documentation drift without starting an identity database or adding public routes.
  */
 class OpenApiContractTest {
-    private static final Path SPEC = Path.of("../release/_source/api/openapi.json");
+    private static final Path SPEC = Path.of("../api/openapi.json");
 
     @Test
     void allImplementedApplicationJsonRoutesAreDocumentedAndNoDesignRoutesAreInvented()

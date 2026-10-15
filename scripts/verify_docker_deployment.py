@@ -5,11 +5,14 @@ import json
 import math
 import re
 import subprocess
+import sys
 from pathlib import Path
 from urllib.parse import urlsplit
 
-ROOT = Path(__file__).resolve().parents[1]
-DEFAULT = ROOT / ("las-sso-server/deploy/docker/compose.yml" if (ROOT / "las-sso-server").is_dir() else "deploy/docker/compose.yml")
+sys.dont_write_bytecode = True
+from release_layout import DOCKER_TEMPLATES
+
+DEFAULT = DOCKER_TEMPLATES / "compose.yml"
 
 
 def require(condition, code):

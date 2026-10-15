@@ -6,12 +6,13 @@ import re
 import runpy
 import shutil
 import subprocess
+import sys
 import tempfile
 import zipfile
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-TEMPLATES = ROOT / ("las-sso-server/deploy/docker" if (ROOT / "las-sso-server").is_dir() else "deploy/docker")
+sys.dont_write_bytecode = True
+from release_layout import ROOT, DOCKER_TEMPLATES as TEMPLATES
 
 
 def main():

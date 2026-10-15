@@ -106,5 +106,5 @@ allprojects {
 
 tasks.named<Test>("test") {
     // The API test reads the shipping document, so documentation edits invalidate cached tests.
-    inputs.file(layout.projectDirectory.file("../release/_source/api/openapi.json"))
+    inputs.file(layout.projectDirectory.file("../api/openapi.json"))
 }

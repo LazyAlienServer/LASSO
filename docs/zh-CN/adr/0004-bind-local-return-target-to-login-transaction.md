@@ -30,4 +30,4 @@ B5 丢弃 returnTo、默认登录总回首页。直接用回调参数或主体/S
 
 无目标默认行为及原应用成功处理器保持；显式目标现在影响默认链。无效值拒绝，不静默忽略。部署前不带创建时间属性的待完成授权会拒绝，须重新发起登录。手动替换 resolver/repository 须保留时间/state/目标契约；最终跳转不能绕过登记或信任回调参数。
 
-目标只是导航，不是业务权限、近期密码证据或保存的写操作；目标页继续鉴权，不自动重放危险写操作。真实浏览器/容器/代理、共享 Session/重启/消费/多实例独立验收。见[返回目标契约](../integration/login-return-target.md)，ADR 不批准部署或业务 DB 变更。
+目标仅导航，不是业务权限/近期证据/保存写操作；目标页鉴权，不重放危险写。consumer/shared-store/多实例另验。当前见[接入](../integration.md)，原详细约束见[历史契约](https://github.com/LazyAlienServer/LASSO/blob/8390243/docs/zh-CN/integration/login-return-target.md)。

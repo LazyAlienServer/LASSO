@@ -31,4 +31,4 @@
 - 完整行快照验证拒绝不改角色／哈希／凭据版本、请求、资格版本、恢复状态、会话、授权、审计／事件／outbox；成功重试保留已取消历史并继续既有安全撤销／审计。
 - PostgreSQL 申请／晋升／取消／执行／冻结受控交错及真实 SQL 审计失败验证状态重检／回滚；多个合法维护操作竞争仍只产生一个管理员。
 
-晋升数据库 25 项、命令 3 项；相关专项 90 项零失败／错误／跳过。强制全量 255 server / 176 starter 零失败／错误／跳过，参考 BFF 重编译、自身 `test NO-SOURCE`。命令与边界见[晋升契约](../implementation/admin-promotion-deletion.md)及状态地图 §3.10。无 schema／依赖／认证因素／公开晋升端点新增；未提交／发布／部署。
+本决策阶段晋升DB/命令及相关回归通过，原命令/数量/边界见[历史记录](https://github.com/LazyAlienServer/LASSO/blob/8390243/docs/zh-CN/implementation/admin-promotion-deletion.md)。无schema/依赖/因素/公开晋升端点新增。

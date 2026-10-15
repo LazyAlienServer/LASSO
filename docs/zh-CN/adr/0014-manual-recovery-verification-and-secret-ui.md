@@ -13,4 +13,4 @@
 
 ## 后果
 
-人工核验/保管仍由操作者负责，UI 自动测试证明软件行为，不证明真实申请人身份。仅保必要记录引用于受控运维存储，不放公开群/源码。注销争议沿用有界 hold/release/public-summary 和本人取消，管理员不能 SQL 复活 DELETED 或静默取消用户注销。[流程与模板](../operations/manual-recovery-and-lifecycle.md)说明执行步骤。
+人工核验/保管归operator，UI测试不证申请人身份；最小case记录私密存储。注销争议用有界hold/release/公开摘要及本人取消，不SQL复活/静默取消。当前见[管理员](../administrators.md)。

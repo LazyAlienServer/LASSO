@@ -1,9 +1,11 @@
 param(
-    [string]$Profile = 'local',
+    [string]$Profile = 'production',
 
+    [Parameter(Mandatory = $true)]
     [ValidateNotNullOrEmpty()]
-    [string]$JarPath = (Join-Path $PSScriptRoot '..\build\libs\las-sso-server-0.1.0-SNAPSHOT.jar'),
+    [string]$JarPath,
 
+    [Parameter(Mandatory = $true)]
     [ValidatePattern('^[0-9a-fA-F]{64}$')]
     [string]$ExpectedSha256
 )

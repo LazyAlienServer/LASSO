@@ -28,4 +28,4 @@ Starter sink是公开提交边界，默认executor队列进程退出丢任务。
 
 ## 证据
 
-参考BFF37项=34真实DB/AES-GCM/HTTP+3配置：提交/外rollback/SQLfault、status/redirect/budget、leaseowner恢复、200后回执失败重发、metadata/task替换/错缺key、注册身份变化/currentSecret、本地退出提交失败/defaultprofile/缺设置fail。实际Edge默认/自有链pausedworker提交加密任务→停JVM→同DBkey重启→真实SSO invalidated状态/refresh invalid_grant且别sid独立。无Token/key/secret输出，来源见[.4交付](../integration/development-delivery-2026-10-05-4.md)。
+本决策PG/AES/HTTP/config验证覆盖commit作业/lease/retry/receipt、key/metadata/registration及失败接受；真实默认/自有browser也验已提交task重启和别sid独立。原范围/来源见[.4交付](https://github.com/LazyAlienServer/LASSO/blob/8390243/docs/zh-CN/integration/development-delivery-2026-10-05-4.md)。

@@ -20,6 +20,7 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, str(ROOT / "scripts"))
 from release_version import delivery_kind, template_values
 import package_release
+import package_files
 
 
 def digest(path):
@@ -83,7 +84,7 @@ class ReleaseToolsTest(unittest.TestCase):
             archive.writestr("README.md", "Synthetic tool fixture; not application evidence.")
             archive.comment = commit.encode("ascii")
         write("README.md", "# Synthetic " + version + "\n[API](api/openapi.json)\n")
-        api = json.loads((ROOT / "release/_source/api/openapi.json").read_text(encoding="utf-8"))
+        api = json.loads((ROOT / "api/openapi.json").read_text(encoding="utf-8"))
         api["info"]["version"] = version
         write("api/openapi.json", json.dumps(api))
         write("provenance/verification-summary.json", json.dumps({"version": version, "sourceCommit": commit, "build": {"exitCode": 0}, "tests": {"modules": {"fixture": {"tests": 1, "failures": 0, "errors": 0, "skipped": 0}}}}))
@@ -99,7 +100,7 @@ class ReleaseToolsTest(unittest.TestCase):
         (root / "provenance/SHA256SUMS").write_text(sums, encoding="utf-8")
 
     def verifier(self, root):
-        spec = importlib.util.spec_from_file_location("package_verifier", ROOT / "release/_source/scripts/verify-package.py")
+        spec = importlib.util.spec_from_file_location("package_verifier", ROOT / "scripts/verify_package.py")
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         module.ROOT = root.resolve()
@@ -159,6 +160,23 @@ class ReleaseToolsTest(unittest.TestCase):
                 self.assertEqual({p.name for p in (root / "docs/en").glob("*.md")},
                                  {p.name for p in (root / "docs/zh-CN").glob("*.md")})
                 self.assertEqual(json.loads((root / "api/openapi.json").read_text())["info"]["version"], version)
+                for source, target, render in package_files.entries(ROOT):
+                    actual = (root / target).read_bytes()
+                    if render:
+                        expected = source.read_text(encoding="utf-8")
+                        for token, value in values.items():
+                            expected = expected.replace(token, value)
+                        self.assertEqual(actual, expected.encode("utf-8"), target)
+                        self.assertFalse(any(token.encode() in actual for token in values), target)
+                    else:
+                        self.assertEqual(actual, source.read_bytes(), target)
+                service = (root / "deploy/systemd/las-sso.service").read_text()
+                self.assertIn(f"WorkingDirectory=/opt/las-sso/{version}", service)
+                for command in ("smoke.py", "build_docker_image.py",
+                                "build_docker_infrastructure.py", "verify_docker_deployment.py"):
+                    help_result = subprocess.run([sys.executable, str(root / "scripts" / command), "--help"],
+                                                 cwd=root, capture_output=True, timeout=30)
+                    self.assertEqual(help_result.returncode, 0, help_result.stderr.decode("utf-8", errors="replace"))
                 self.fixture(root, version)
                 result = subprocess.run([sys.executable, str(root / "scripts/verify-package.py")], cwd=root,
                                         capture_output=True, timeout=30)
@@ -176,6 +194,90 @@ class ReleaseToolsTest(unittest.TestCase):
             self.seal(root, manifest)
             with self.assertRaisesRegex(ValueError, "Executable JAR version mismatch"):
                 self.verifier(root)()
+
+
+class PackageManifestTest(unittest.TestCase):
+    def manifest(self, root, files=None, trees=None):
+        path = root / "release/package-files.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({"schemaVersion": 1, "files": files or [], "trees": trees or []}), encoding="utf-8")
+
+    def test_unsafe_paths_and_globs_are_rejected(self):
+        for value in ("", ".", "../escape", "/absolute", "C:/absolute", "a\\b", None):
+            with self.subTest(path=value), self.assertRaises(ValueError):
+                package_files.relative_path(value)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            for pattern in ("", "../*", "/**", "a\\*", "C:*"):
+                self.manifest(root, trees=[{"source": "docs", "target": "docs", "pattern": pattern, "render": False}])
+                with self.subTest(pattern=pattern), self.assertRaises(ValueError):
+                    package_files.entries(root)
+
+    def test_missing_inputs_empty_trees_and_generated_files_are_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            self.manifest(root, files=[{"source": "missing.md", "target": "README.md", "render": True}])
+            with self.assertRaisesRegex(ValueError, "missing"):
+                package_files.entries(root)
+            self.manifest(root, trees=[{"source": "empty", "target": "docs", "pattern": "*.md", "render": True}])
+            with self.assertRaisesRegex(ValueError, "no files"):
+                package_files.entries(root)
+            (root / "generated.pyc").write_bytes(b"fixture")
+            self.manifest(root, files=[{"source": "generated.pyc", "target": "scripts/generated.pyc", "render": False}])
+            with self.assertRaisesRegex(ValueError, "Generated Python"):
+                package_files.entries(root)
+
+    def test_duplicate_case_aliases_and_file_directory_conflicts_are_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            (root / "input.md").write_text("fixture\n", encoding="utf-8")
+            for first, second in (("docs/a.md", "docs/a.md"), ("docs/A.md", "docs/a.md"),
+                                  ("docs", "docs/a.md"), ("docs/a.md", "docs")):
+                rows = [{"source": "input.md", "target": target, "render": False} for target in (first, second)]
+                self.manifest(root, files=rows)
+                with self.subTest(targets=(first, second)), self.assertRaisesRegex(ValueError, "conflicting"):
+                    package_files.entries(root)
+
+    def test_python_render_and_symlink_sources_are_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            script = root / "tool.py"
+            script.write_text("# {{VERSION}}\n", encoding="utf-8")
+            self.manifest(root, files=[{"source": "tool.py", "target": "scripts/tool.py", "render": True}])
+            with self.assertRaisesRegex(ValueError, "copied unchanged"):
+                package_files.entries(root)
+            self.manifest(root, files=[{"source": "tool.py", "target": "scripts/tool.py", "render": False}])
+            # Exercise the policy on Windows too, where creating a symlink may require elevation.
+            original = Path.is_symlink
+            with patch.object(Path, "is_symlink", lambda path: path == script or original(path)):
+                with self.assertRaisesRegex(ValueError, "leaves source tree"):
+                    package_files.entries(root)
+
+    def test_existing_destinations_are_not_overwritten(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            (root / "input.md").write_text("{{VERSION}}\n", encoding="utf-8")
+            stage = root / "stage"
+            stage.mkdir()
+            protected = stage / "README.md"
+            protected.write_text("existing\n", encoding="utf-8")
+            self.manifest(root, files=[{"source": "input.md", "target": "README.md", "render": True}])
+            with self.assertRaisesRegex(ValueError, "destination exists"):
+                package_files.copy_files(root, stage, "0.1.0")
+            self.assertEqual(protected.read_text(), "existing\n")
+
+    def test_tree_globs_cannot_include_ignored_local_inputs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            (root / "config").mkdir()
+            (root / "config/server.example").write_text("public template\n", encoding="utf-8")
+            (root / "config/private.env").write_text("private fixture\n", encoding="utf-8")
+            self.manifest(root, trees=[{"source": "config", "target": "config", "pattern": "*", "render": False}])
+            stage = root / "stage"
+            stage.mkdir()
+            with self.assertRaisesRegex(ValueError, "source candidate"):
+                package_files.copy_files(root, stage, "0.1.0", candidates={"config/server.example"})
+            self.assertFalse(list(stage.iterdir()))
 
 
 if __name__ == "__main__":

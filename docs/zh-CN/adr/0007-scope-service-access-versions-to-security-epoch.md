@@ -24,8 +24,8 @@ stateVersion与用户同库备份，恢复旧snapshot会回退。原恢复rotate
 
 ## 后果
 
-后续[ADR-0010](0010-executable-restore-epoch-barrier.md)／[交付.20261006.1](../integration/development-delivery-2026-10-06-1.md)增expectedepoch/交互nonweb事务屏障与真实pgdumprestore/持久key验收；generation缓存拒绝是testharness非consumer实施，下旧测试界限保历史。
+后续[ADR-0010](0010-executable-restore-epoch-barrier.md)提供expectedepoch/交互nonweb屏障，dump/restore/key结果见[历史交付](https://github.com/LazyAlienServer/LASSO/blob/8390243/docs/zh-CN/integration/development-delivery-2026-10-06-1.md)，generation拒绝为harness非consumer。
 
 response第七字段/JavaDecision加epoch，strictconsumer升级DTO/校验/cache namespace。无业务权限/MFA/独立资格事件。epoch是标识非Secret/grant，只认证internal暴露不绕签名/client。
 
-受控test新epoch区分低version、rollback、missingblank503/no-store，不实现consumercache或真实backuprestore。见[查询契约](../implementation/service-access-epoch-contract.md)、[开发交付](../integration/development-delivery-2026-10-05.md)及ADR-0001职责/延期事件。
+受控test新epoch/低version/rollback/missingblank不可用保[查询记录](https://github.com/LazyAlienServer/LASSO/blob/8390243/docs/zh-CN/implementation/service-access-epoch-contract.md)。consumer cache/恢复独立，ADR-0001职责/事件边界保持。

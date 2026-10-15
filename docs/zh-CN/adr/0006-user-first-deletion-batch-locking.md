@@ -32,6 +32,6 @@
 
 executeDue按实际请求变更计数（含原管理员保护性取消）；job计release+processed，同条释放后执行贡献2。纠正旧候选/跳过被当完成，不改HTTP payload。原公开构造/方法签名可继续用；直接执行对错/旧参数失败关闭。
 
-已取得用户锁保持到批次提交；后来失败会回滚此前合法变更，长期竞争可能延迟候选，需要容量/饥饿运维验收。只解决注销用户/请求倒置，不保证全系统任何锁均无死锁。S4按ADR-0002随后实现/数据库与命令fixture通过，见[晋升契约](../implementation/admin-promotion-deletion.md)；S5随后修复/数据库MockMvc模板通过，见[墓碑契约](../implementation/admin-tombstone-views.md)；S6随后新熵旧兼容修复验证，见[恢复契约](../implementation/recovery-credential-entropy.md)；D1指定补丁随后升级验证，见[Security记录](../implementation/spring-security-consent-patch.md)。真实验收/完整扫描独立。
+用户锁保至batch commit，后续失败回滚前序，长期竞争可能延迟候选，目标容量/饥饿另验。只修已知user/request倒置，不证明任意锁无死锁。后续提升/墓碑/恢复/依赖修复保[历史实现记录](https://github.com/LazyAlienServer/LASSO/tree/8390243/docs/zh-CN/implementation)。
 
-无schema/认证因素/授权/保留期限/依赖/部署改变；30天/90天、取消/管理员保护、审计/资格保持。见[并发契约](../implementation/deletion-concurrency.md)的实际DB证据与边界。未提交/发布/部署。
+无schema/因素/授权/保留/依赖/部署改变，30天/90天、取消/admin保护/audit/资格保持。原DB证据见[并发记录](https://github.com/LazyAlienServer/LASSO/blob/8390243/docs/zh-CN/implementation/deletion-concurrency.md)。

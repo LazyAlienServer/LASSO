@@ -8,14 +8,9 @@ import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
+from release_layout import ROOT, SERVER, MODULES
+from package_files import entries
 
-ROOT = Path(__file__).resolve().parents[1]
-SERVER = ROOT / "las-sso-server"
-MODULES = {
-    "server": SERVER,
-    "starter": SERVER / "las-sso-spring-boot-starter",
-    "reference-bff": SERVER / "las-sso-reference-bff",
-}
 TEXT_SUFFIXES = {
     ".java", ".kts", ".gradle", ".properties", ".toml", ".lockfile", ".md",
     ".json", ".yml", ".yaml", ".sql", ".html", ".css", ".js", ".cjs", ".py", ".ps1",
@@ -29,7 +24,8 @@ def source_files():
         ["git", "ls-files", "--cached", "--others", "--exclude-standard", "-z"],
         cwd=ROOT, check=True, capture_output=True,
     )
-    return sorted(set(name for name in result.stdout.decode("utf-8").split("\0") if name))
+    deleted = subprocess.check_output(["git", "ls-files", "--deleted", "-z"], cwd=ROOT).decode("utf-8").split("\0")
+    return sorted(set(name for name in result.stdout.decode("utf-8").split("\0") if name) - set(deleted))
 
 
 def repository():
@@ -38,6 +34,7 @@ def repository():
     external_links = 0
     checked = 0
     files = source_files()
+    package_templates = {source.relative_to(ROOT).as_posix(): target for source, target, _ in entries(ROOT, candidates=set(files))}
     forbidden_suffixes = {".p12", ".pfx", ".jks", ".keystore", ".key", ".pem", ".log", ".pyc"}
     generated_parts = {".gradle", ".idea", "build", "bin", "target", "__pycache__", ".local"}
     for name in files:
@@ -83,6 +80,14 @@ def repository():
             for target in re.findall(r"\[[^\]]*\]\(([^)]+)\)", text):
                 parts = urlsplit(target.strip("<>"))
                 if parts.scheme or parts.netloc or not parts.path:
+                    continue
+                if name.startswith("release/templates/"):
+                    logical = Path(package_templates[name]).parent / unquote(parts.path)
+                    # Templates use package paths; validate their destinations against the explicit manifest.
+                    if logical.as_posix() not in package_templates.values():
+                        failures.append(f"Broken package-template link: {name} -> {parts.path}")
+                    else:
+                        local_links += 1
                     continue
                 destination = (path.parent / unquote(parts.path)).resolve()
                 try:

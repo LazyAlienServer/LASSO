@@ -12,15 +12,9 @@ import xml.etree.ElementTree as ET
 import zipfile
 from pathlib import Path
 
-from release_version import delivery_kind, template_values
-
-ROOT = Path(__file__).resolve().parents[1]
-SERVER = ROOT / "las-sso-server"
-MODULES = {
-    "server": SERVER,
-    "starter": SERVER / "las-sso-spring-boot-starter",
-    "reference-bff": SERVER / "las-sso-reference-bff",
-}
+from release_version import delivery_kind
+from release_layout import ROOT, SERVER, MODULES, artifacts
+from package_files import copy_files
 
 
 def sha(path):
@@ -44,14 +38,6 @@ def source():
     if git("status", "--porcelain", "--untracked-files=all"):
         raise ValueError("Commit intended sources first; packaging requires a clean checkout")
     return {"commit": git("rev-parse", "HEAD"), "tree": git("rev-parse", "HEAD^{tree}"), "dirty": False}
-
-
-def artifacts(version):
-    return {
-        "server": MODULES["server"] / f"build/libs/las-sso-server-{version}.jar",
-        "starter": MODULES["starter"] / f"build/libs/las-sso-spring-boot-starter-{version}.jar",
-        "reference-bff": MODULES["reference-bff"] / f"build/libs/las-sso-reference-bff-{version}.jar",
-    }
 
 
 def execute(command, cwd, log, timeout=1200):
@@ -142,45 +128,8 @@ def zip_tree(root, destination, prefix=""):
 
 def copy_templates(version, stage):
     """Render the real independent-package inputs; no artifact or source-evidence fabrication."""
-    templates = ROOT / "release/_source"
-    for path in sorted(templates.rglob("*")):
-        if "__pycache__" in path.parts or path.suffix in {".pyc", ".pyo"}:
-            continue
-        if path.is_file():
-            target = stage / path.relative_to(templates)
-            target.parent.mkdir(parents=True, exist_ok=True)
-            text = path.read_text(encoding="utf-8")
-            # Executable tools contain template-detection literals, not release substitutions.
-            if path.suffix != ".py":
-                for placeholder, value in template_values(version).items():
-                    text = text.replace(placeholder, value)
-            target.write_text(text, encoding="utf-8", newline="\n")
-    shutil.copytree(SERVER / "deploy/monitoring", stage / "deploy/monitoring")
-    shutil.copytree(SERVER / "deploy/docker", stage / "deploy/docker")
-    for language, name in (("en", "README.md"), ("zh-CN", "README.zh-CN.md")):
-        target = stage / "deploy/docker" / name
-        text = target.read_text(encoding="utf-8").replace("../../../release/_source/docs/", "../../docs/")
-        # The package has task handbooks; source-only environment matrices remain in its source ZIP.
-        source_matrix = "../../../docs/" + ("zh-CN/" if language == "zh-CN" else "") + "operations/docker-compose-deployment.md"
-        text = text.replace(source_matrix, "../../docs/" + language + "/docker-deployment.md")
-        source_heading = "## 源码构建入口" if language == "zh-CN" else "## Source-build entry"
-        text = text.split(source_heading, 1)[0]
-        text = text.replace("源码中的手册是发行模板，`{{VERSION}}` 在打包时替换。实际解压包已有精确版本，无需源码或 Git。", "本包镜像构建按上方教程执行，使用包内精确 JAR/hash 和 manifest，无需源码或 Git。")
-        text = text.replace("Source handbooks are templates; packaging substitutes `{{VERSION}}`. Extracted packages have exact versions and need no source/Git.", "Build images using the tutorial above and this package's exact JAR/hash/manifest. No source checkout or Git is needed.")
-        target.write_text(text.replace("{{VERSION}}", version), encoding="utf-8", newline="\n")
-    for name in ("build_docker_image.py", "build_docker_infrastructure.py", "verify_docker_deployment.py", "release_version.py"):
-        shutil.copy2(ROOT / "scripts" / name, stage / "scripts" / name)
-    shutil.copy2(SERVER / "deploy/nginx/las-forwarding.conf", stage / "deploy/nginx/las-forwarding.conf")
-    shutil.copy2(SERVER / "scripts/history-status.sql", stage / "scripts/history-status.sql")
-    for path in sorted((SERVER / "scripts").glob("*.ps1")):
-        text = path.read_text(encoding="utf-8")
-        text = text.replace("[string]$Profile = 'local'", "[string]$Profile = 'production'")
-        text = text.replace("[string]$JarPath = (Join-Path $PSScriptRoot '..\\build\\libs\\las-sso-server-0.1.0-SNAPSHOT.jar')", "[string]$JarPath")
-        if path.name not in {"maintenance-artifact.ps1", "reference-revocation-maintenance.ps1"}:
-            text = text.replace("[ValidateNotNullOrEmpty()]\n    [string]$JarPath", "[Parameter(Mandatory = $true)]\n    [ValidateNotNullOrEmpty()]\n    [string]$JarPath") if "[Parameter(Mandatory = $true)]\n    [ValidateNotNullOrEmpty()]\n    [string]$JarPath" not in text else text
-            if "[Parameter(Mandatory = $true)]\n    [ValidatePattern('^[0-9a-fA-F]{64}$')]" not in text:
-                text = text.replace("[ValidatePattern('^[0-9a-fA-F]{64}$')]", "[Parameter(Mandatory = $true)]\n    [ValidatePattern('^[0-9a-fA-F]{64}$')]")
-        (stage / "scripts" / path.name).write_text(text, encoding="utf-8", newline="\n")
+    candidates = set(git("ls-files", "--cached", "--others", "--exclude-standard", "-z").split("\0"))
+    copy_files(ROOT, stage, version, candidates=candidates)
 
 
 def package(version, work):

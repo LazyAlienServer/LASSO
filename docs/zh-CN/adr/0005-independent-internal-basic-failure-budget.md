@@ -33,4 +33,4 @@ A3内部service-access查询直接验证Secret，没有哈希前限流。OAuth�
 
 限制的是每窗口/键获准哈希，不是总容量/所有请求吞吐上限或跨窗口全局并发。耗尽会暂拒合法客户端/共享网段，固定窗口边界、多键和持有效Secret的高流量仍需容量/运维评估。崩溃成本保留至到期是失败关闭取舍；窗口内配置变更/混合版本部署需运维审查，不提供自动恢复协议。
 
-真实PostgreSQL/MockMvc、实际PasswordEncoder spy、受控并发/Clock/隔离SQL故障已验。无生产migration、依赖替换、身份权限或部署代理规则变化；真实Servlet/TLS/代理网段、重启/多实例、指标/吞吐/告警分别验。见[内部Basic契约](../integration/internal-basic-authentication-budget.md)。
+实际PG/MockMvc、encoder spy、受控并发/Clock/SQL故障验证保[历史契约](https://github.com/LazyAlienServer/LASSO/blob/8390243/docs/zh-CN/integration/internal-basic-authentication-budget.md)。无schema/依赖/权限/proxy规则新增；目标地址/容量另验。

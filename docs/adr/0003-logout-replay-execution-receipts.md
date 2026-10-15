@@ -28,6 +28,6 @@ Add default method `process(issuer, tokenId, contentDigest, retainUntil, action)
 
 Subsequent B2 default sid-marker ordering is defined by [ADR-0008](0008-retain-sid-revocations-before-local-registration.md); it is separate from the short issuer/jti execution receipt and does not add durability to this ADR.
 
-This is an intentional runtime compatibility change approved by the user. Consumers must upgrade custom adapters and review the [receipt/validation contract](../integration/backchannel-logout-receipts.md) before enabling reception. Fixed issuer configuration is required, first-party sid and strict short Token lifetime are enforced, and custom decoders remain responsible for cryptographic/raw-claim validation.
+This is an intentional runtime compatibility change approved by the user. Consumers upgrade custom adapters using the [current integration contract](../en/integration.md). Fixed issuer configuration, first-party sid and strict short Token lifetime remain required; custom decoders are responsible for cryptographic/raw-claim validation.
 
 Default atomic reservation/receipt and receiver behavior have deterministic failure/concurrency tests and real signed Token/JWKS negative tests. Durable adapters own transaction boundaries, leases, independent session-store effects and restart/multi-instance acceptance; `process` alone does not provide a distributed exactly-once transaction. Logout-before-registration ordering remains separately tracked under B2. No business database, release or deployment is authorized by this ADR.

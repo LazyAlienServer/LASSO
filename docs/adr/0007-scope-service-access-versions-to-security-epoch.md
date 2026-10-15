@@ -24,8 +24,8 @@ Recovery must generate a new epoch before reopening traffic; restore without rot
 
 ## Consequences
 
-Subsequent [ADR-0010](0010-executable-restore-epoch-barrier.md) and [delivery .20261006.1](../integration/development-delivery-2026-10-06-1.md) supply an expected-epoch, interactive/non-web transactional barrier and actual pg_dump/pg_restore/persistent-key acceptance. The generation-cache rejection in that drill is a test harness, not a consumer implementation. The original controlled test limits below retain their historical scope.
+Subsequent [ADR-0010](0010-executable-restore-epoch-barrier.md) provides the expected-epoch interactive/non-Web barrier. [Historical delivery](https://github.com/LazyAlienServer/LASSO/blob/8390243/docs/integration/development-delivery-2026-10-06-1.md) records actual dump/restore/key acceptance; generation-cache rejection there is a harness, not consumer implementation.
 
 The response gains a seventh field and Java Decision construction gains the epoch component; strict consumers must update their DTO/validation/cache namespace. No business permission, MFA or independent eligibility event is introduced. The existing security epoch is an identifier, not a secret or authorization grant; exposing it only on the authenticated internal query does not allow bypassing signature/client checks.
 
-Controlled tests distinguish restored lower versions using a new epoch, roll back epoch updates, and verify missing/blank epoch returns no-store unavailable. These do not implement consumer cache acceptance or demonstrate a real backup/restore. See [query contract](../implementation/service-access-epoch-contract.md), [development delivery](../integration/development-delivery-2026-10-05.md), and ADR-0001's ownership/event boundary.
+Controlled tests distinguish restored lower versions/new epoch, rollback and missing/blank epoch unavailability. Original scope: [query record](https://github.com/LazyAlienServer/LASSO/blob/8390243/docs/implementation/service-access-epoch-contract.md). Consumer cache/recovery acceptance is independent; ADR-0001 retains authority/event boundaries.
