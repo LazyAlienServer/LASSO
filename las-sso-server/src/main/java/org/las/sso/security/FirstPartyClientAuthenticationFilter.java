@@ -5,12 +5,16 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.Base64;
 import java.util.List;
 import java.util.UUID;
+import org.las.sso.api.ApiProblems;
 import org.las.sso.api.RequestIdFilter;
 import org.las.sso.identity.UuidV7Generator;
 import org.slf4j.Logger;
@@ -31,7 +35,8 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 public final class FirstPartyClientAuthenticationFilter extends OncePerRequestFilter {
 
-    private static final String WWW_AUTHENTICATE = "Basic realm=\"LAS SSO internal\"";
+    private static final String WWW_AUTHENTICATE =
+            "Basic realm=\"LAS SSO internal\", charset=\"UTF-8\"";
     private static final Logger LOGGER =
             LoggerFactory.getLogger(FirstPartyClientAuthenticationFilter.class);
     private static final int MAX_HEADER_LENGTH = 4096;
@@ -135,7 +140,7 @@ public final class FirstPartyClientAuthenticationFilter extends OncePerRequestFi
             metrics.internalAuthentication(
                     org.las.sso.observability.SsoMetrics.QueryResult.INVALID_CREDENTIALS);
             SecurityContextHolder.clearContext();
-            reject(response);
+            reject(request, response);
             return;
         }
         metrics.internalAuthentication(org.las.sso.observability.SsoMetrics.QueryResult.SUCCESS);
@@ -161,8 +166,14 @@ public final class FirstPartyClientAuthenticationFilter extends OncePerRequestFi
         String encoded = authorization.substring(6).trim();
         final String decoded;
         try {
-            decoded = new String(Base64.getDecoder().decode(encoded), StandardCharsets.ISO_8859_1);
-        } catch (IllegalArgumentException exception) {
+            decoded =
+                    StandardCharsets.UTF_8
+                            .newDecoder()
+                            .onMalformedInput(CodingErrorAction.REPORT)
+                            .onUnmappableCharacter(CodingErrorAction.REPORT)
+                            .decode(ByteBuffer.wrap(Base64.getDecoder().decode(encoded)))
+                            .toString();
+        } catch (IllegalArgumentException | CharacterCodingException exception) {
             return null;
         }
         int separator = decoded.indexOf(':');
@@ -214,10 +225,10 @@ public final class FirstPartyClientAuthenticationFilter extends OncePerRequestFi
         }
     }
 
-    private void reject(HttpServletResponse response) {
-        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+    private void reject(HttpServletRequest request, HttpServletResponse response)
+            throws IOException {
         response.setHeader(HttpHeaders.WWW_AUTHENTICATE, WWW_AUTHENTICATE);
-        response.setHeader(HttpHeaders.CACHE_CONTROL, "no-store");
+        ApiProblems.write(request, response, 401, "CLIENT_AUTHENTICATION_REQUIRED", "客户端认证失败");
     }
 
     private void writeProblem(
@@ -231,23 +242,7 @@ public final class FirstPartyClientAuthenticationFilter extends OncePerRequestFi
         UUID requestId = existingId instanceof UUID id ? id : requestIds.generate();
         request.setAttribute(RequestIdFilter.ATTRIBUTE, requestId);
         response.setHeader("X-Request-Id", requestId.toString());
-        response.setStatus(status);
-        response.setHeader(HttpHeaders.CACHE_CONTROL, "no-store");
-        response.setContentType("application/problem+json");
-        response.setCharacterEncoding("UTF-8");
-        response.getWriter()
-                .write(
-                        "{\"type\":\"https://auth.las.example/problems/"
-                                + code.toLowerCase(java.util.Locale.ROOT).replace('_', '-')
-                                + "\",\"title\":\""
-                                + title
-                                + "\",\"status\":"
-                                + status
-                                + ",\"code\":\""
-                                + code
-                                + "\",\"requestId\":\""
-                                + requestId
-                                + "\"}");
+        ApiProblems.write(request, response, status, code, title);
     }
 
     private record Credentials(String clientId, String secret) {}

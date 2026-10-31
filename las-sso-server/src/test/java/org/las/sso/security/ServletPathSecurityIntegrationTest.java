@@ -824,7 +824,7 @@ class ServletPathSecurityIntegrationTest {
     private void assertInternalRejected(HttpResponse<String> response, UUID id) {
         assertThat(response.statusCode()).isEqualTo(401);
         assertThat(response.headers().firstValue("WWW-Authenticate"))
-                .contains("Basic realm=\"LAS SSO internal\"");
+                .contains("Basic realm=\"LAS SSO internal\", charset=\"UTF-8\"");
         assertThat(response.headers().firstValue("Cache-Control")).contains("no-store");
         assertThat(response.body()).doesNotContain(id.toString(), "ALLOWED", "PRINCIPAL_NOT_FOUND");
     }

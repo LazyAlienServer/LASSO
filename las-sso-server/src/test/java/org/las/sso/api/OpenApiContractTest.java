@@ -118,7 +118,7 @@ class OpenApiContractTest {
     }
 
     @Test
-    void recoveryEnumsAndExceptionalPasswordErrorAreNotMisrepresented() throws Exception {
+    void recoveryEnumsAndApplicationProblemContractAreNotMisrepresented() throws Exception {
         JsonNode spec = JsonMapper.builder().build().readTree(Files.readString(SPEC));
         var values =
                 spec.path("components")
@@ -142,9 +142,26 @@ class OpenApiContractTest {
                                 .path("post")
                                 .path("responses")
                                 .path("400")
-                                .path("content")
-                                .has("application/json"))
-                .isTrue();
+                                .path("$ref")
+                                .asText())
+                .isEqualTo("#/components/responses/Problem");
+        assertThat(
+                        spec.path("components")
+                                .path("schemas")
+                                .path("Problem")
+                                .path("required")
+                                .toString())
+                .contains("requestId");
+        for (var entry : spec.path("paths").properties()) {
+            if (!entry.getKey().startsWith("/api/v1/")) continue;
+            for (var operation : entry.getValue().properties()) {
+                for (String status : Set.of("401", "403")) {
+                    var response = operation.getValue().path("responses").path(status);
+                    if (response.isMissingNode()) continue;
+                    assertThat(response.toString()).doesNotContain("CodeError", "application/json");
+                }
+            }
+        }
         assertThat(spec.path("paths").path("/api/v1/recovery/password").has("post")).isFalse();
     }
 }

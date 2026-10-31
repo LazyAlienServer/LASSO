@@ -6,12 +6,11 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.UUID;
+import org.las.sso.api.ApiProblems;
 import org.las.sso.identity.LasUserPrincipal;
 import org.las.sso.session.UserSessionService;
 import org.springframework.http.HttpMethod;
-import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
@@ -56,12 +55,8 @@ public final class AccountSessionValidationFilter extends OncePerRequestFilter {
             filterChain.doFilter(request, response);
             return;
         }
-        if (request.getRequestURI().startsWith("/api/")) {
-            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
-            response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-            response.setCharacterEncoding(StandardCharsets.UTF_8.name());
-            response.setHeader("Cache-Control", "no-store");
-            response.getWriter().write("{\"code\":\"DELETION_PENDING\"}");
+        if (ApiProblems.isApi(request)) {
+            ApiProblems.write(request, response, 403, "DELETION_PENDING", "账号正在注销处理中");
         } else {
             response.sendRedirect(request.getContextPath() + "/account/delete");
         }
@@ -82,12 +77,8 @@ public final class AccountSessionValidationFilter extends OncePerRequestFilter {
             filterChain.doFilter(request, response);
             return;
         }
-        if (request.getRequestURI().startsWith("/api/")) {
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-            response.setCharacterEncoding(StandardCharsets.UTF_8.name());
-            response.setHeader("Cache-Control", "no-store");
-            response.getWriter().write("{\"code\":\"SESSION_EXPIRED\"}");
+        if (ApiProblems.isApi(request)) {
+            ApiProblems.write(request, response, 401, "SESSION_EXPIRED", "登录会话已失效");
         } else {
             response.sendRedirect(request.getContextPath() + "/login?sessionExpired");
         }
@@ -112,7 +103,7 @@ public final class AccountSessionValidationFilter extends OncePerRequestFilter {
     }
 
     private static boolean isDeletionScopeAllowed(HttpServletRequest request) {
-        String uri = request.getRequestURI();
+        String uri = ApiProblems.path(request);
         String method = request.getMethod();
         if (uri.equals("/account/delete")) {
             return true;

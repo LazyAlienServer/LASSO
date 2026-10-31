@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/api/v1/me")
@@ -52,7 +53,7 @@ public class UserSessionController {
         UserSessionService.RevocationResult result =
                 sessions.revoke(principal.userId(), sid, request);
         if (result == UserSessionService.RevocationResult.NOT_FOUND) {
-            return ResponseEntity.notFound().build();
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND);
         }
         if (result == UserSessionService.RevocationResult.CURRENT) {
             invalidate(request);
@@ -67,7 +68,7 @@ public class UserSessionController {
             HttpServletRequest request) {
         sameOriginVerifier.verify(request);
         if (idempotencyKey == null || idempotencyKey.isBlank() || idempotencyKey.length() > 128) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+            throw new IllegalArgumentException("Idempotency-Key is required");
         }
         LasUserPrincipal principal = principal(authentication);
         idempotency.executeWithoutResult(

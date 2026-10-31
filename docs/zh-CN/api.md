@@ -20,22 +20,24 @@ CSRF为session状态，不假设独立CSRF Cookie。同jar GET `/api/v1/csrf`，
 
 ## 请求与结果
 
-- JSON成功直接DTO/列表，204空正文，拒未知body字段。
+- JSON 成功直接返回 DTO/列表，204 空正文。应用 JSON 使用 UTF-8，拒绝非法字节、UTF-16/32 和显式指定的其他 charset；未知字段、数字/布尔值转字符串、client 配置数组中的 null 元素均返回 400。
+- 在安全过滤器写正文之前设置 Servlet 响应编码：`spring.servlet.encoding.charset=UTF-8` 和 `spring.servlet.encoding.force-response=true`（Boot 4 属性名）。这也覆盖框架 JWKS 接口；JSON Content-Type 不带 charset 或声明 UTF-8，不再声明 ISO-8859-1。OAuth/OIDC 正文不加业务包装。
 - 时间为RFC3339 offset；lastUsedLabel等是显示文案，不是timestamp。
-- X-Request-Id用于关联，不是授权/幂等证明，不记录认证body/header。
+- X-Request-Id 覆盖应用处理和安全过滤器提前拒绝，同一值写入应用错误正文；它用于关联，不是授权/幂等证明。HTTP 服务器在 Servlet 处理前拒绝的请求可能只有容器响应。不记录认证 body/header。
 - 注册Key为UUID；其他适用写需非空≤128字符、actor+operation/body作用域、24小时。同key重试仍需认证/CSRF，replay不再显秘密。
 - 适用：logout-all、注销申请/取消、admin freeze/unfreeze/revoke-sessions/人工恢复、client-secret rotation；client创建/编辑、码换批、hold/release无此保证。
 - 超时先查状态/audit再重试。一次性结果丢失需明确新生成/重发/轮换。
 
-| 来源 | 响应例外 |
+| 接口面 | 响应契约 |
 | --- | --- |
-| MVC应用异常 | problem+json、code/requestId及可选availableAt |
-| session/强改/注销filter | 401/403 JSON `{code}` |
-| 改密局部错误 | 400/401 JSON `{code}`，错当前密码401 |
-| 匿名浏览器 | 可重定向login |
-| 内部Basic | 空401 challenge，安全429/503 Problem |
-| login/CAPTCHA | redirect或文本429/Retry-After |
-| OAuth/OIDC | 协议错误/Bearer challenge/redirect |
+| 应用/内部 API 错误 | application/problem+json，必有 type/title/status/code/requestId；可选 detail/instance/availableAt；no-store |
+| 会话/强改/注销/CSRF/角色检查 | 相同 Problem 契约；API 401/403 不跳转 HTML 登录页 |
+| 改密错误 | 相同 Problem 契约；当前密码错误仍为 401 |
+| 内部 Basic | 相同 Problem 契约；401 保留带 `charset="UTF-8"` 的 WWW-Authenticate，429 保留 Retry-After |
+| 浏览器页面及密码登录 | HTML、跳转或文本 429/Retry-After |
+| OAuth/OIDC、health、metrics | 保留协议及媒体原格式，不加业务包装 |
+
+调用方依据 HTTP 状态和稳定 code 判断，不依赖可翻译的 title/detail。未处理应用异常返回安全通用 Problem，不暴露异常文字；Servlet 404/405/415 同样处理，并保留 Allow 等头。内部查询 Basic 为 UTF-8 `clientId:secret` 的 Base64，拒绝非法 UTF-8；OAuth client_secret_basic 保留自身表单编码规则。仅含 ASCII 的 ID/码及二进制签名保持各自字节格式。
 
 ## 接口组
 
@@ -64,3 +66,5 @@ limit默认50、clamp1–200；user cursor为UUID，其余admin cursor原样时�
 AT 默认 15 分钟，family 固定 14 天，refresh 不推进 auth_time。revoke 200 可为未知 Token，不证明后继清理。introspection 只反映存储 Token 状态，不证明资格或 family 截止。SSO `/logout` 和 `/connect/logout` 为用户全局退出，BFF 本地退出独立。
 
 防漂移测试核实际MVC和标记DTO/OpenAPI，不代全协议认证或consumer验收。
+
+Discovery 声明 openid/profile、authorization_code/refresh_token 及支持 sid 的 OIDC 后端退出。根路径/非根 Servlet 的真实 HTTP 回归还核安全链/MVC 错误、UTF-8 及非法输入，不仅检查 schema/路由。

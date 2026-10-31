@@ -10,10 +10,10 @@ import org.las.sso.security.SameOriginVerifier;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
-import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 public final class PasswordChangeController {
@@ -33,8 +33,9 @@ public final class PasswordChangeController {
             @Valid @RequestBody PasswordChangeRequest body,
             HttpServletRequest request) {
         sameOriginVerifier.verify(request);
-        if (!(authentication.getPrincipal() instanceof LasUserPrincipal principal)) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        if (authentication == null
+                || !(authentication.getPrincipal() instanceof LasUserPrincipal principal)) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
         }
         String currentCredential =
                 principal.passwordChangeRequired()
@@ -52,23 +53,8 @@ public final class PasswordChangeController {
         return ResponseEntity.noContent().build();
     }
 
-    @ExceptionHandler({PasswordChangeException.class, PasswordPolicyException.class})
-    ResponseEntity<PasswordChangeError> passwordChangeError(RuntimeException exception) {
-        String code =
-                exception instanceof PasswordChangeException change
-                        ? change.code()
-                        : ((PasswordPolicyException) exception).code();
-        HttpStatus status =
-                "CURRENT_PASSWORD_INVALID".equals(code)
-                        ? HttpStatus.UNAUTHORIZED
-                        : HttpStatus.BAD_REQUEST;
-        return ResponseEntity.status(status).body(new PasswordChangeError(code));
-    }
-
     record PasswordChangeRequest(
             @Size(max = 512) String currentPassword,
             @Size(max = 512) String temporaryPassword,
             @NotBlank @Size(max = 512) String newPassword) {}
-
-    record PasswordChangeError(String code) {}
 }

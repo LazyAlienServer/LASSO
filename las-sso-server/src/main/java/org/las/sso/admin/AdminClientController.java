@@ -3,7 +3,9 @@ package org.las.sso.admin;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
+import java.util.List;
 import java.util.UUID;
 import org.las.sso.account.OperationIdempotencyService;
 import org.las.sso.api.RequestIdFilter;
@@ -182,20 +184,22 @@ public class AdminClientController {
             String clientId,
             @NotBlank @Size(max = 128) String clientName,
             @NotBlank String clientType,
-            java.util.List<@Size(max = 500) String> redirectUris,
-            java.util.List<@Size(max = 500) String> postLogoutRedirectUris,
-            java.util.List<@Size(max = 40) String> scopes,
-            java.util.List<@Size(max = 200) String> resourceAudiences,
+            @NotNull @Size(min = 1, max = 10) List<@NotBlank @Size(max = 500) String> redirectUris,
+            @Size(max = 10) List<@NotBlank @Size(max = 500) String> postLogoutRedirectUris,
+            @NotNull @Size(min = 1) List<@NotBlank @Size(max = 40) String> scopes,
+            @NotNull @Size(min = 1, max = 10)
+                    List<@NotBlank @Size(max = 200) String> resourceAudiences,
             @Size(max = 500) String backchannelLogoutUri,
             @NotBlank @Size(max = 500) String reason) {}
 
     public record PatchBody(
             @NotBlank @Size(max = 128) String clientName,
             @NotBlank String clientType,
-            java.util.List<@Size(max = 500) String> redirectUris,
-            java.util.List<@Size(max = 500) String> postLogoutRedirectUris,
-            java.util.List<@Size(max = 40) String> scopes,
-            java.util.List<@Size(max = 200) String> resourceAudiences,
+            @NotNull @Size(min = 1, max = 10) List<@NotBlank @Size(max = 500) String> redirectUris,
+            @Size(max = 10) List<@NotBlank @Size(max = 500) String> postLogoutRedirectUris,
+            @NotNull @Size(min = 1) List<@NotBlank @Size(max = 40) String> scopes,
+            @NotNull @Size(min = 1, max = 10)
+                    List<@NotBlank @Size(max = 200) String> resourceAudiences,
             @Size(max = 500) String backchannelLogoutUri,
             @NotBlank @Size(max = 500) String reason) {}
 

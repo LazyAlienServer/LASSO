@@ -5,10 +5,9 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.Set;
+import org.las.sso.api.ApiProblems;
 import org.las.sso.identity.LasUserPrincipal;
-import org.springframework.http.MediaType;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -35,12 +34,9 @@ public final class PasswordChangeRequiredFilter extends OncePerRequestFilter {
                 && authentication.isAuthenticated()
                 && authentication.getPrincipal() instanceof LasUserPrincipal principal
                 && principal.passwordChangeRequired()
-                && !isAllowed(request.getRequestURI())) {
-            if (request.getRequestURI().startsWith("/api/")) {
-                response.setStatus(HttpServletResponse.SC_FORBIDDEN);
-                response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-                response.setCharacterEncoding(StandardCharsets.UTF_8.name());
-                response.getWriter().write("{\"code\":\"PASSWORD_CHANGE_REQUIRED\"}");
+                && !isAllowed(ApiProblems.path(request))) {
+            if (ApiProblems.isApi(request)) {
+                ApiProblems.write(request, response, 403, "PASSWORD_CHANGE_REQUIRED", "必须先修改密码");
             } else {
                 response.sendRedirect(request.getContextPath() + "/password-change-required");
             }

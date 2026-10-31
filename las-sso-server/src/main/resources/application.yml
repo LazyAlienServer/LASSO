@@ -4,6 +4,10 @@ spring:
   jackson:
     deserialization:
       fail-on-unknown-properties: true
+  servlet:
+    encoding:
+      charset: UTF-8
+      force-response: true
   flyway:
     enabled: true
     locations: classpath:db/migration

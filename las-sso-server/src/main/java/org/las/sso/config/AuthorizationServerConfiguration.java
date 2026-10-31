@@ -16,6 +16,7 @@ import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import javax.sql.DataSource;
+import org.las.sso.api.ApiProblems;
 import org.las.sso.identity.JdbcLasUserDetailsService;
 import org.las.sso.identity.LasUserPrincipal;
 import org.las.sso.identity.UuidV7Generator;
@@ -78,10 +79,12 @@ import org.springframework.security.oauth2.server.authorization.token.OAuth2Toke
 import org.springframework.security.oauth2.server.resource.web.BearerTokenAuthenticationEntryPoint;
 import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationConverter;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.AccessDeniedHandlerImpl;
 import org.springframework.security.web.authentication.AnonymousAuthenticationFilter;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.context.SecurityContextHolderFilter;
+import org.springframework.security.web.csrf.CsrfException;
 import org.springframework.security.web.savedrequest.HttpSessionRequestCache;
 import org.springframework.security.web.savedrequest.RequestCache;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
@@ -121,6 +124,18 @@ public class AuthorizationServerConfiguration {
                         authorizationServerConfigurer,
                         authorizationServer ->
                                 authorizationServer
+                                        .authorizationServerMetadataEndpoint(
+                                                metadata ->
+                                                        metadata
+                                                                .authorizationServerMetadataCustomizer(
+                                                                        builder -> {
+                                                                            builder.grantTypes(
+                                                                                    AuthorizationServerConfiguration
+                                                                                            ::supportedGrants);
+                                                                            builder.scopes(
+                                                                                    AuthorizationServerConfiguration
+                                                                                            ::supportedScopes);
+                                                                        }))
                                         .authorizationEndpoint(
                                                 endpoint ->
                                                         endpoint.authenticationProviders(
@@ -182,6 +197,28 @@ public class AuthorizationServerConfiguration {
                                                                 }))
                                         .oidc(
                                                 oidc -> {
+                                                    oidc.providerConfigurationEndpoint(
+                                                            endpoint ->
+                                                                    endpoint
+                                                                            .providerConfigurationCustomizer(
+                                                                                    builder -> {
+                                                                                        builder
+                                                                                                .grantTypes(
+                                                                                                        AuthorizationServerConfiguration
+                                                                                                                ::supportedGrants);
+                                                                                        builder
+                                                                                                .scopes(
+                                                                                                        AuthorizationServerConfiguration
+                                                                                                                ::supportedScopes);
+                                                                                        builder
+                                                                                                .claim(
+                                                                                                        "backchannel_logout_supported",
+                                                                                                        true);
+                                                                                        builder
+                                                                                                .claim(
+                                                                                                        "backchannel_logout_session_supported",
+                                                                                                        true);
+                                                                                    }));
                                                     var defaultLogoutHandler =
                                                             new OidcLogoutAuthenticationSuccessHandler();
                                                     oidc.logoutEndpoint(
@@ -303,6 +340,40 @@ public class AuthorizationServerConfiguration {
                                         .anyRequest()
                                         .authenticated())
                 .authenticationProvider(authenticationProvider)
+                .exceptionHandling(
+                        exceptions ->
+                                exceptions
+                                        .authenticationEntryPoint(
+                                                (request, response, failure) -> {
+                                                    if (ApiProblems.isApi(request))
+                                                        ApiProblems.write(
+                                                                request,
+                                                                response,
+                                                                401,
+                                                                "AUTHENTICATION_REQUIRED",
+                                                                "请先登录");
+                                                    else
+                                                        new LoginUrlAuthenticationEntryPoint(
+                                                                        "/login")
+                                                                .commence(
+                                                                        request, response, failure);
+                                                })
+                                        .accessDeniedHandler(
+                                                (request, response, failure) -> {
+                                                    if (ApiProblems.isApi(request)) {
+                                                        ApiProblems.write(
+                                                                request,
+                                                                response,
+                                                                403,
+                                                                failure instanceof CsrfException
+                                                                        ? "CSRF_INVALID"
+                                                                        : "ACCESS_DENIED",
+                                                                "请求未获授权");
+                                                    } else {
+                                                        new AccessDeniedHandlerImpl()
+                                                                .handle(request, response, failure);
+                                                    }
+                                                }))
                 .formLogin(
                         form ->
                                 form.loginPage("/login")
@@ -319,6 +390,16 @@ public class AuthorizationServerConfiguration {
                 .addFilterAfter(accountSessionValidationFilter, SecurityContextHolderFilter.class)
                 .addFilterAfter(passwordChangeRequiredFilter, AccountSessionValidationFilter.class);
         return http.build();
+    }
+
+    private static void supportedGrants(Collection<String> grants) {
+        grants.clear();
+        grants.addAll(List.of("authorization_code", "refresh_token"));
+    }
+
+    private static void supportedScopes(Collection<String> scopes) {
+        scopes.clear();
+        scopes.addAll(List.of("openid", "profile"));
     }
 
     @Bean

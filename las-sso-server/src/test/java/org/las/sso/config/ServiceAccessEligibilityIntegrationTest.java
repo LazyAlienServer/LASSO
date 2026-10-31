@@ -71,7 +71,10 @@ class ServiceAccessEligibilityIntegrationTest {
 
         mockMvc.perform(get(path(account.userId())))
                 .andExpect(status().isUnauthorized())
-                .andExpect(header().string("WWW-Authenticate", "Basic realm=\"LAS SSO internal\""));
+                .andExpect(
+                        header().string(
+                                        "WWW-Authenticate",
+                                        "Basic realm=\"LAS SSO internal\", charset=\"UTF-8\""));
 
         mockMvc.perform(get(path(account.userId())).with(httpBasic("laslog-bff", "wrong-secret")))
                 .andExpect(status().isUnauthorized());
@@ -88,7 +91,10 @@ class ServiceAccessEligibilityIntegrationTest {
                                                 + account.userId()
                                                 + "/service-access")))
                 .andExpect(status().isUnauthorized())
-                .andExpect(header().string("WWW-Authenticate", "Basic realm=\"LAS SSO internal\""));
+                .andExpect(
+                        header().string(
+                                        "WWW-Authenticate",
+                                        "Basic realm=\"LAS SSO internal\", charset=\"UTF-8\""));
 
         mockMvc.perform(
                         get(URI.create(

@@ -1,13 +1,12 @@
 package org.las.sso.api;
 
 import jakarta.servlet.http.HttpServletRequest;
-import java.net.URI;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
-import java.util.UUID;
 import org.las.sso.account.AccountDeletionConflictException;
 import org.las.sso.account.IdempotencyConflictException;
+import org.las.sso.account.PasswordChangeException;
 import org.las.sso.account.PasswordPolicyException;
 import org.las.sso.account.RecoveryFlowException;
 import org.las.sso.account.UsernameCooldownException;
@@ -18,19 +17,68 @@ import org.las.sso.security.CaptchaInvalidException;
 import org.las.sso.security.RateLimitExceededException;
 import org.las.sso.security.RecentAuthenticationException;
 import org.las.sso.security.RequestOriginInvalidException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.ErrorResponse;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 @RestControllerAdvice
 public class ApiProblemHandler {
+    private static final Logger LOGGER = LoggerFactory.getLogger(ApiProblemHandler.class);
+
+    @ExceptionHandler(PasswordChangeException.class)
+    ResponseEntity<ProblemDetail> passwordChange(
+            PasswordChangeException exception, HttpServletRequest request) {
+        return problem(
+                "CURRENT_PASSWORD_INVALID".equals(exception.code())
+                        ? HttpStatus.UNAUTHORIZED
+                        : HttpStatus.BAD_REQUEST,
+                exception.code(),
+                "密码修改失败",
+                "请检查当前凭据及新密码要求。",
+                request,
+                null);
+    }
+
+    @ExceptionHandler(PasswordPolicyException.class)
+    ResponseEntity<ProblemDetail> passwordPolicy(
+            PasswordPolicyException exception, HttpServletRequest request) {
+        return problem(
+                HttpStatus.BAD_REQUEST,
+                exception.code(),
+                "密码不符合要求",
+                "请按照密码字段提示设置密码。",
+                request,
+                null);
+    }
+
+    @ExceptionHandler(Exception.class)
+    ResponseEntity<ProblemDetail> framework(Exception exception, HttpServletRequest request)
+            throws Exception {
+        if (!ApiProblems.isApi(request)) throw exception;
+        int status = exception instanceof ErrorResponse error ? error.getStatusCode().value() : 500;
+        if (status >= 500)
+            LOGGER.error(
+                    "Application API failure: requestId={}, failureType={}",
+                    ApiProblems.requestId(request),
+                    exception.getClass().getSimpleName());
+        HttpHeaders headers = new HttpHeaders();
+        if (exception instanceof ErrorResponse error) headers.putAll(error.getHeaders());
+        headers.setCacheControl("no-store");
+        return new ResponseEntity<>(
+                ApiProblems.forStatus(status, request), headers, HttpStatusCode.valueOf(status));
+    }
 
     @ExceptionHandler(AdminUserManagementException.class)
     ResponseEntity<ProblemDetail> adminUserManagement(
@@ -347,9 +395,9 @@ public class ApiProblemHandler {
 
     @ExceptionHandler({
         IllegalArgumentException.class,
-        PasswordPolicyException.class,
         MethodArgumentNotValidException.class,
         HttpMessageNotReadableException.class,
+        MethodArgumentTypeMismatchException.class,
         MissingRequestHeaderException.class
     })
     ResponseEntity<ProblemDetail> validation(Exception exception, HttpServletRequest request) {
@@ -376,15 +424,7 @@ public class ApiProblemHandler {
             String detail,
             HttpServletRequest request,
             HttpHeaders headers) {
-        ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, detail);
-        problem.setType(
-                URI.create(
-                        "https://auth.las.example/problems/"
-                                + code.toLowerCase().replace('_', '-')));
-        problem.setTitle(title);
-        problem.setProperty("code", code);
-        Object requestId = request.getAttribute(RequestIdFilter.ATTRIBUTE);
-        problem.setProperty("requestId", requestId instanceof UUID ? requestId : null);
+        ProblemDetail problem = ApiProblems.create(status.value(), code, title, detail, request);
         HttpHeaders responseHeaders = headers == null ? new HttpHeaders() : headers;
         responseHeaders.setCacheControl("no-store");
         return new ResponseEntity<>(problem, responseHeaders, status);

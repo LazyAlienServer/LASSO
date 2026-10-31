@@ -20,22 +20,24 @@ SSO uses session-based CSRF, not an assumed separate CSRF Cookie. GET `/api/v1/c
 
 ## Request and result handling
 
-- JSON successes are direct DTOs/lists;204 is empty. Unknown body fields are rejected.
+- JSON successes are direct DTOs/lists; 204 is empty. Application JSON uses UTF-8: invalid bytes, UTF-16/32 and an explicitly different charset are rejected. Unknown fields, number/boolean-to-string coercion and null elements in client configuration lists are rejected with 400.
+- Servlet response encoding is set before security filters write: `spring.servlet.encoding.charset=UTF-8` and `spring.servlet.encoding.force-response=true` (Boot 4 property names). This also covers the framework JWKS endpoint; JSON Content-Type has no charset or declares UTF-8, never ISO-8859-1. OAuth/OIDC response bodies remain unwrapped.
 - Time uses RFC3339 offset strings. Labels such as lastUsedLabel are display text, not timestamps.
-- `X-Request-Id` is correlation, not authorization/idempotency. Do not log authentication bodies/headers.
+- `X-Request-Id` covers application processing and early security refusals; the same value is in application error bodies. It is correlation, not authorization/idempotency. Requests rejected by the HTTP server before Servlet processing may have only the container response. Do not log authentication bodies/headers.
 - Registration uses UUID Idempotency-Key. Other covered writes use a nonblank key≤128 characters, actor+operation/body scope,24hours. Same-key retries still require authentication/CSRF; replay never redisplays secrets.
 - Covered writes: logout-all, deletion request/cancel, admin freeze/unfreeze/revoke-sessions/manual recovery, client-secret rotation. Client create/edit, code rotation and deletion hold/release have no such guarantee.
 - After timeout query state/audit before retrying a write. One-time output loss requires an explicit new generation/reissue/rotation.
 
-| Source | Response exception |
+| Surface | Response contract |
 | --- | --- |
-| MVC application errors | `application/problem+json`, code/requestId and optional availableAt |
-| Session/change-required/deletion filters |401/403 JSON `{code}` |
-| Password-change local errors |400/401 JSON `{code}`; wrong current password401 |
-| Anonymous browser flow |May redirect to login |
-| Internal Basic |Empty401 challenge; safe429/503 Problem |
-| Login/CAPTCHA |Redirect or text429/Retry-After |
-| OAuth/OIDC |Protocol errors, Bearer challenges and redirects |
+| Application/internal API errors | `application/problem+json`, required type/title/status/code/requestId; optional detail/instance/availableAt; no-store |
+| Session/change-required/deletion/CSRF/role checks | Same Problem contract; API 401/403 never redirects to HTML login |
+| Password-change errors | Same Problem contract; wrong current password remains 401 |
+| Internal Basic | Same Problem contract, 401 retains WWW-Authenticate with `charset="UTF-8"`; 429 retains Retry-After |
+| Browser pages and password login | HTML, redirects or text 429/Retry-After |
+| OAuth/OIDC, health and metrics | Their native protocol/media formats; never business-wrapped |
+
+Clients branch on HTTP status and stable code, not localized title/detail. Unhandled application failures return a safe generic Problem without exception text. Servlet 404/405/415 use the same contract and preserve headers such as Allow. Basic credentials on the internal query are Base64 of UTF-8 `clientId:secret`, with malformed UTF-8 rejected; OAuth client_secret_basic retains its own form-encoding rules. ASCII-only IDs/codes and binary signatures keep their defined byte formats.
 
 ## Application groups
 
@@ -64,3 +66,5 @@ List limits default50, clamped1–200; user cursor is UUID, other admin cursors 
 AT defaults15minutes, family14days fixed; refresh never advances auth_time. Revocation200 includes unknown tokens and does not prove unknown successors are gone. Introspection describes stored-token status, not eligibility or absolute-family-deadline proof. SSO `/logout` and `/connect/logout` are user-wide; BFF local logout is separate.
 
 API drift tests compare implemented MVC routes and marked DTOs to OpenAPI. This is not whole-protocol certification or consumer acceptance.
+
+Discovery advertises openid/profile, authorization_code/refresh_token and OIDC Back-Channel Logout with sid support. Root/non-root Servlet HTTP regressions check actual security/MVC error paths, UTF-8 and invalid input, in addition to schema/route drift checks.

@@ -692,6 +692,8 @@ public class AdminClientService {
         }
         Set<String> seen = new LinkedHashSet<>();
         for (String raw : uris) {
+            if (raw == null || raw.isBlank())
+                throw new AdminClientException("INVALID_REDIRECT_URI");
             String uri = raw.strip();
             validateUri(uri);
             seen.add(uri);
@@ -747,6 +749,7 @@ public class AdminClientService {
         }
         Set<String> seen = new LinkedHashSet<>();
         for (String scope : scopes) {
+            if (scope == null || scope.isBlank()) throw new AdminClientException("INVALID_SCOPE");
             String stripped = scope.strip();
             if (!ALLOWED_SCOPES.contains(stripped)) {
                 throw new AdminClientException("INVALID_SCOPE");
@@ -768,6 +771,8 @@ public class AdminClientService {
         }
         Set<String> seen = new LinkedHashSet<>();
         for (String audience : audiences) {
+            if (audience == null || audience.isBlank())
+                throw new AdminClientException("INVALID_AUDIENCE");
             String stripped = audience.strip();
             if (stripped.isBlank() || stripped.length() > 200) {
                 throw new AdminClientException("INVALID_AUDIENCE");

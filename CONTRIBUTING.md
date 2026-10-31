@@ -9,6 +9,7 @@ Java production code belongs in `src/main/java`; tests mirror the relevant packa
 ## Formatting And Build
 
 - UTF-8, four-space Java indentation, LF text endings; Windows batch launchers use CRLF. EditorConfig and Git attributes define these rules.
+- General text and application JSON use UTF-8. Reject malformed input instead of replacement decoding; preserve protocol-defined ASCII/binary formats and OAuth form encoding. Application/internal errors share Problem Detail and request IDs; OAuth/OIDC, browser navigation and monitoring keep their native formats.
 - Java uses Spotless with a pinned Google Java Format AOSP style. Run `spotlessApply`, then `spotlessCheck`; do not manually align imports or suppress formatter checks.
 - Versions belong in `gradle/libs.versions.toml`; dependency repositories belong in `settings.gradle.kts`. Commit the affected module locks after intentional resolution changes.
 - JDK 21/release 21, JUnit Platform and reproducible archive conventions are shared by the root build. Module scripts declare their module-specific plugins, dependencies and publishing only.
