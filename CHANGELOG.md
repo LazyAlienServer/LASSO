@@ -1,7 +1,12 @@
 # Changelog
 
-## Unreleased
+## 0.1.0-rc.2
 
+- Update server, starter and reference BFF to `0.1.0-rc.2`. This remains a prerelease; RC1 acceptance and image findings are historical evidence, not acceptance of this build. Target deployment and complete LASLOG browser acceptance remain separate.
+
+- Keep unauthenticated token/introspection/revocation requests on native OAuth 401 errors regardless of Accept; browser authorization keeps its login flow.
+- Reject duplicate application JSON fields and unpaired decoded Unicode surrogates; align registration/profile DTOs and browser forms on 64 display-name code points, preserving valid emoji and password values.
+- Form-encode each OAuth Basic credential before Base64 in both revocation workers. Add isolated PostgreSQL HTTP regressions for SQL-looking filters, typed inputs, persisted text and authentication/token lookups.
 - Standardize application/internal API errors as Problem Detail, including security/Servlet failures and password errors; API authentication failures return 401 rather than HTML redirects. Request IDs cover early security responses.
 - Require UTF-8 application JSON and internal Basic credentials; reject invalid encodings, scalar-to-string coercion and null client-list elements. Internal Basic challenges now declare UTF-8 and return a Problem body.
 - Set Servlet response encoding to UTF-8 before protocol security filters obtain a writer, fixing JWKS responses that previously advertised ISO-8859-1 despite an ASCII public-key body.

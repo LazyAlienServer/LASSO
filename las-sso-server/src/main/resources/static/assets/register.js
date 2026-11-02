@@ -67,6 +67,7 @@
 
   function validateForm() {
     clearErrors();
+    validateDisplayName();
     let firstInvalid = null;
     for (const [name, message] of Object.entries(fieldMessages)) {
       const input = form.elements.namedItem(name);
@@ -87,6 +88,11 @@
       return false;
     }
     return true;
+  }
+
+  function validateDisplayName() {
+    const input = form.elements.displayName;
+    input.setCustomValidity([...input.value].length > 64 ? fieldMessages.displayName : "");
   }
 
   async function getCsrf() {
@@ -241,12 +247,14 @@
 
   form.querySelectorAll("input").forEach((input) => {
     input.addEventListener("blur", () => {
+      if (input.name === "displayName") validateDisplayName();
       if (input.name && fieldMessages[input.name] && !input.checkValidity()) {
         input.setAttribute("aria-invalid", "true");
         document.getElementById(`${input.name}-error`).textContent = fieldMessages[input.name];
       }
     });
     input.addEventListener("input", () => {
+      if (input.name === "displayName") validateDisplayName();
       if (input.name && input.checkValidity()) {
         input.removeAttribute("aria-invalid");
         const error = document.getElementById(`${input.name}-error`);

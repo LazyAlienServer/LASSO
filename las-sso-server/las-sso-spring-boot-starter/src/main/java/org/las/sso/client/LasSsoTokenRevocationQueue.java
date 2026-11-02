@@ -3,6 +3,8 @@ package org.las.sso.client;
 import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.URI;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -109,7 +111,10 @@ public final class LasSsoTokenRevocationQueue implements AutoCloseable, LasSsoRe
                         invocation.headers(
                                 headers ->
                                         headers.setBasicAuth(
-                                                request.registration().getClientId(), secret));
+                                                URLEncoder.encode(
+                                                        request.registration().getClientId(),
+                                                        StandardCharsets.UTF_8),
+                                                URLEncoder.encode(secret, StandardCharsets.UTF_8)));
             } else {
                 form.add("client_id", request.registration().getClientId());
             }

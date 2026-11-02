@@ -2,6 +2,8 @@ package org.las.sso.reference.revocation;
 
 import java.io.IOException;
 import java.net.HttpURLConnection;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.concurrent.ThreadLocalRandom;
 import org.slf4j.Logger;
@@ -93,8 +95,12 @@ final class RevocationWorker {
                     .headers(
                             headers ->
                                     headers.setBasicAuth(
-                                            registration.getClientId(),
-                                            registration.getClientSecret()))
+                                            URLEncoder.encode(
+                                                    registration.getClientId(),
+                                                    StandardCharsets.UTF_8),
+                                            URLEncoder.encode(
+                                                    registration.getClientSecret(),
+                                                    StandardCharsets.UTF_8)))
                     .body(form)
                     .exchange(
                             (sent, response) -> {

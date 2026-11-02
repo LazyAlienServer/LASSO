@@ -6,6 +6,7 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.las.sso.validation.UnicodeText;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
 
@@ -25,6 +26,9 @@ public final class PasswordPolicy {
     public void validate(String username, String password) {
         if (password == null) {
             throw new PasswordPolicyException("PASSWORD_REQUIRED");
+        }
+        if (!UnicodeText.isWellFormed(password)) {
+            throw new PasswordPolicyException("PASSWORD_INVALID_UNICODE");
         }
         int codePoints = password.codePointCount(0, password.length());
         if (codePoints < MIN_CODE_POINTS) {

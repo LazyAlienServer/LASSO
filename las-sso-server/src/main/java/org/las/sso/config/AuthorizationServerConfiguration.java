@@ -57,6 +57,9 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.DelegatingPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.jackson.SecurityJacksonModules;
+import org.springframework.security.oauth2.core.OAuth2Error;
+import org.springframework.security.oauth2.core.OAuth2ErrorCodes;
+import org.springframework.security.oauth2.core.http.converter.OAuth2ErrorHttpMessageConverter;
 import org.springframework.security.oauth2.core.oidc.endpoint.OidcParameterNames;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
@@ -89,6 +92,7 @@ import org.springframework.security.web.savedrequest.HttpSessionRequestCache;
 import org.springframework.security.web.savedrequest.RequestCache;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.security.web.util.matcher.MediaTypeRequestMatcher;
+import org.springframework.security.web.util.matcher.OrRequestMatcher;
 import org.springframework.session.security.web.authentication.SpringSessionRememberMeServices;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -252,6 +256,38 @@ public class AuthorizationServerConfiguration {
                 .exceptionHandling(
                         exceptions ->
                                 exceptions
+                                        .defaultAuthenticationEntryPointFor(
+                                                (request, response, exception) -> {
+                                                    response.setStatus(401);
+                                                    response.setHeader(
+                                                            "WWW-Authenticate",
+                                                            "Basic realm=\"LAS SSO OAuth\"");
+                                                    response.setHeader("Cache-Control", "no-store");
+                                                    response.setHeader("Pragma", "no-cache");
+                                                    new OAuth2ErrorHttpMessageConverter()
+                                                            .write(
+                                                                    new OAuth2Error(
+                                                                            OAuth2ErrorCodes
+                                                                                    .INVALID_CLIENT),
+                                                                    MediaType.APPLICATION_JSON,
+                                                                    new org.springframework.http
+                                                                            .server
+                                                                            .ServletServerHttpResponse(
+                                                                            response));
+                                                },
+                                                new OrRequestMatcher(
+                                                        PathPatternRequestMatcher.withDefaults()
+                                                                .matcher(
+                                                                        authorizationServerSettings
+                                                                                .getTokenEndpoint()),
+                                                        PathPatternRequestMatcher.withDefaults()
+                                                                .matcher(
+                                                                        authorizationServerSettings
+                                                                                .getTokenIntrospectionEndpoint()),
+                                                        PathPatternRequestMatcher.withDefaults()
+                                                                .matcher(
+                                                                        authorizationServerSettings
+                                                                                .getTokenRevocationEndpoint())))
                                         .defaultAuthenticationEntryPointFor(
                                                 new BearerTokenAuthenticationEntryPoint(),
                                                 PathPatternRequestMatcher.withDefaults()

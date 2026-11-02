@@ -15,12 +15,14 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.altcha.altcha.v2.Altcha;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.las.sso.account.AccountRegistrationService;
 import org.las.sso.admin.AdminClientService;
+import org.las.sso.security.AltchaChallengeService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -92,6 +94,144 @@ class ApiBoundaryIntegrationTest {
         assertThat(userinfo.headers().firstValue("WWW-Authenticate")).isPresent();
         assertThat(userinfo.body()).isEmpty();
         requestId(userinfo);
+    }
+
+    @Test
+    void machineEndpointsNeverRedirectToBrowserLoginRegardlessOfAccept() throws Exception {
+        Browser browser = new Browser();
+        for (String accept : List.of("", "*/*", "text/html", "application/json")) {
+            for (String path : List.of("/oauth2/token", "/oauth2/introspect", "/oauth2/revoke")) {
+                var headers = new LinkedHashMap<String, String>();
+                headers.put("Content-Type", "application/x-www-form-urlencoded");
+                if (!accept.isEmpty()) headers.put("Accept", accept);
+                var response =
+                        browser.send(
+                                "POST", path, "token=fixture&grant_type=refresh_token", headers);
+                assertThat(response.statusCode()).as("%s Accept=%s", path, accept).isEqualTo(401);
+                assertThat(response.headers().firstValue("Location")).isEmpty();
+                assertThat(json.readTree(response.body()).get("error").asText())
+                        .isEqualTo("invalid_client");
+                assertThat(response.body()).doesNotContain("AUTHENTICATION_REQUIRED", "<html");
+                requestId(response);
+            }
+        }
+    }
+
+    @Test
+    void duplicateFieldsAndUnpairedJsonSurrogatesCannotChangeProfileOrPassword() throws Exception {
+        Browser browser = new Browser();
+        UUID id = browser.login(false);
+        String before = browser.send("GET", "/api/v1/me/profile", null, Map.of()).body();
+        for (String body :
+                List.of(
+                        "{\"displayName\":\"first\",\"displayName\":\"last\"}",
+                        "{\"displayName\":\"first\",\"display\\u004eame\":\"last\"}",
+                        "{\"displayName\":\"\\uD800\"}",
+                        "{\"displayName\":\"\\uDC00\"}",
+                        "{\"displayName\":\"\\uD800x\"}",
+                        "{\"displayName\":\"\\uDC00\\uD800\"}")) {
+            problem(
+                    browser.write("PATCH", "/api/v1/me/profile", body, "application/json"),
+                    400,
+                    "VALIDATION_FAILED");
+            assertThat(browser.send("GET", "/api/v1/me/profile", null, Map.of()).body())
+                    .isEqualTo(before);
+        }
+        String hashBefore =
+                jdbc.sql("SELECT password_hash FROM password_credentials WHERE user_id=:id")
+                        .param("id", id)
+                        .query(String.class)
+                        .single();
+        problem(
+                browser.write(
+                        "POST",
+                        "/api/v1/me/password-change",
+                        "{\"currentPassword\":\""
+                                + PASSWORD
+                                + "\",\"newPassword\":\"valid phrase \\uD800\"}",
+                        "application/json"),
+                400,
+                "VALIDATION_FAILED");
+        assertThat(
+                        jdbc.sql("SELECT password_hash FROM password_credentials WHERE user_id=:id")
+                                .param("id", id)
+                                .query(String.class)
+                                .single())
+                .isEqualTo(hashBefore);
+        var valid =
+                browser.write(
+                        "PATCH",
+                        "/api/v1/me/profile",
+                        "{\"displayName\":\"中文\\uD83D\\uDE00\"}",
+                        "application/json");
+        assertThat(valid.statusCode()).isEqualTo(200);
+        assertThat(json.readTree(valid.body()).get("displayName").asText()).isEqualTo("中文😀");
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {33, 64, 65})
+    void registrationAndProfileUseTheSameDisplayNameCodePointLimit(int count) throws Exception {
+        Browser browser = new Browser();
+        String displayName = "😀".repeat(count);
+        var issued =
+                browser.write(
+                        "POST",
+                        "/api/v1/captcha/challenges",
+                        "{\"purpose\":\"REGISTER\"}",
+                        "application/json");
+        assertThat(issued.statusCode()).isEqualTo(201);
+        var challenge = json.readValue(issued.body(), AltchaChallengeService.IssuedChallenge.class);
+        var altcha = new Altcha.Challenge(challenge.parameters(), challenge.signature());
+        String payload =
+                Base64.getEncoder()
+                        .encodeToString(
+                                json.writeValueAsBytes(
+                                        new Altcha.Payload(
+                                                altcha,
+                                                Altcha.solveChallenge(
+                                                        altcha, Altcha.kdf("PBKDF2/SHA-256")))));
+        String username = "Points" + UUID.randomUUID().toString().substring(0, 8);
+        var result =
+                browser.write(
+                        "POST",
+                        "/api/v1/registrations",
+                        json.writeValueAsString(
+                                Map.of(
+                                        "username",
+                                        username,
+                                        "displayName",
+                                        displayName,
+                                        "password",
+                                        PASSWORD,
+                                        "captcha",
+                                        Map.of(
+                                                "challengeId",
+                                                challenge.challengeId(),
+                                                "payload",
+                                                payload))),
+                        "application/json",
+                        Map.of("Idempotency-Key", UUID.randomUUID().toString()));
+        if (count <= 64) {
+            assertThat(result.statusCode()).isEqualTo(201);
+            assertThat(json.readTree(result.body()).get("user").get("displayName").asText())
+                    .isEqualTo(displayName);
+        } else {
+            problem(result, 400, "VALIDATION_FAILED");
+        }
+        browser.login(false);
+        var updated =
+                browser.write(
+                        "PATCH",
+                        "/api/v1/me/profile",
+                        json.writeValueAsString(Map.of("displayName", displayName)),
+                        "application/json");
+        if (count <= 64) {
+            assertThat(updated.statusCode()).isEqualTo(200);
+            assertThat(json.readTree(updated.body()).get("displayName").asText())
+                    .isEqualTo(displayName);
+        } else {
+            problem(updated, 400, "VALIDATION_FAILED");
+        }
     }
 
     @Test
@@ -172,6 +312,283 @@ class ApiBoundaryIntegrationTest {
                         "/api/v1/admin/users?cursor=not-a-uuid")) {
             problem(browser.send("GET", path, null, Map.of()), 400, "VALIDATION_FAILED");
         }
+    }
+
+    @Test
+    void sqlMetacharactersRemainBoundDataInAdminFilters() throws Exception {
+        Browser browser = new Browser();
+        browser.login(true);
+        for (String payload :
+                List.of(
+                        "' OR '1'='1' --",
+                        "'; SELECT 1; --",
+                        "' UNION SELECT NULL --",
+                        "absent'" + UUID.randomUUID())) {
+            String value = URLEncoder.encode(payload, StandardCharsets.UTF_8);
+            for (String path :
+                    List.of(
+                            "/api/v1/admin/users?query=",
+                            "/api/v1/admin/clients?status=ALL&query=",
+                            "/api/v1/admin/audit-events?action=",
+                            "/api/v1/admin/audit-events?targetId=",
+                            "/api/v1/admin/security-events?type=",
+                            "/api/v1/admin/security-events?severity=")) {
+                var response = browser.send("GET", path + value, null, Map.of());
+                assertThat(response.statusCode()).as("%s", path).isEqualTo(200);
+                assertThat(json.readTree(response.body()).get("items").isEmpty())
+                        .as("%s", path)
+                        .isTrue();
+            }
+        }
+        String payload = URLEncoder.encode("' OR 1=1 --", StandardCharsets.UTF_8);
+        String cursor =
+                Base64.getUrlEncoder()
+                        .withoutPadding()
+                        .encodeToString(
+                                ("2026-01-01T00:00:00Z|' OR 1=1 --")
+                                        .getBytes(StandardCharsets.UTF_8));
+        for (String path :
+                List.of(
+                        "/api/v1/admin/users?status=" + payload,
+                        "/api/v1/admin/clients?status=" + payload,
+                        "/api/v1/admin/deletion-requests?status=" + payload,
+                        "/api/v1/admin/users?cursor=" + payload,
+                        "/api/v1/admin/users?limit=" + payload,
+                        "/api/v1/admin/users/" + payload,
+                        "/api/v1/admin/security-events?userId=" + payload,
+                        "/api/v1/admin/audit-events?from=" + payload,
+                        "/api/v1/admin/audit-events?to=" + payload,
+                        "/api/v1/admin/audit-events?cursor=" + cursor,
+                        "/api/v1/admin/clients?cursor=" + cursor,
+                        "/api/v1/admin/deletion-requests?cursor=" + cursor)) {
+            var response = browser.send("GET", path, null, Map.of());
+            problem(response, 400, "VALIDATION_FAILED");
+            assertThat(response.body())
+                    .doesNotContain("SELECT", "SQLException", "syntax error", "jdbc");
+        }
+        problem(
+                browser.send("GET", "/api/v1/admin/clients/" + payload, null, Map.of()),
+                404,
+                "CLIENT_NOT_FOUND");
+    }
+
+    @Test
+    void sqlLookingTextRoundTripsWithoutExecutingOrChangingOtherRows() throws Exception {
+        Browser browser = new Browser();
+        UUID actor = browser.login(true);
+        UUID other =
+                accounts.register(
+                                "Other" + UUID.randomUUID().toString().substring(0, 8),
+                                "Unchanged",
+                                PASSWORD)
+                        .userId();
+        String payload = "O'Reilly'); SELECT 1; --";
+        var updated =
+                browser.write(
+                        "PATCH",
+                        "/api/v1/me/profile",
+                        json.writeValueAsString(Map.of("displayName", payload)),
+                        "application/json");
+        assertThat(updated.statusCode()).isEqualTo(200);
+        assertThat(
+                        jdbc.sql("SELECT display_name FROM users WHERE id=:id")
+                                .param("id", actor)
+                                .query(String.class)
+                                .single())
+                .isEqualTo(payload);
+        assertThat(
+                        jdbc.sql("SELECT display_name FROM users WHERE id=:id")
+                                .param("id", other)
+                                .query(String.class)
+                                .single())
+                .isEqualTo("Unchanged");
+        String id = "bound-sql-" + UUID.randomUUID();
+        var body =
+                Map.of(
+                        "clientId",
+                        id,
+                        "clientName",
+                        payload,
+                        "clientType",
+                        "FIRST_PARTY",
+                        "redirectUris",
+                        List.of("https://boundary.test/callback"),
+                        "postLogoutRedirectUris",
+                        List.of(),
+                        "scopes",
+                        List.of("openid", "profile"),
+                        "resourceAudiences",
+                        List.of(payload),
+                        "reason",
+                        payload);
+        var created =
+                browser.write(
+                        "POST",
+                        "/api/v1/admin/clients",
+                        json.writeValueAsString(body),
+                        "application/json");
+        assertThat(created.statusCode()).isEqualTo(200);
+        var detail = browser.send("GET", "/api/v1/admin/clients/" + id, null, Map.of());
+        assertThat(detail.statusCode()).isEqualTo(200);
+        assertThat(json.readTree(detail.body()).get("clientName").asText()).isEqualTo(payload);
+        assertThat(json.readTree(detail.body()).get("resourceAudiences").get(0).asText())
+                .isEqualTo(payload);
+        String value = URLEncoder.encode(payload, StandardCharsets.UTF_8);
+        var searched =
+                json.readTree(
+                                browser.send(
+                                                "GET",
+                                                "/api/v1/admin/clients?status=ALL&query=" + value,
+                                                null,
+                                                Map.of())
+                                        .body())
+                        .get("items");
+        assertThat(searched.size()).isEqualTo(1);
+        assertThat(searched.get(0).get("clientId").asText()).isEqualTo(id);
+        assertThat(
+                        jdbc.sql(
+                                        "SELECT reason FROM admin_audit_events WHERE target_id=:id AND action='ADMIN_CLIENT_CREATE'")
+                                .param("id", id)
+                                .query(String.class)
+                                .single())
+                .isEqualTo(payload);
+        long before =
+                jdbc.sql("SELECT count(*) FROM oauth2_registered_client")
+                        .query(Long.class)
+                        .single();
+        var invalid = new LinkedHashMap<String, Object>(body);
+        invalid.put("clientId", "' OR 1=1 --");
+        problem(
+                browser.write(
+                        "POST",
+                        "/api/v1/admin/clients",
+                        json.writeValueAsString(invalid),
+                        "application/json"),
+                400,
+                "INVALID_CLIENT_ID");
+        assertThat(
+                        jdbc.sql("SELECT count(*) FROM oauth2_registered_client")
+                                .query(Long.class)
+                                .single())
+                .isEqualTo(before);
+    }
+
+    @Test
+    void sqlLookingLoginAndClientCredentialsCannotAuthenticate() throws Exception {
+        Browser browser = new Browser();
+        var csrf = json.readTree(browser.send("GET", "/api/v1/csrf", null, Map.of()).body());
+        var response =
+                browser.send(
+                        "POST",
+                        "/login",
+                        "username="
+                                + URLEncoder.encode("' OR 1=1 --", StandardCharsets.UTF_8)
+                                + "&password="
+                                + URLEncoder.encode(PASSWORD, StandardCharsets.UTF_8)
+                                + "&"
+                                + csrf.get("parameterName").asText()
+                                + "="
+                                + URLEncoder.encode(
+                                        csrf.get("token").asText(), StandardCharsets.UTF_8),
+                        Map.of(
+                                "Content-Type",
+                                "application/x-www-form-urlencoded",
+                                "Origin",
+                                ORIGIN));
+        assertThat(response.statusCode()).isEqualTo(302);
+        assertThat(response.headers().firstValue("Location").orElseThrow())
+                .contains("/login?error");
+        problem(
+                browser.send("GET", "/api/v1/me/profile", null, Map.of()),
+                401,
+                "AUTHENTICATION_REQUIRED");
+        String basic =
+                "Basic "
+                        + Base64.getEncoder()
+                                .encodeToString(
+                                        (URLEncoder.encode("' OR 1=1 --", StandardCharsets.UTF_8)
+                                                        + ":fixture")
+                                                .getBytes(StandardCharsets.US_ASCII));
+        var token =
+                browser.send(
+                        "POST",
+                        "/oauth2/token",
+                        "grant_type=refresh_token&refresh_token=fixture",
+                        Map.of(
+                                "Content-Type",
+                                "application/x-www-form-urlencoded",
+                                "Authorization",
+                                basic));
+        assertThat(token.statusCode()).isIn(400, 401);
+        assertThat(json.readTree(token.body()).get("error").asText()).isEqualTo("invalid_client");
+        assertThat(token.body()).doesNotContain("SQLException", "syntax error", "SELECT");
+        String rawBasic =
+                "Basic "
+                        + Base64.getEncoder()
+                                .encodeToString(
+                                        "' OR 1=1 --:fixture".getBytes(StandardCharsets.UTF_8));
+        problem(
+                browser.send(
+                        "GET",
+                        "/internal/v1/principals/" + UUID.randomUUID() + "/service-access",
+                        null,
+                        Map.of("Authorization", rawBasic)),
+                401,
+                "CLIENT_AUTHENTICATION_REQUIRED");
+    }
+
+    @Test
+    void authenticatedProtocolTokenLookupsTreatSqlTextAsAnUnknownToken() throws Exception {
+        Browser browser = new Browser();
+        UUID actor = browser.login(true);
+        String id = "sql-protocol-" + UUID.randomUUID();
+        var client =
+                clients.create(
+                        new AdminClientService.CreateRequest(
+                                id,
+                                "SQL fixture",
+                                "FIRST_PARTY",
+                                List.of("https://boundary.test/callback"),
+                                List.of(),
+                                List.of("openid", "profile"),
+                                List.of("urn:las:sql-fixture"),
+                                null),
+                        actor,
+                        null,
+                        "fixture",
+                        UUID.randomUUID());
+        String basic =
+                "Basic "
+                        + Base64.getEncoder()
+                                .encodeToString(
+                                        (id + ":" + client.clientSecret())
+                                                .getBytes(StandardCharsets.UTF_8));
+        var headers =
+                Map.of("Content-Type", "application/x-www-form-urlencoded", "Authorization", basic);
+        long before =
+                jdbc.sql("SELECT count(*) FROM oauth2_authorization").query(Long.class).single();
+        for (String payload : List.of("' OR 1=1 --", "'; SELECT 1; --")) {
+            String value = URLEncoder.encode(payload, StandardCharsets.UTF_8);
+            var introspected =
+                    browser.send("POST", "/oauth2/introspect", "token=" + value, headers);
+            assertThat(introspected.statusCode()).isEqualTo(200);
+            assertThat(json.readTree(introspected.body()).get("active").asBoolean()).isFalse();
+            assertThat(
+                            browser.send("POST", "/oauth2/revoke", "token=" + value, headers)
+                                    .statusCode())
+                    .isEqualTo(200);
+            var refreshed =
+                    browser.send(
+                            "POST",
+                            "/oauth2/token",
+                            "grant_type=refresh_token&refresh_token=" + value,
+                            headers);
+            assertThat(refreshed.statusCode()).isEqualTo(400);
+            assertThat(json.readTree(refreshed.body()).get("error").asText())
+                    .isEqualTo("invalid_grant");
+        }
+        assertThat(jdbc.sql("SELECT count(*) FROM oauth2_authorization").query(Long.class).single())
+                .isEqualTo(before);
     }
 
     @Test
@@ -487,18 +904,22 @@ class ApiBoundaryIntegrationTest {
 
         HttpResponse<String> write(String method, String path, String body, String type)
                 throws Exception {
+            return write(method, path, body, type, Map.of());
+        }
+
+        HttpResponse<String> write(
+                String method,
+                String path,
+                String body,
+                String type,
+                Map<String, String> extraHeaders)
+                throws Exception {
             var csrf = json.readTree(send("GET", "/api/v1/csrf", null, Map.of()).body());
-            return send(
-                    method,
-                    path,
-                    body,
-                    Map.of(
-                            "Content-Type",
-                            type,
-                            "Origin",
-                            ORIGIN,
-                            csrf.get("headerName").asText(),
-                            csrf.get("token").asText()));
+            var headers = new LinkedHashMap<String, String>(extraHeaders);
+            headers.put("Content-Type", type);
+            headers.put("Origin", ORIGIN);
+            headers.put(csrf.get("headerName").asText(), csrf.get("token").asText());
+            return send(method, path, body, headers);
         }
 
         UUID login(boolean admin) throws Exception {

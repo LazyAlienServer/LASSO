@@ -9,6 +9,7 @@ const templates = {
   '/admin/users': 'admin-users.html',
   '/admin/clients': 'admin-clients.html',
   '/account/recovery-codes': 'recovery-codes.html',
+  '/account': 'account.html',
   '/register': 'register.html',
 };
 const fakeCode = 'LAS-ADMIN-2345-6789-ABCD-EFGH';
@@ -99,7 +100,11 @@ async function main() {
     await page.goto(origin + '/register');
     await page.locator('#captcha-frame[aria-busy=false]').waitFor();
     await page.locator('#username').fill('FixtureUser');
-    await page.locator('#displayName').fill('Fixture');
+    await page.locator('#displayName').fill('😀'.repeat(65));
+    assert.equal(await page.locator('#displayName').evaluate(input => input.checkValidity()), false);
+    await page.locator('#displayName').fill('😀'.repeat(64));
+    assert.equal(await page.locator('#displayName').inputValue(), '😀'.repeat(64));
+    assert.equal(await page.locator('#displayName').evaluate(input => input.checkValidity()), true);
     await page.locator('#password').fill('fixture-password');
     await page.locator('#agreement').check();
     await page.evaluate(() => document.querySelector('altcha-widget').verify());
@@ -114,6 +119,17 @@ async function main() {
     await page.locator('#codes-saved').check();
     await page.goto(origin + '/admin/users');
     console.log('PASS registration clipboard feedback and hidden password reset');
+
+    await page.goto(origin + '/account');
+    await page.locator('#open-edit-display-name').click();
+    const displayName = page.locator('#display-name-form [name=displayName]');
+    await displayName.fill('😀'.repeat(65));
+    assert.equal(await displayName.evaluate(input => input.checkValidity()), false);
+    await displayName.fill('😀'.repeat(64));
+    assert.equal(await displayName.inputValue(), '😀'.repeat(64));
+    assert.equal(await displayName.evaluate(input => input.checkValidity()), true);
+    await page.keyboard.press('Escape');
+    console.log('PASS registration and profile share the 64-code-point display-name limit');
 
     await page.goto(origin + '/account/recovery-codes');
     await page.locator('#rotate-confirmation').check();

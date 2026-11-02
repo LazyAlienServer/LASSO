@@ -15,7 +15,7 @@
 | 调用API | [API说明](docs/zh-CN/api.md)、[OpenAPI](api/openapi.json) |
 | 开发贡献 | [CONTRIBUTING](CONTRIBUTING.md) |
 
-最新发行候选为[0.1.0-rc.1](https://github.com/LazyAlienServer/LASSO/releases/tag/v0.1.0-rc.1)。当前限制和下一步集中在[ROADMAP](ROADMAP.md)，版本变化见[CHANGELOG](CHANGELOG.md)。
+当前软件版本为 [0.1.0-rc.2](https://github.com/LazyAlienServer/LASSO/releases/tag/v0.1.0-rc.2)（发行候选）。server、Starter 和参考 BFF 使用相同版本；当前限制和下一步集中在 [ROADMAP](ROADMAP.md)，版本变化见 [CHANGELOG](CHANGELOG.md)。
 
 ## 本地开发
 
@@ -32,7 +32,7 @@ Linux使用`./gradlew`。SSO为`http://127.0.0.1:9000`，参考BFF另运行`:las
 
 ```powershell
 .\gradlew.bat bootJar --no-daemon --console=plain
-$jar = (Resolve-Path './build/libs/las-sso-server-0.1.0-SNAPSHOT.jar').Path
+$jar = (Resolve-Path './build/libs/las-sso-server-0.1.0-rc.2.jar').Path
 $hash = (Get-FileHash -LiteralPath $jar -Algorithm SHA256).Hash
 ./scripts/bootstrap-admin.ps1 -Username InitialAdmin -Profile local -JarPath $jar -ExpectedSha256 $hash
 ```

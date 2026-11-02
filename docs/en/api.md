@@ -20,7 +20,7 @@ SSO uses session-based CSRF, not an assumed separate CSRF Cookie. GET `/api/v1/c
 
 ## Request and result handling
 
-- JSON successes are direct DTOs/lists; 204 is empty. Application JSON uses UTF-8: invalid bytes, UTF-16/32 and an explicitly different charset are rejected. Unknown fields, number/boolean-to-string coercion and null elements in client configuration lists are rejected with 400.
+- JSON successes are direct DTOs/lists; 204 is empty. Application JSON uses UTF-8: invalid bytes, UTF-16/32 and an explicitly different charset are rejected. Duplicate fields (including escape-equivalent names), unpaired Unicode surrogates after JSON unescaping, unknown fields, number/boolean-to-string coercion and null elements in client configuration lists are rejected with 400. Valid supplementary characters/emoji round-trip unchanged; passwords are never normalized or replacement-decoded.
 - Servlet response encoding is set before security filters write: `spring.servlet.encoding.charset=UTF-8` and `spring.servlet.encoding.force-response=true` (Boot 4 property names). This also covers the framework JWKS endpoint; JSON Content-Type has no charset or declares UTF-8, never ISO-8859-1. OAuth/OIDC response bodies remain unwrapped.
 - Time uses RFC3339 offset strings. Labels such as lastUsedLabel are display text, not timestamps.
 - `X-Request-Id` covers application processing and early security refusals; the same value is in application error bodies. It is correlation, not authorization/idempotency. Requests rejected by the HTTP server before Servlet processing may have only the container response. Do not log authentication bodies/headers.
@@ -34,10 +34,11 @@ SSO uses session-based CSRF, not an assumed separate CSRF Cookie. GET `/api/v1/c
 | Session/change-required/deletion/CSRF/role checks | Same Problem contract; API 401/403 never redirects to HTML login |
 | Password-change errors | Same Problem contract; wrong current password remains 401 |
 | Internal Basic | Same Problem contract, 401 retains WWW-Authenticate with `charset="UTF-8"`; 429 retains Retry-After |
+| Token/revoke/introspect without client authentication | Native OAuth `invalid_client`, 401; no login redirect for missing Accept, `*/*`, HTML or JSON Accept |
 | Browser pages and password login | HTML, redirects or text 429/Retry-After |
 | OAuth/OIDC, health and metrics | Their native protocol/media formats; never business-wrapped |
 
-Clients branch on HTTP status and stable code, not localized title/detail. Unhandled application failures return a safe generic Problem without exception text. Servlet 404/405/415 use the same contract and preserve headers such as Allow. Basic credentials on the internal query are Base64 of UTF-8 `clientId:secret`, with malformed UTF-8 rejected; OAuth client_secret_basic retains its own form-encoding rules. ASCII-only IDs/codes and binary signatures keep their defined byte formats.
+Clients branch on HTTP status and stable code, not localized title/detail. Unhandled application failures return a safe generic Problem without exception text. Servlet 404/405/415 use the same contract and preserve headers such as Allow. Basic credentials on the internal query are Base64 of UTF-8 `clientId:secret`, with malformed UTF-8 rejected. OAuth `client_secret_basic` separately UTF-8 form-encodes the ID and secret before joining with `:` and Base64; both revocation workers follow that rule, including `+`, spaces, `%`, `:` and non-ASCII credentials. ASCII-only IDs/codes and binary signatures keep their defined byte formats.
 
 ## Application groups
 
@@ -51,7 +52,7 @@ Clients branch on HTTP status and stable code, not localized title/detail. Unhan
 | Protocol integration |[Integration](integration.md); backend Tokens and separate business authorization |
 | Offline bootstrap/reset/epoch |[Operations](operations.md), [recovery](recovery.md); not HTTP admin endpoints |
 
-Registration Location does not establish a GET `/api/v1/users/{id}`. There is no generic `/api/v1/me` summary or avatar upload. Display name is trimmed1–64 code points; avatar is null or default-alien-01. Login form field is **rememberDevice**.
+Registration Location does not establish a GET `/api/v1/users/{id}`. There is no generic `/api/v1/me` summary or avatar upload. Registration and profile display names share a 1–64 Unicode-code-point limit (not UTF-16 units, bytes or grapheme clusters); profile updates strip surrounding whitespace. Both browser forms use the same code-point count. Avatar is null or default-alien-01. Login form field is **rememberDevice**.
 
 ## Internal eligibility
 

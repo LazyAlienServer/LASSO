@@ -5,6 +5,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import java.util.UUID;
+import org.hibernate.validator.constraints.CodePointLength;
 import org.las.sso.api.RequestIdFilter;
 import org.las.sso.identity.LasUserPrincipal;
 import org.las.sso.security.RecentAuthenticationException;
@@ -103,7 +104,7 @@ public class ProfileController {
     }
 
     public record ProfileUpdateRequest(
-            @NotBlank @Size(max = 512) String displayName,
+            @NotBlank @CodePointLength(max = 64) String displayName,
             @Size(max = 128) String avatarResourceId) {}
 
     public record UsernameChangeRequest(

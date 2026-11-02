@@ -16,6 +16,17 @@ class PasswordPolicyTest {
     }
 
     @Test
+    void rejectsUnpairedSurrogatesWithoutChangingValidSupplementaryPasswords() {
+        assertThatCode(() -> policy.validate("Alice", "😀".repeat(128))).doesNotThrowAnyException();
+        for (String invalid : new String[] {"valid phrase \uD800", "valid phrase \uDC00"}) {
+            assertThatThrownBy(() -> policy.validate("Alice", invalid))
+                    .isInstanceOf(PasswordPolicyException.class)
+                    .extracting("code")
+                    .isEqualTo("PASSWORD_INVALID_UNICODE");
+        }
+    }
+
+    @Test
     void rejectsShortCommonAndUsernamePasswords() {
         assertThatThrownBy(() -> policy.validate("Alice", "too-short"))
                 .isInstanceOf(PasswordPolicyException.class)

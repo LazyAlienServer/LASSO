@@ -1,6 +1,6 @@
 # Release tooling
 
-Current delivery: [RC1](https://github.com/LazyAlienServer/LASSO/releases/tag/v0.1.0-rc.1), [evidence](verification/0.1.0-rc.1.json). History: [archive](../docs/archive/README.md). Current stable-image follow-up is in [ROADMAP](../ROADMAP.md).
+Current version: [RC2](https://github.com/LazyAlienServer/LASSO/releases/tag/v0.1.0-rc.2); current build/scan/package evidence is delivered as Release assets and package provenance. [RC1 evidence](verification/0.1.0-rc.1.json) covers only its original bytes. History: [archive](../docs/archive/README.md). Current stable-image follow-up is in [ROADMAP](../ROADMAP.md).
 
 From clean committed source, JDK21/Docker/Python3.10+:
 

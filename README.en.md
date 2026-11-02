@@ -13,7 +13,7 @@ Java21/Spring Boot/PostgreSQL identity service: accounts/password recovery, OIDC
 | Call API | [API](docs/en/api.md), [OpenAPI](api/openapi.json) |
 | Contribute | [CONTRIBUTING](CONTRIBUTING.md) |
 
-Latest candidate: [0.1.0-rc.1](https://github.com/LazyAlienServer/LASSO/releases/tag/v0.1.0-rc.1). Current work/limits: [ROADMAP](ROADMAP.md). Version changes: [CHANGELOG](CHANGELOG.md).
+Current software version: [0.1.0-rc.2](https://github.com/LazyAlienServer/LASSO/releases/tag/v0.1.0-rc.2) (prerelease). Server, starter and reference BFF share this version. Current work/limits: [ROADMAP](ROADMAP.md). Version changes: [CHANGELOG](CHANGELOG.md).
 
 ## Local development
 
@@ -30,7 +30,7 @@ To initialize a development administrator, stop bootRun and keep PostgreSQL runn
 
 ```powershell
 .\gradlew.bat bootJar --no-daemon --console=plain
-$jar = (Resolve-Path './build/libs/las-sso-server-0.1.0-SNAPSHOT.jar').Path
+$jar = (Resolve-Path './build/libs/las-sso-server-0.1.0-rc.2.jar').Path
 $hash = (Get-FileHash -LiteralPath $jar -Algorithm SHA256).Hash
 ./scripts/bootstrap-admin.ps1 -Username InitialAdmin -Profile local -JarPath $jar -ExpectedSha256 $hash
 ```

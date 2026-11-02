@@ -4,7 +4,7 @@
 
 ## Credentials and browser boundaries
 
-- Passwords: 12–128 Unicode code points, at most 512 UTF-8 bytes; allow spaces, reject username/common/reused password as applicable. Default digest is Argon2id.
+- Passwords: 12–128 Unicode code points, at most 512 UTF-8 bytes; reject unpaired surrogates without normalization/replacement, allow spaces, reject username/common/reused password as applicable. Default digest is Argon2id.
 - Username: case-sensitive ASCII letters/digits/underscore, 3–24 characters.
 - New recovery batches contain ten 80-bit codes, shown once. Rotation invalidates the old batch. Self-service recovery preserves other unused ordinary codes; normal change/promotion/reset invalidates applicable old material.
 - Manual recovery is for an independently verified ordinary account. At least two independent bases, minimal record, private delivery; administrator recovery uses offline maintenance.
@@ -44,6 +44,8 @@ Refresh reuse revokes the owner family and produces critical evidence. Foreign-c
 Restore is a new epoch/signing-key barrier, not simply a binary rollback. Preserve permanent identity/audit facts and retire old consumer sessions/cache/evidence; [recovery](recovery.md) is the procedure.
 
 ## Data and records
+
+Application SQL binds request-derived values through JDBC parameters, including filters, IDs, text, arrays, Tokens and audit reasons. Table names/order/locking fragments are fixed internal choices, not request SQL; framework OAuth/session repositories also bind their values. Admin substring searches intentionally retain PostgreSQL `ILIKE` `%`/`_` wildcard semantics: broader wildcard matches are not SQL execution. Preserve parameterization rather than stripping ordinary quotes from names/reasons. Isolated PostgreSQL HTTP regressions cover SQL-looking filters, invalid typed cursors/IDs, text round-trips and rejected authentication; they do not establish absence of every possible injection.
 
 Keep passwords/peppers/client secrets, keys, codes, Tokens, Cookies and queue ciphertext out of Git, release packages and logs. Retain only bounded error categories/request IDs and sanitized evidence. Live RT/hints and pending/dead work are protected from automatic pruning; terminal session/credential retention minimum 90 days, expired authorization/RT/completed outbox minimum 30 days.
 

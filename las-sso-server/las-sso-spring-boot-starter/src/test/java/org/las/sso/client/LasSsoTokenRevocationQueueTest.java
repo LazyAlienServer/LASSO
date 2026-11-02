@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.sun.net.httpserver.HttpServer;
 import java.net.InetSocketAddress;
+import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -128,6 +129,36 @@ class LasSsoTokenRevocationQueueTest {
                                                             .getBytes(StandardCharsets.UTF_8)));
             assertThat(endpoint.bodies)
                     .containsExactly("token=revocation-token-canary&token_type_hint=refresh_token");
+        }
+    }
+
+    @Test
+    void oauthBasicFormEncodesEachCredentialBeforeBase64() throws Exception {
+        try (var endpoint = new Endpoint(200);
+                var timer = new ControlledScheduler();
+                var queue = new LasSsoTokenRevocationQueue(timer)) {
+            String id = "client:+ %/中文";
+            String secret = "secret:+ %/秘密";
+            queue.submit(
+                    ClientRegistration.withClientRegistration(registration(endpoint.uri()))
+                            .clientId(id)
+                            .clientSecret(secret)
+                            .build(),
+                    "token+ &fixture",
+                    "refresh_token");
+            timer.runAll();
+            assertThat(endpoint.auth).hasSize(1);
+            String basic =
+                    new String(
+                            Base64.getDecoder().decode(endpoint.auth.getFirst().substring(6)),
+                            StandardCharsets.US_ASCII);
+            String[] parts = basic.split(":", -1);
+            assertThat(parts).hasSize(2);
+            assertThat(URLDecoder.decode(parts[0], StandardCharsets.UTF_8)).isEqualTo(id);
+            assertThat(URLDecoder.decode(parts[1], StandardCharsets.UTF_8)).isEqualTo(secret);
+            assertThat(endpoint.calls).hasValue(1);
+            assertThat(endpoint.bodies)
+                    .containsExactly("token=token%2B+%26fixture&token_type_hint=refresh_token");
         }
     }
 

@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.sun.net.httpserver.HttpServer;
 import java.net.InetSocketAddress;
+import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.OffsetDateTime;
@@ -125,6 +126,31 @@ class JdbcRevocationIntegrationTest {
                                                             .getBytes(StandardCharsets.UTF_8)));
             worker(registration).poll();
             assertThat(endpoint.calls).hasValue(1);
+        }
+    }
+
+    @Test
+    void durableWorkerFormEncodesBothOAuthBasicCredentials() throws Exception {
+        try (var endpoint = new Endpoint(200)) {
+            String clientId = "reference:+ %/中文";
+            String secret = "secret:+ %/秘密";
+            var registration =
+                    ClientRegistration.withClientRegistration(registration(endpoint.uri(), secret))
+                            .clientId(clientId)
+                            .build();
+            queue().submit(registration, TOKEN, "refresh_token");
+            UUID taskId = id();
+            worker(registration).poll();
+            assertThat(state(taskId)).containsEntry("completed", true);
+            assertThat(endpoint.auth).hasSize(1);
+            String basic =
+                    new String(
+                            Base64.getDecoder().decode(endpoint.auth.getFirst().substring(6)),
+                            StandardCharsets.US_ASCII);
+            String[] parts = basic.split(":", -1);
+            assertThat(parts).hasSize(2);
+            assertThat(URLDecoder.decode(parts[0], StandardCharsets.UTF_8)).isEqualTo(clientId);
+            assertThat(URLDecoder.decode(parts[1], StandardCharsets.UTF_8)).isEqualTo(secret);
         }
     }
 

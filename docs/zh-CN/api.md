@@ -20,7 +20,7 @@ CSRF为session状态，不假设独立CSRF Cookie。同jar GET `/api/v1/csrf`，
 
 ## 请求与结果
 
-- JSON 成功直接返回 DTO/列表，204 空正文。应用 JSON 使用 UTF-8，拒绝非法字节、UTF-16/32 和显式指定的其他 charset；未知字段、数字/布尔值转字符串、client 配置数组中的 null 元素均返回 400。
+- JSON 成功直接返回 DTO/列表，204 空正文。应用 JSON 使用 UTF-8，拒绝非法字节、UTF-16/32 和显式指定的其他 charset；重复字段（含转义后同名）、JSON 反转义后的孤立 Unicode 代理项、未知字段、数字/布尔值转字符串、client 配置数组中的 null 元素均返回 400。合法补充平面字符/emoji 原样往返；密码不做归一化或替换解码。
 - 在安全过滤器写正文之前设置 Servlet 响应编码：`spring.servlet.encoding.charset=UTF-8` 和 `spring.servlet.encoding.force-response=true`（Boot 4 属性名）。这也覆盖框架 JWKS 接口；JSON Content-Type 不带 charset 或声明 UTF-8，不再声明 ISO-8859-1。OAuth/OIDC 正文不加业务包装。
 - 时间为RFC3339 offset；lastUsedLabel等是显示文案，不是timestamp。
 - X-Request-Id 覆盖应用处理和安全过滤器提前拒绝，同一值写入应用错误正文；它用于关联，不是授权/幂等证明。HTTP 服务器在 Servlet 处理前拒绝的请求可能只有容器响应。不记录认证 body/header。
@@ -34,10 +34,11 @@ CSRF为session状态，不假设独立CSRF Cookie。同jar GET `/api/v1/csrf`，
 | 会话/强改/注销/CSRF/角色检查 | 相同 Problem 契约；API 401/403 不跳转 HTML 登录页 |
 | 改密错误 | 相同 Problem 契约；当前密码错误仍为 401 |
 | 内部 Basic | 相同 Problem 契约；401 保留带 `charset="UTF-8"` 的 WWW-Authenticate，429 保留 Retry-After |
+| token/revoke/introspect 缺客户端认证 | 原生 OAuth `invalid_client`、401；Accept 缺失、`*/*`、HTML 或 JSON 均不跳登录 |
 | 浏览器页面及密码登录 | HTML、跳转或文本 429/Retry-After |
 | OAuth/OIDC、health、metrics | 保留协议及媒体原格式，不加业务包装 |
 
-调用方依据 HTTP 状态和稳定 code 判断，不依赖可翻译的 title/detail。未处理应用异常返回安全通用 Problem，不暴露异常文字；Servlet 404/405/415 同样处理，并保留 Allow 等头。内部查询 Basic 为 UTF-8 `clientId:secret` 的 Base64，拒绝非法 UTF-8；OAuth client_secret_basic 保留自身表单编码规则。仅含 ASCII 的 ID/码及二进制签名保持各自字节格式。
+调用方依据 HTTP 状态和稳定 code 判断，不依赖可翻译的 title/detail。未处理应用异常返回安全通用 Problem，不暴露异常文字；Servlet 404/405/415 同样处理，并保留 Allow 等头。内部查询 Basic 为 UTF-8 `clientId:secret` 的 Base64，拒绝非法 UTF-8。OAuth `client_secret_basic` 先分别对 ID 和 secret 做 UTF-8 表单编码，再以 `:` 连接并 Base64；两个撤销 worker 均遵循此规则，包括 `+`、空格、`%`、`:` 和非 ASCII 凭据。仅含 ASCII 的 ID/码及二进制签名保持各自字节格式。
 
 ## 接口组
 
@@ -51,7 +52,7 @@ CSRF为session状态，不假设独立CSRF Cookie。同jar GET `/api/v1/csrf`，
 | 协议接入 | [接入](integration.md)；Token服务端、业务授权独立 |
 | bootstrap/reset/epoch | [运维](operations.md)、[恢复](recovery.md)；非HTTP管理端点 |
 
-注册Location不表示存在GET `/api/v1/users/{id}`；无通用`/api/v1/me`摘要/头像上传。显示名trim后1–64 code point，头像null或default-alien-01。login字段为**rememberDevice**。
+注册 Location 不表示存在 GET `/api/v1/users/{id}`；无通用 `/api/v1/me` 摘要/头像上传。注册和修改资料的显示名统一为 1–64 个 Unicode 码点（不是 UTF-16 单元、字节或字形簇）；修改资料会去除首尾空白。两个浏览器表单也按码点计数。头像 null 或 default-alien-01，login 字段为 **rememberDevice**。
 
 ## 内部资格
 

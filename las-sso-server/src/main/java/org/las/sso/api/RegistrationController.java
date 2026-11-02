@@ -8,6 +8,7 @@ import jakarta.validation.constraints.Size;
 import java.net.URI;
 import java.util.List;
 import java.util.UUID;
+import org.hibernate.validator.constraints.CodePointLength;
 import org.las.sso.account.RegistrationApplicationService;
 import org.las.sso.security.AltchaChallengeService;
 import org.las.sso.security.ClientNetworkKey;
@@ -98,7 +99,7 @@ public class RegistrationController {
 
     public record RegistrationRequest(
             @NotBlank @Size(max = 24) String username,
-            @NotBlank @Size(max = 64) String displayName,
+            @NotBlank @CodePointLength(max = 64) String displayName,
             @NotBlank @Size(max = 512) String password,
             @NotNull @Valid CaptchaSubmission captcha) {}
 

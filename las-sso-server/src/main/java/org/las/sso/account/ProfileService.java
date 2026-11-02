@@ -8,6 +8,7 @@ import java.util.Set;
 import java.util.UUID;
 import org.las.sso.identity.UuidV7Generator;
 import org.las.sso.security.RecentAuthenticationException;
+import org.las.sso.validation.UnicodeText;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -51,7 +52,9 @@ public class ProfileService {
     @Transactional
     public View updateProfile(
             UUID userId, String displayName, String avatarResourceId, UUID requestId) {
-        if (displayName == null || displayName.strip().isEmpty()) {
+        if (displayName == null
+                || displayName.strip().isEmpty()
+                || !UnicodeText.isWellFormed(displayName)) {
             throw new IllegalArgumentException("Display name required");
         }
         String normalized = displayName.strip();

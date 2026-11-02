@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.regex.Pattern;
 import org.las.sso.identity.UuidV7Generator;
+import org.las.sso.validation.UnicodeText;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -128,6 +129,7 @@ public class AccountRegistrationService {
         }
         if (displayName == null
                 || displayName.isBlank()
+                || !UnicodeText.isWellFormed(displayName)
                 || displayName.codePointCount(0, displayName.length()) > 64) {
             throw new IllegalArgumentException("DISPLAY_NAME_INVALID");
         }

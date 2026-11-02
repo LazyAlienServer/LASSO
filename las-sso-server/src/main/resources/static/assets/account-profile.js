@@ -8,6 +8,13 @@
   const displayNameForm = document.getElementById("display-name-form");
   const usernameDialog = document.getElementById("username-dialog");
   const usernameForm = document.getElementById("username-form");
+  const displayNameInput = displayNameForm.elements.displayName;
+
+  function validateDisplayName() {
+    displayNameInput.setCustomValidity([...displayNameInput.value].length > 64
+      ? "请输入不超过 64 个字符的显示名称。" : "");
+  }
+  displayNameInput.addEventListener("input", validateDisplayName);
 
   async function request(method, url, body) {
     const response = await fetch(url, {
@@ -31,6 +38,7 @@
 
   document.getElementById("open-edit-display-name").addEventListener("click", () => {
     displayNameForm.reset();
+    validateDisplayName();
     document.getElementById("display-name-error").textContent = "";
     displayNameDialog.showModal();
     displayNameForm.elements.displayName.focus({ preventScroll: true });
@@ -40,6 +48,7 @@
 
   displayNameForm.addEventListener("submit", async (event) => {
     event.preventDefault();
+    validateDisplayName();
     if (!displayNameForm.reportValidity()) return;
     const submit = document.getElementById("display-name-submit");
     const error = document.getElementById("display-name-error");
